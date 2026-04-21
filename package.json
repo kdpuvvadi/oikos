@@ -1,0 +1,17 @@
+{
+  "name": "oikos",
+  "version": "1.0.0",
+  "description": "Oikos, Simple Express and PocketBase expenses management system.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "setup:pocketbase": "node scripts/setup-pocketbase.mjs",
+    "make:admin": "node scripts/make-admin.mjs",
+    "check": "node --check server.js && node --check scripts/setup-pocketbase.mjs && node --check scripts/make-admin.mjs"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pocketbase": "^0.26.8"
+  }
+}

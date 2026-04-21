@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Oikos</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">💸 Oikos</a>
+      <nav aria-label="Main navigation">
+        <a href="/" data-nav="/">Home</a>
+        <a href="/categories" data-nav="/categories">Categories</a>
+        <a href="/stores" data-nav="/stores">Stores</a>
+        <a href="/payment-methods" data-nav="/payment-methods">Payment Methods</a>
+        <a href="/transactions" data-nav="/transactions">Transactions</a>
+        <a href="/dashboard" data-nav="/dashboard">Dashboard</a>
+        <a href="/filter" data-nav="/filter">Filter</a>
+      </nav>
+      <div class="user-menu hidden" id="userMenu">
+        <span id="userName"></span>
+        <button type="button" id="logoutButton">Logout</button>
+      </div>
+    </header>
+
+    <section id="authPage" class="auth-shell">
+      <div class="page-title">
+        <h1>Sign in</h1>
+      </div>
+      <div class="auth-grid">
+        <form id="loginForm" class="panel form-stack">
+          <h2>Login</h2>
+          <label>
+            Email
+            <input type="email" name="email" autocomplete="email" required>
+          </label>
+          <label>
+            Password
+            <input type="password" name="password" autocomplete="current-password" required>
+          </label>
+          <button type="submit">Login</button>
+        </form>
+
+        <form id="registerForm" class="panel form-stack">
+          <h2>Create account</h2>
+          <label>
+            Name
+            <input type="text" name="name" autocomplete="name" placeholder="Optional">
+          </label>
+          <label>
+            Email
+            <input type="email" name="email" autocomplete="email" required>
+          </label>
+          <label>
+            Password
+            <input type="password" name="password" autocomplete="new-password" minlength="8" required>
+          </label>
+          <button type="submit">Create account</button>
+        </form>
+      </div>
+    </section>
+
+    <main id="appShell" class="hidden">
+      <section id="homePage" class="page">
+        <div class="page-title">
+          <p class="eyebrow">This month</p>
+          <h1>Expense entry</h1>
+        </div>
+
+        <div class="stats-grid">
+          <article class="stat-card">
+            <span>This month so far</span>
+            <strong id="thisMonthTotal">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>Last month total</span>
+            <strong id="lastMonthTotal">0</strong>
+          </article>
+        </div>
+
+        <form id="expenseForm" class="panel form-grid">
+          <label>
+            Date
+            <input type="date" name="date" required>
+          </label>
+          <label>
+            Amount spent
+            <input type="number" name="amount" min="0.01" step="0.01" placeholder="0.00" required>
+          </label>
+          <label>
+            Payment mode
+            <select name="paymentMethod" id="oikosPaymentMethod"></select>
+          </label>
+          <label>
+            Expense category
+            <select name="category" id="oikosCategory" required></select>
+          </label>
+          <label id="newCategoryWrap" class="hidden">
+            New category
+            <input type="text" name="categoryName" placeholder="Example: Travel">
+          </label>
+          <label>
+            Subcategory
+            <select name="subcategory" id="oikosSubcategory" required></select>
+          </label>
+          <label id="newSubcategoryWrap" class="hidden">
+            New subcategory
+            <input type="text" name="subcategoryName" placeholder="Example: Train tickets">
+          </label>
+          <label>
+            Store
+            <select name="store" id="oikosStore" required></select>
+          </label>
+          <label id="newStoreWrap" class="hidden">
+            New store
+            <input type="text" name="storeName" placeholder="Example: Corner shop">
+          </label>
+          <button type="submit">Submit expense</button>
+        </form>
+      </section>
+
+      <section id="categoriesPage" class="page">
+        <div class="page-title">
+          <p class="eyebrow">Categories</p>
+          <h1>Categories</h1>
+        </div>
+        <form id="categoryForm" class="panel inline-form admin-only">
+          <input type="text" name="name" placeholder="Category name" required>
+          <input type="text" name="subcategoryName" placeholder="Optional subcategory">
+          <button type="submit">Add category</button>
+        </form>
+        <div id="categoryList" class="list-grid"></div>
+      </section>
+
+      <section id="storesPage" class="page">
+        <div class="page-title">
+          <p class="eyebrow">Stores</p>
+          <h1>Stores</h1>
+        </div>
+        <form id="storeForm" class="panel inline-form">
+          <input type="text" name="name" placeholder="Store name" required>
+          <button type="submit">Add store</button>
+        </form>
+        <div id="storeList" class="list-grid compact"></div>
+      </section>
+
+      <section id="paymentMethodsPage" class="page">
+        <div class="page-title">
+          <p class="eyebrow">Payment methods</p>
+          <h1>Payment methods</h1>
+        </div>
+        <form id="paymentMethodForm" class="panel inline-form admin-only">
+          <input type="text" name="name" placeholder="Payment method name" required>
+          <button type="submit">Add payment method</button>
+        </form>
+        <div id="paymentMethodList" class="list-grid compact"></div>
+      </section>
+
+      <section id="transactionsPage" class="page">
+        <div class="page-title">
+          <p class="eyebrow">Transactions</p>
+          <h1>Transactions</h1>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Payment mode</th>
+                <th>Category</th>
+                <th>Subcategory</th>
+                <th>Store</th>
+                <th class="admin-only">User</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="transactionsTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="dashboardPage" class="page">
+        <div class="page-title">
+          <p class="eyebrow">Dashboard</p>
+          <h1>Dashboard</h1>
+        </div>
+        <div class="dashboard-grid">
+          <section class="panel">
+            <h2>By month</h2>
+            <div id="monthChart" class="bars"></div>
+          </section>
+          <section class="panel">
+            <h2>By category</h2>
+            <div id="categoryChart" class="bars"></div>
+          </section>
+          <section class="panel">
+            <h2>By store</h2>
+            <div id="storeChart" class="bars"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="filterPage" class="page">
+        <div class="page-title">
+          <p class="eyebrow">Filter</p>
+          <h1>Pivot filter</h1>
+        </div>
+        <form id="pivotForm" class="panel inline-form">
+          <label>
+            Rows
+            <select name="row">
+              <option value="month">Month</option>
+              <option value="category">Category</option>
+              <option value="subcategory">Subcategory</option>
+              <option value="store">Store</option>
+              <option value="paymentMethod">Payment mode</option>
+            </select>
+          </label>
+          <label>
+            Columns
+            <select name="column">
+              <option value="category">Category</option>
+              <option value="month">Month</option>
+              <option value="subcategory">Subcategory</option>
+              <option value="store">Store</option>
+              <option value="paymentMethod">Payment mode</option>
+            </select>
+          </label>
+          <button type="submit">Apply</button>
+        </form>
+        <div class="table-wrap">
+          <table id="pivotTable"></table>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="editTransactionDialog">
+      <form id="editTransactionForm" class="form-stack">
+        <div class="dialog-title">
+          <h2>Edit transaction</h2>
+          <button type="button" class="ghost" id="closeEditDialog">Close</button>
+        </div>
+        <input type="hidden" name="id">
+        <label>
+          Date
+          <input type="date" name="date" required>
+        </label>
+        <label>
+          Amount spent
+          <input type="number" name="amount" min="0.01" step="0.01" required>
+        </label>
+        <label>
+          Payment mode
+          <select name="paymentMethod" id="editPaymentMethod"></select>
+        </label>
+        <label>
+          Expense category
+          <select name="category" id="editCategory" required></select>
+        </label>
+        <label>
+          Subcategory
+          <select name="subcategory" id="editSubcategory" required></select>
+        </label>
+        <label>
+          Store
+          <select name="store" id="editStore" required></select>
+        </label>
+        <button type="submit">Save changes</button>
+      </form>
+    </dialog>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
