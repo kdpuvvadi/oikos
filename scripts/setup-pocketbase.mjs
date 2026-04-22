@@ -160,9 +160,9 @@ async function main() {
     system: false,
     listRule: authRule,
     viewRule: authRule,
-    createRule: authRule,
-    updateRule: authRule,
-    deleteRule: authRule,
+    createRule: adminRule,
+    updateRule: adminRule,
+    deleteRule: adminRule,
     fields: [textField('name')]
   });
 
