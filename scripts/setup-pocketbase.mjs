@@ -223,7 +223,7 @@ async function main() {
     }
   }
 
-  for (const storeName of ['General Store', 'Local Market', 'Amazon', 'Flipkart', 'Zepto', 'BigBasket', 'Ratnadeep', 'Vijetha', 'Restaurant', 'Petrol Pump', 'Pharmacy', 'Clothing Store', 'Blinkit', 'Swiggy', 'Zomato', 'Uber', 'Ola', 'Public Transport', 'JioMart', 'Dmart', 'Sid\'s','Heritage', 'Ikea', 'other']) {
+  for (const storeName of ['General Store', 'Local Market', 'Amazon', 'Flipkart', 'Zepto', 'BigBasket', 'Ratnadeep', 'Vijetha', 'Restaurant', 'Petrol Pump', 'Pharmacy', 'Clothing Store', 'Blinkit', 'Swiggy', 'Zomato', 'Uber', 'Ola', 'Public Transport', 'JioMart', 'Dmart', 'Sid\'s','Heritage', 'Ikea', 'Cred', 'other']) {
     await seedRecord('oikos_stores', { name: storeName });
   }
 
