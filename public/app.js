@@ -127,7 +127,7 @@ function renderSelects() {
   storeSelect.innerHTML = [
     option('', 'Select store'),
     ...state.stores.map((store) => option(store.id, store.name)),
-    option('__new__', 'Add new store')
+    ...(admin ? [option('__new__', 'Add new store')] : [])
   ].join('');
 
   qs('#oikosPaymentMethod').innerHTML = [
