@@ -290,7 +290,7 @@ app.get('/api/stores', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/stores', requireAuth, async (req, res) => {
+app.post('/api/stores', requireAuth, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Store name is required.' });
@@ -363,8 +363,8 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
     let subcategoryId = sanitizeName(req.body.subcategory);
     let storeId = sanitizeName(req.body.store);
 
-    if ((req.body.categoryName || req.body.subcategoryName) && !isAdmin(req.user)) {
-      return res.status(403).json({ error: 'Only admins can add categories or subcategories.' });
+    if ((req.body.categoryName || req.body.subcategoryName || req.body.storeName) && !isAdmin(req.user)) {
+      return res.status(403).json({ error: 'Only admins can add categories, subcategories, or stores.' });
     }
 
     if (req.body.categoryName) {
