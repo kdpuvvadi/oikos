@@ -412,12 +412,13 @@ async function submitEditTransaction(event) {
 
 async function submitCategory(event) {
   event.preventDefault();
+  const form = qs('#categoryForm');
   try {
     await api('/api/categories', {
       method: 'POST',
       body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))
     });
-    event.currentTarget.reset();
+    form.reset();
     toast('Category saved.');
     await loadData();
   } catch (error) {
@@ -461,24 +462,34 @@ async function editSubcategory(id) {
 
 async function submitStore(event) {
   event.preventDefault();
-  await api('/api/stores', {
-    method: 'POST',
-    body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))
-  });
-  event.currentTarget.reset();
-  toast('Store saved.');
-  await loadData();
+  const form = qs('#storeForm');
+  try {
+    await api('/api/stores', {
+      method: 'POST',
+      body: JSON.stringify(Object.fromEntries(new FormData(form)))
+    });
+    form.reset();
+    toast('Store saved.');
+    await loadData();
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 async function submitPaymentMethod(event) {
   event.preventDefault();
-  await api('/api/payment-methods', {
-    method: 'POST',
-    body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))
-  });
-  event.currentTarget.reset();
-  toast('Payment method saved.');
-  await loadData();
+  const form = qs('#paymentMethodForm');
+  try {
+    await api('/api/payment-methods', {
+      method: 'POST',
+      body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))
+    });
+    event.currentTarget.reset();
+    toast('Payment method saved.');
+    await loadData();
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 async function editPaymentMethod(id) {
