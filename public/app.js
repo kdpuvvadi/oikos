@@ -62,6 +62,7 @@ function showPage() {
   qsa('.page').forEach((page) => page.classList.remove('active'));
   qs(`#${routes[path]}`).classList.add('active');
   qsa('[data-nav]').forEach((link) => link.classList.toggle('active', link.dataset.nav === path));
+  closeMobileNav();
 }
 
 function isAdmin() {
@@ -72,10 +73,13 @@ function setAuthView(user) {
   state.user = user;
   document.body.classList.toggle('is-authenticated', Boolean(user));
   document.body.classList.toggle('is-admin', Boolean(user?.isAdmin || user?.kind === 'admin'));
+  document.body.classList.remove('mobile-nav-open');
   qs('#authPage').classList.toggle('hidden', Boolean(user));
   qs('#appShell').classList.toggle('hidden', !user);
   qs('#userMenu').classList.toggle('hidden', !user);
   qs('nav').classList.toggle('hidden', !user);
+  qs('#menuToggle').classList.toggle('hidden', !user);
+  qs('#menuToggle').setAttribute('aria-expanded', 'false');
   qs('#userName').textContent = user ? `${user.name}${isAdmin() ? ' (admin)' : ''}` : '';
 }
 
@@ -85,6 +89,16 @@ function navigate(event) {
   event.preventDefault();
   history.pushState(null, '', link.href);
   showPage();
+}
+
+function closeMobileNav() {
+  document.body.classList.remove('mobile-nav-open');
+  qs('#menuToggle').setAttribute('aria-expanded', 'false');
+}
+
+function toggleMobileNav() {
+  const isOpen = document.body.classList.toggle('mobile-nav-open');
+  qs('#menuToggle').setAttribute('aria-expanded', String(isOpen));
 }
 
 function option(value, label) {
@@ -213,21 +227,21 @@ function renderCategories() {
 function renderTransactions() {
   qs('#transactionsTable').innerHTML = state.transactions.map((transaction) => `
     <tr>
-      <td>${transaction.date.slice(0, 10)}</td>
-      <td>${money.format(Number(transaction.amount))}</td>
-      <td>${transaction.expand?.payment_method?.name || transaction.paymentMethod || ''}</td>
-      <td>${transaction.expand?.category?.name || ''}</td>
-      <td>${transaction.expand?.subcategory?.name || ''}</td>
-      <td>${transaction.expand?.store?.name || ''}</td>
-      <td class="admin-only">${transaction.expand?.user?.email || transaction.expand?.user?.name || ''}</td>
-      <td>
+      <td class="transaction-cell transaction-date-cell" data-label="Date"><span class="transaction-value transaction-date">${transaction.date.slice(0, 10)}</span></td>
+      <td class="transaction-cell transaction-amount-cell" data-label="Amount"><strong class="transaction-value transaction-amount">${money.format(Number(transaction.amount))}</strong></td>
+      <td class="transaction-cell transaction-payment-cell" data-label="Payment mode"><span class="transaction-value">${transaction.expand?.payment_method?.name || transaction.paymentMethod || 'Not set'}</span></td>
+      <td class="transaction-cell transaction-category-cell" data-label="Category"><span class="transaction-value">${transaction.expand?.category?.name || 'Uncategorized'}</span></td>
+      <td class="transaction-cell transaction-subcategory-cell" data-label="Subcategory"><span class="transaction-value">${transaction.expand?.subcategory?.name || 'None'}</span></td>
+      <td class="transaction-cell transaction-store-cell" data-label="Store"><span class="transaction-value">${transaction.expand?.store?.name || 'Unknown'}</span></td>
+      <td class="transaction-cell transaction-user-cell admin-only" data-label="User"><span class="transaction-value">${transaction.expand?.user?.email || transaction.expand?.user?.name || ''}</span></td>
+      <td class="transaction-cell transaction-actions-cell" data-label="Actions">
         <div class="row-actions">
           <button class="ghost" data-edit="${transaction.id}">Edit</button>
           <button class="danger" data-delete="${transaction.id}">Delete</button>
         </div>
       </td>
     </tr>
-  `).join('') || '<tr><td colspan="8">No transactions yet.</td></tr>';
+  `).join('') || '<tr class="table-empty-row"><td colspan="8">No transactions yet.</td></tr>';
 }
 
 function renderHomeTotals() {
@@ -544,10 +558,14 @@ function handlePaymentMethodClick(event) {
 function bindEvents() {
   document.addEventListener('click', navigate);
   window.addEventListener('popstate', showPage);
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 720) closeMobileNav();
+  });
   qs('#expenseForm').addEventListener('submit', submitExpense);
   qs('#loginForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/login'));
   qs('#registerForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/register'));
   qs('#logoutButton').addEventListener('click', logout);
+  qs('#menuToggle').addEventListener('click', toggleMobileNav);
   qs('#categoryForm').addEventListener('submit', submitCategory);
   qs('#categoryList').addEventListener('click', handleCategoryClick);
   qs('#storeForm').addEventListener('submit', submitStore);

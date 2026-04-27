@@ -8,19 +8,35 @@
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="/">💸 Oikos</a>
-      <nav aria-label="Main navigation">
-        <a href="/" data-nav="/">Home</a>
-        <a href="/categories" data-nav="/categories">Categories</a>
-        <a href="/stores" data-nav="/stores">Stores</a>
-        <a href="/payment-methods" data-nav="/payment-methods">Payment Methods</a>
-        <a href="/transactions" data-nav="/transactions">Transactions</a>
-        <a href="/dashboard" data-nav="/dashboard">Dashboard</a>
-        <a href="/filter" data-nav="/filter">Filter</a>
-      </nav>
-      <div class="user-menu hidden" id="userMenu">
-        <span id="userName"></span>
-        <button type="button" id="logoutButton">Logout</button>
+      <div class="header-top">
+        <a class="brand" href="/">💸 Oikos</a>
+        <button
+          type="button"
+          class="menu-toggle hidden"
+          id="menuToggle"
+          aria-expanded="false"
+          aria-controls="siteNav"
+          aria-label="Open navigation menu"
+        >
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+      <div class="header-panel">
+        <nav id="siteNav" aria-label="Main navigation">
+          <a href="/" data-nav="/">Home</a>
+          <a href="/categories" data-nav="/categories">Categories</a>
+          <a href="/stores" data-nav="/stores">Stores</a>
+          <a href="/payment-methods" data-nav="/payment-methods">Payment Methods</a>
+          <a href="/transactions" data-nav="/transactions">Transactions</a>
+          <a href="/dashboard" data-nav="/dashboard">Dashboard</a>
+          <a href="/filter" data-nav="/filter">Filter</a>
+        </nav>
+        <div class="user-menu hidden" id="userMenu">
+          <span id="userName"></span>
+          <button type="button" id="logoutButton">Logout</button>
+        </div>
       </div>
     </header>
 
@@ -162,8 +178,8 @@
           <p class="eyebrow">Transactions</p>
           <h1>Transactions</h1>
         </div>
-        <div class="table-wrap">
-          <table>
+        <div class="table-wrap transaction-table-wrap">
+          <table class="transactions-table">
             <thead>
               <tr>
                 <th>Date</th>
