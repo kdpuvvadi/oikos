@@ -484,8 +484,18 @@ app.get('/api/summary', requireAuth, async (req, res) => {
   }
 });
 
-app.get(['/', '/categories', '/stores', '/payment-methods', '/transactions', '/dashboard', '/filter'], (_req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+const pageFiles = {
+  '/': 'index.html',
+  '/categories': 'categories.html',
+  '/stores': 'stores.html',
+  '/payment-methods': 'payment-methods.html',
+  '/transactions': 'transactions.html',
+  '/dashboard': 'dashboard.html',
+  '/filter': 'filter.html'
+};
+
+app.get(Object.keys(pageFiles), (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', pageFiles[req.path]));
 });
 
 app.listen(port, () => {
