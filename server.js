@@ -179,7 +179,7 @@ function handleError(res, error) {
 app.get('/api/health', async (_req, res) => {
   try {
     await pb.health.check();
-    res.json({ ok: true, pocketbase: pbUrl });
+    res.json({ ok: true });
   } catch (error) {
     handleError(res, error);
   }
