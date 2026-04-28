@@ -7,6 +7,7 @@ const state = {
   stores: [],
   users: [],
   transactions: [],
+  transactionRows: [],
   homeTotals: {
     thisMonth: 0,
     lastMonth: 0
@@ -299,7 +300,7 @@ function renderCategories() {
 
 function renderTransactions() {
   if (!has('#transactionsTable')) return;
-  qs('#transactionsTable').innerHTML = state.transactions.map((transaction) => `
+  qs('#transactionsTable').innerHTML = state.transactionRows.map((transaction) => `
     <tr>
       <td class="transaction-cell transaction-date-cell" data-label="Date"><span class="transaction-value transaction-date">${transaction.date.slice(0, 10)}</span></td>
       <td class="transaction-cell transaction-amount-cell" data-label="Amount"><strong class="transaction-value transaction-amount">${money.format(Number(transaction.amount))}</strong></td>
@@ -316,6 +317,61 @@ function renderTransactions() {
       </td>
     </tr>
   `).join('') || '<tr class="table-empty-row"><td colspan="8">No transactions yet.</td></tr>';
+}
+
+function renderTransactionFilterControls() {
+  if (!has('#transactionFilterCategory') || !has('#transactionFilterSubcategory')) return;
+
+  const categorySelect = qs('#transactionFilterCategory');
+  const selectedCategory = categorySelect.value;
+  categorySelect.innerHTML = [
+    option('', 'All categories'),
+    ...state.categories.map((category) => option(category.id, category.name))
+  ].join('');
+  categorySelect.value = state.categories.some((category) => category.id === selectedCategory) ? selectedCategory : '';
+
+  updateTransactionFilterSubcategories();
+  syncTransactionFilterVisibility();
+}
+
+function updateTransactionFilterSubcategories() {
+  if (!has('#transactionFilterCategory') || !has('#transactionFilterSubcategory')) return;
+
+  const categoryId = qs('#transactionFilterCategory').value;
+  const subcategorySelect = qs('#transactionFilterSubcategory');
+  const selectedSubcategory = subcategorySelect.value;
+  const category = state.categories.find((item) => item.id === categoryId);
+  const subcategories = category?.subcategories || [];
+
+  subcategorySelect.innerHTML = [
+    option('', 'All subcategories'),
+    ...subcategories.map((subcategory) => option(subcategory.id, subcategory.name))
+  ].join('');
+  subcategorySelect.disabled = !categoryId;
+  subcategorySelect.value = subcategories.some((subcategory) => subcategory.id === selectedSubcategory) ? selectedSubcategory : '';
+}
+
+function hasActiveTransactionFilters() {
+  if (!has('#transactionFilterForm')) return false;
+  const data = new FormData(qs('#transactionFilterForm'));
+  return ['fromDate', 'toDate', 'category', 'subcategory'].some((key) => String(data.get(key) || '').trim());
+}
+
+function syncTransactionFilterVisibility(forceOpen = false) {
+  if (!has('#transactionFiltersPanel') || !has('#toggleTransactionFilters')) return;
+
+  const shouldOpen = forceOpen || hasActiveTransactionFilters();
+  qs('#transactionFiltersPanel').classList.toggle('hidden', !shouldOpen);
+  qs('#toggleTransactionFilters').setAttribute('aria-expanded', String(shouldOpen));
+}
+
+function toggleTransactionFilters() {
+  if (!has('#transactionFiltersPanel') || !has('#toggleTransactionFilters')) return;
+
+  const panel = qs('#transactionFiltersPanel');
+  const willOpen = panel.classList.contains('hidden');
+  panel.classList.toggle('hidden', !willOpen);
+  qs('#toggleTransactionFilters').setAttribute('aria-expanded', String(willOpen));
 }
 
 function renderHomeTotals() {
@@ -375,6 +431,7 @@ function resetDataState() {
   state.stores = [];
   state.users = [];
   state.transactions = [];
+  state.transactionRows = [];
   state.homeTotals = { thisMonth: 0, lastMonth: 0 };
   Object.keys(state.loaded).forEach((key) => {
     state.loaded[key] = false;
@@ -435,6 +492,10 @@ async function loadTransactions(force = false) {
   }, force);
 }
 
+async function loadTransactionRows() {
+  state.transactionRows = await api(`/api/transactions${buildTransactionFilterQuery()}`);
+}
+
 async function loadHomeTotals(force = false) {
   await ensureLoaded('homeTotals', async () => {
     const [thisMonthRecords, lastMonthRecords] = await Promise.all([
@@ -488,9 +549,10 @@ async function loadTransactionsPage(force = false) {
   await Promise.all([
     loadCategories(force),
     loadPaymentMethods(force),
-    loadStores(force),
-    loadTransactions(force)
+    loadStores(force)
   ]);
+  renderTransactionFilterControls();
+  await loadTransactionRows();
   renderTransactions();
 }
 
@@ -604,7 +666,7 @@ async function submitExpense(event) {
 }
 
 function openEditTransaction(id) {
-  const transaction = state.transactions.find((item) => item.id === id);
+  const transaction = state.transactionRows.find((item) => item.id === id) || state.transactions.find((item) => item.id === id);
   if (!transaction || !has('#editTransactionForm') || !has('#editTransactionDialog')) return;
 
   const form = qs('#editTransactionForm');
@@ -753,6 +815,45 @@ async function deleteTransaction(event) {
   }
 }
 
+function buildTransactionFilterQuery() {
+  if (!has('#transactionFilterForm')) return '';
+
+  const data = new FormData(qs('#transactionFilterForm'));
+  const params = new URLSearchParams();
+  ['fromDate', 'toDate', 'category', 'subcategory'].forEach((key) => {
+    const value = String(data.get(key) || '').trim();
+    if (value) params.set(key, value);
+  });
+
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+async function applyTransactionFilters(event) {
+  event.preventDefault();
+  syncTransactionFilterVisibility(true);
+  try {
+    await loadTransactionRows();
+    renderTransactions();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function clearTransactionFilters() {
+  if (!has('#transactionFilterForm')) return;
+  qs('#transactionFilterForm').reset();
+  updateTransactionFilterSubcategories();
+  syncTransactionFilterVisibility();
+
+  try {
+    await loadTransactionRows();
+    renderTransactions();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
 function handleTransactionClick(event) {
   const editButton = event.target.closest('[data-edit]');
   if (editButton) {
@@ -792,6 +893,10 @@ function bindEvents() {
   if (has('#paymentMethodForm')) qs('#paymentMethodForm').addEventListener('submit', submitPaymentMethod);
   if (has('#paymentMethodList')) qs('#paymentMethodList').addEventListener('click', handlePaymentMethodClick);
   if (has('#transactionsTable')) qs('#transactionsTable').addEventListener('click', handleTransactionClick);
+  if (has('#transactionFilterForm')) qs('#transactionFilterForm').addEventListener('submit', applyTransactionFilters);
+  if (has('#clearTransactionFilters')) qs('#clearTransactionFilters').addEventListener('click', clearTransactionFilters);
+  if (has('#transactionFilterCategory')) qs('#transactionFilterCategory').addEventListener('change', updateTransactionFilterSubcategories);
+  if (has('#toggleTransactionFilters')) qs('#toggleTransactionFilters').addEventListener('click', toggleTransactionFilters);
   if (has('#editTransactionForm')) qs('#editTransactionForm').addEventListener('submit', submitEditTransaction);
   if (has('#closeEditDialog')) qs('#closeEditDialog').addEventListener('click', closeEditTransaction);
   if (has('#editCategory')) qs('#editCategory').addEventListener('change', () => renderEditSelects());

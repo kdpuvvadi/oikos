@@ -15,9 +15,40 @@
 
     <main id="appShell" class="hidden">
       <section id="transactionsPage">
-        <div class="page-title">
-          <p class="eyebrow">Transactions</p>
-          <h1>Transactions</h1>
+        <div class="page-title-bar">
+          <div class="page-title">
+            <p class="eyebrow">Transactions</p>
+            <h1>Transactions</h1>
+          </div>
+          <div class="transactions-toolbar">
+            <button type="button" class="ghost" id="toggleTransactionFilters" aria-expanded="false" aria-controls="transactionFiltersPanel">Filter</button>
+          </div>
+        </div>
+        <div id="transactionFiltersPanel" class="hidden">
+          <form id="transactionFilterForm" class="panel inline-form">
+            <label>
+              From
+              <input type="date" name="fromDate">
+            </label>
+            <label>
+              To
+              <input type="date" name="toDate">
+            </label>
+            <label>
+              Category
+              <select name="category" id="transactionFilterCategory">
+                <option value="">All categories</option>
+              </select>
+            </label>
+            <label>
+              Subcategory
+              <select name="subcategory" id="transactionFilterSubcategory">
+                <option value="">All subcategories</option>
+              </select>
+            </label>
+            <button type="submit">Apply filters</button>
+            <button type="button" class="ghost" id="clearTransactionFilters">Clear</button>
+          </form>
         </div>
         <div class="table-wrap transaction-table-wrap">
           <table class="transactions-table">

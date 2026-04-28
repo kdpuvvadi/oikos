@@ -92,6 +92,11 @@ function monthBoundary(year, monthIndex) {
   return `${new Date(Date.UTC(year, monthIndex, 1)).toISOString().slice(0, 10)} 00:00:00.000Z`;
 }
 
+function nextDayBoundary(value) {
+  const [year, month, day] = String(value).split('-').map(Number);
+  return `${new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10)} 00:00:00.000Z`;
+}
+
 async function listRecords(client, collection, params) {
   return client.collection(collection).getFullList({
     ...Object.fromEntries(Object.entries(params || {}).filter(([, value]) => value !== undefined && value !== ''))
@@ -362,7 +367,10 @@ app.get('/api/transactions', requireAuth, async (req, res) => {
       filters.push(`date >= "${monthBoundary(year, month - 1)}"`);
       filters.push(`date < "${monthBoundary(year, month)}"`);
     }
+    if (req.query.fromDate) filters.push(`date >= "${pbDate(req.query.fromDate)}"`);
+    if (req.query.toDate) filters.push(`date < "${nextDayBoundary(req.query.toDate)}"`);
     if (req.query.category) filters.push(`category = "${req.query.category}"`);
+    if (req.query.subcategory) filters.push(`subcategory = "${req.query.subcategory}"`);
     if (req.query.store) filters.push(`store = "${req.query.store}"`);
 
     const transactions = await listRecords(req.pb, 'oikos_transactions', {
