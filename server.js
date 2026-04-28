@@ -204,7 +204,10 @@ app.post('/api/auth/register', async (req, res) => {
     });
     await client.collection('users').authWithPassword(email, password);
     res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
-    res.status(201).json({ user: publicUser(client.authStore.record) });
+    res.status(201).json({
+      token: client.authStore.token,
+      user: publicUser(client.authStore.record)
+    });
   } catch (error) {
     handleError(res, error);
   }
@@ -217,7 +220,10 @@ app.post('/api/auth/login', async (req, res) => {
     const client = new PocketBase(pbUrl);
     await client.collection('users').authWithPassword(email, password);
     res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
-    res.json({ user: publicUser(client.authStore.record) });
+    res.json({
+      token: client.authStore.token,
+      user: publicUser(client.authStore.record)
+    });
   } catch {
     res.status(401).json({ error: 'Invalid email or password.' });
   }
@@ -234,7 +240,10 @@ app.get('/api/auth/me', (req, res) => {
     res.setHeader('Set-Cookie', clearAuthCookies());
     return res.status(401).json({ error: 'Not logged in.' });
   }
-  res.json({ user: publicUser(client.authStore.record) });
+  res.json({
+    token: client.authStore.token,
+    user: publicUser(client.authStore.record)
+  });
 });
 
 app.get('/api/categories', requireAuth, async (req, res) => {
