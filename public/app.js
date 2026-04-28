@@ -149,16 +149,6 @@ function sumBy(records, group) {
   }, {});
 }
 
-function sumAmounts(records) {
-  return records.reduce((sum, record) => sum + Number(record.amount || 0), 0);
-}
-
-function monthOffset(offset) {
-  const date = new Date();
-  const target = new Date(date.getFullYear(), date.getMonth() + offset, 1);
-  return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}`;
-}
-
 function renderSelects() {
   if (!has('#oikosCategory') || !has('#oikosStore') || !has('#oikosPaymentMethod') || !has('#oikosSubcategory')) return;
   const admin = isAdmin();
@@ -508,14 +498,7 @@ async function loadTransactionRows() {
 
 async function loadHomeTotals(force = false) {
   await ensureLoaded('homeTotals', async () => {
-    const [thisMonthRecords, lastMonthRecords] = await Promise.all([
-      api(`/api/transactions?month=${monthOffset(0)}`),
-      api(`/api/transactions?month=${monthOffset(-1)}`)
-    ]);
-    state.homeTotals = {
-      thisMonth: sumAmounts(thisMonthRecords),
-      lastMonth: sumAmounts(lastMonthRecords)
-    };
+    state.homeTotals = await api('/api/home-totals');
     state.loaded.homeTotals = true;
   }, force);
 }

@@ -97,6 +97,29 @@ function nextDayBoundary(value) {
   return `${new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10)} 00:00:00.000Z`;
 }
 
+function currentMonthRange(offset = 0) {
+  const today = new Date();
+  const year = today.getFullYear();
+  const monthIndex = today.getMonth() + offset;
+  return {
+    start: monthBoundary(year, monthIndex),
+    end: monthBoundary(year, monthIndex + 1)
+  };
+}
+
+function sumRecordAmounts(records) {
+  return records.reduce((sum, record) => sum + Number(record.amount || 0), 0);
+}
+
+function totalsByMonth(records) {
+  return records.reduce((totals, record) => {
+    const month = String(record.date || '').slice(0, 7);
+    if (!month) return totals;
+    totals[month] = (totals[month] || 0) + Number(record.amount || 0);
+    return totals;
+  }, {});
+}
+
 async function listRecords(client, collection, params) {
   return client.collection(collection).getFullList({
     ...Object.fromEntries(Object.entries(params || {}).filter(([, value]) => value !== undefined && value !== ''))
@@ -179,7 +202,7 @@ function handleError(res, error) {
 app.get('/api/health', async (_req, res) => {
   try {
     await pb.health.check();
-    res.json({ ok: true, pocketbase: pbUrl });
+    res.json({ ok: true });
   } catch (error) {
     handleError(res, error);
   }
@@ -204,7 +227,10 @@ app.post('/api/auth/register', async (req, res) => {
     });
     await client.collection('users').authWithPassword(email, password);
     res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
-    res.status(201).json({ user: publicUser(client.authStore.record) });
+    res.status(201).json({
+      token: client.authStore.token,
+      user: publicUser(client.authStore.record)
+    });
   } catch (error) {
     handleError(res, error);
   }
@@ -217,7 +243,10 @@ app.post('/api/auth/login', async (req, res) => {
     const client = new PocketBase(pbUrl);
     await client.collection('users').authWithPassword(email, password);
     res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
-    res.json({ user: publicUser(client.authStore.record) });
+    res.json({
+      token: client.authStore.token,
+      user: publicUser(client.authStore.record)
+    });
   } catch {
     res.status(401).json({ error: 'Invalid email or password.' });
   }
@@ -234,7 +263,10 @@ app.get('/api/auth/me', (req, res) => {
     res.setHeader('Set-Cookie', clearAuthCookies());
     return res.status(401).json({ error: 'Not logged in.' });
   }
-  res.json({ user: publicUser(client.authStore.record) });
+  res.json({
+    token: client.authStore.token,
+    user: publicUser(client.authStore.record)
+  });
 });
 
 app.get('/api/categories', requireAuth, async (req, res) => {
@@ -380,6 +412,44 @@ app.get('/api/transactions', requireAuth, async (req, res) => {
       filter: filters.join(' && ')
     });
     res.json(transactions);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get('/api/home-totals', requireAuth, async (req, res) => {
+  try {
+    const baseFilters = isAdmin(req.user) ? [] : [`user = "${req.user.id}"`];
+    const thisMonth = currentMonthRange(0);
+    const lastMonth = currentMonthRange(-1);
+
+    const thisMonthRecords = await listRecords(req.pb, 'oikos_transactions', {
+      filter: [...baseFilters, `date >= "${thisMonth.start}"`, `date < "${thisMonth.end}"`].join(' && ')
+    });
+    const lastMonthRecords = await listRecords(req.pb, 'oikos_transactions', {
+      filter: [...baseFilters, `date >= "${lastMonth.start}"`, `date < "${lastMonth.end}"`].join(' && ')
+    });
+
+    res.json({
+      thisMonth: sumRecordAmounts(thisMonthRecords),
+      lastMonth: sumRecordAmounts(lastMonthRecords)
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get('/api/monthly-totals', requireAuth, async (req, res) => {
+  try {
+    const filter = isAdmin(req.user) ? '' : `user = "${req.user.id}"`;
+    const transactions = await listRecords(req.pb, 'oikos_transactions', {
+      sort: 'date',
+      filter
+    });
+
+    res.json({
+      totals: totalsByMonth(transactions)
+    });
   } catch (error) {
     handleError(res, error);
   }
