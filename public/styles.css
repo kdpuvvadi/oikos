@@ -140,6 +140,35 @@ nav a:hover {
   font-size: 1.05rem;
 }
 
+.detail-toggle {
+  display: flex;
+  align-items: start;
+  gap: 12px;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.detail-toggle input {
+  width: auto;
+  min-height: 0;
+  margin-top: 3px;
+}
+
+.detail-toggle-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.detail-toggle-copy strong {
+  font-size: 1rem;
+}
+
+.detail-toggle-copy span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .user-menu button {
   min-height: 34px;
   padding: 7px 10px;

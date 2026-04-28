@@ -50,10 +50,13 @@ function clientFromRequest(req) {
 
 function publicUser(record) {
   if (!record) return null;
+  const email = sanitizeName(record.email) || null;
+  const name = sanitizeName(record.name) || email || 'Unnamed user';
   return {
     id: record.id,
-    email: record.email,
-    name: record.name || record.email,
+    email,
+    name,
+    emailVisibility: record.emailVisibility !== false,
     kind: record.kind || 'user',
     isAdmin: record.kind === 'admin'
   };
@@ -222,6 +225,7 @@ app.post('/api/auth/register', async (req, res) => {
       email,
       name,
       kind: 'user',
+      emailVisibility: true,
       password,
       passwordConfirm: password
     });
@@ -267,6 +271,21 @@ app.get('/api/auth/me', (req, res) => {
     token: client.authStore.token,
     user: publicUser(client.authStore.record)
   });
+});
+
+app.put('/api/auth/me', requireAuth, async (req, res) => {
+  try {
+    const updated = await req.pb.collection('users').update(req.user.id, {
+      emailVisibility: Boolean(req.body.emailVisibility)
+    });
+    req.pb.authStore.save(req.pb.authStore.token, updated);
+    res.json({
+      token: req.pb.authStore.token,
+      user: publicUser(updated)
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
 });
 
 app.get('/api/categories', requireAuth, async (req, res) => {
