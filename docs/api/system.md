@@ -43,3 +43,23 @@ Response:
   ]
 }
 ```
+
+## `GET /api/home-totals`
+
+Requires authentication.
+
+Returns the current-month and previous-month totals directly from the backend so the home page does not need to fetch and sum full transaction lists in the browser.
+
+Permissions:
+
+- admin gets totals across all users
+- regular user gets totals only for their own transactions
+
+Response:
+
+```json
+{
+  "thisMonth": 2364.99,
+  "lastMonth": 6516
+}
+```

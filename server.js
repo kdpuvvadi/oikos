@@ -97,6 +97,20 @@ function nextDayBoundary(value) {
   return `${new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10)} 00:00:00.000Z`;
 }
 
+function currentMonthRange(offset = 0) {
+  const today = new Date();
+  const year = today.getFullYear();
+  const monthIndex = today.getMonth() + offset;
+  return {
+    start: monthBoundary(year, monthIndex),
+    end: monthBoundary(year, monthIndex + 1)
+  };
+}
+
+function sumRecordAmounts(records) {
+  return records.reduce((sum, record) => sum + Number(record.amount || 0), 0);
+}
+
 async function listRecords(client, collection, params) {
   return client.collection(collection).getFullList({
     ...Object.fromEntries(Object.entries(params || {}).filter(([, value]) => value !== undefined && value !== ''))
@@ -389,6 +403,28 @@ app.get('/api/transactions', requireAuth, async (req, res) => {
       filter: filters.join(' && ')
     });
     res.json(transactions);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get('/api/home-totals', requireAuth, async (req, res) => {
+  try {
+    const baseFilters = isAdmin(req.user) ? [] : [`user = "${req.user.id}"`];
+    const thisMonth = currentMonthRange(0);
+    const lastMonth = currentMonthRange(-1);
+
+    const thisMonthRecords = await listRecords(req.pb, 'oikos_transactions', {
+      filter: [...baseFilters, `date >= "${thisMonth.start}"`, `date < "${thisMonth.end}"`].join(' && ')
+    });
+    const lastMonthRecords = await listRecords(req.pb, 'oikos_transactions', {
+      filter: [...baseFilters, `date >= "${lastMonth.start}"`, `date < "${lastMonth.end}"`].join(' && ')
+    });
+
+    res.json({
+      thisMonth: sumRecordAmounts(thisMonthRecords),
+      lastMonth: sumRecordAmounts(lastMonthRecords)
+    });
   } catch (error) {
     handleError(res, error);
   }
