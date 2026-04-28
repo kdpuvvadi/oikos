@@ -23,6 +23,14 @@ body {
   overflow-x: hidden;
 }
 
+html.has-session #authPage {
+  display: none !important;
+}
+
+html.has-session #appShell.hidden {
+  display: block !important;
+}
+
 .site-header {
   position: sticky;
   top: 0;

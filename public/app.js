@@ -35,6 +35,7 @@ const routes = {
 };
 
 let routeRequestId = 0;
+const authHintCookieName = 'oikos_session';
 
 function qs(selector, root = document) {
   return root.querySelector(selector);
@@ -46,6 +47,15 @@ function qsa(selector, root = document) {
 
 function has(selector, root = document) {
   return Boolean(qs(selector, root));
+}
+
+function setSessionHint(enabled) {
+  document.documentElement.classList.toggle('has-session', enabled);
+  if (enabled) {
+    document.cookie = `${authHintCookieName}=1; Path=/; SameSite=Lax`;
+  } else {
+    document.cookie = `${authHintCookieName}=; Path=/; Max-Age=0; SameSite=Lax`;
+  }
 }
 
 async function api(path, options = {}) {
@@ -86,6 +96,7 @@ function isAdmin() {
 
 function setAuthView(user) {
   state.user = user;
+  setSessionHint(Boolean(user));
   document.body.classList.toggle('is-authenticated', Boolean(user));
   document.body.classList.toggle('is-admin', Boolean(user?.isAdmin || user?.kind === 'admin'));
   document.body.classList.remove('mobile-nav-open');
