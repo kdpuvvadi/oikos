@@ -4,6 +4,8 @@
 
 Creates a regular user account, logs the user in immediately, and sets auth cookies.
 
+New users are created with `emailVisibility: true`.
+
 Request body:
 
 ```json
@@ -33,6 +35,7 @@ Response:
     "id": "USER_ID",
     "email": "user@example.com",
     "name": "Example User",
+    "emailVisibility": true,
     "kind": "user",
     "isAdmin": false
   }
@@ -65,6 +68,7 @@ Response:
     "id": "USER_ID",
     "email": "user@example.com",
     "name": "Example User",
+    "emailVisibility": true,
     "kind": "user",
     "isAdmin": false
   }
@@ -108,6 +112,37 @@ Response:
     "id": "USER_ID",
     "email": "user@example.com",
     "name": "Example User",
+    "emailVisibility": true,
+    "kind": "user",
+    "isAdmin": false
+  }
+}
+```
+
+## `PUT /api/auth/me`
+
+Requires authentication.
+
+Updates the current user's profile-level auth settings.
+
+Currently supported fields:
+
+```json
+{
+  "emailVisibility": true
+}
+```
+
+Response:
+
+```json
+{
+  "token": "POCKETBASE_AUTH_TOKEN",
+  "user": {
+    "id": "USER_ID",
+    "email": "user@example.com",
+    "name": "Example User",
+    "emailVisibility": true,
     "kind": "user",
     "isAdmin": false
   }

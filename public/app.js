@@ -227,7 +227,7 @@ function renderUsers() {
         <strong>${user.name || user.email}</strong>
         <span class="pill">${user.isAdmin ? 'Admin' : 'User'}</span>
       </div>
-      <p>${user.email}</p>
+      <p>${user.email || 'Email hidden'}</p>
     </article>
   `).join('') || '<p>No users yet.</p>';
 }
@@ -250,6 +250,18 @@ function renderMe() {
         <div class="detail-row">
           <span class="detail-label">Email</span>
           <span class="detail-value">${user.email || '-'}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Email visibility</span>
+          <div class="detail-value">
+            <label class="toggle-switch">
+              <input type="checkbox" ${user.emailVisibility ? 'checked' : ''} data-email-visibility>
+              <span class="toggle-slider"></span>
+            </label>
+            <div style="font-size: 0.85rem; color: #666; margin-top: 0.5rem;">
+              ${user.emailVisibility ? 'Your email is visible to other users and admins.' : 'Your email is hidden from other users and admin lists.'}
+            </div>
+          </div>
         </div>
       </div>
     </article>
@@ -516,6 +528,22 @@ async function loadHomePage(force = false) {
 
 async function loadMePage() {
   renderMe();
+}
+
+async function toggleEmailVisibility() {
+  const nextValue = !state.user.emailVisibility;
+
+  try {
+    const result = await api('/api/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify({ emailVisibility: nextValue })
+    });
+    setAuthView(result.user);
+    renderMe();
+    toast(`Email visibility ${nextValue ? 'enabled' : 'disabled'}.`);
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 async function loadCategoriesPage(force = false) {
@@ -892,6 +920,11 @@ function bindEvents() {
   if (has('#clearTransactionFilters')) qs('#clearTransactionFilters').addEventListener('click', clearTransactionFilters);
   if (has('#transactionFilterCategory')) qs('#transactionFilterCategory').addEventListener('change', updateTransactionFilterSubcategories);
   if (has('#toggleTransactionFilters')) qs('#toggleTransactionFilters').addEventListener('click', toggleTransactionFilters);
+  if (has('#meProfile')) {
+    qs('#meProfile').addEventListener('change', (event) => {
+      if (event.target.matches('[data-email-visibility]')) void toggleEmailVisibility();
+    });
+  }
   if (has('#editTransactionForm')) qs('#editTransactionForm').addEventListener('submit', submitEditTransaction);
   if (has('#closeEditDialog')) qs('#closeEditDialog').addEventListener('click', closeEditTransaction);
   if (has('#editCategory')) qs('#editCategory').addEventListener('change', () => renderEditSelects());

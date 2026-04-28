@@ -160,6 +160,8 @@ Admin only.
 
 Returns all users in a public-safe shape.
 
+If a user's PocketBase email visibility is disabled, `email` may be `null`.
+
 Response shape:
 
 ```json
