@@ -1,9 +1,13 @@
+import './layout.js';
+
 const state = {
   user: null,
   categories: [],
   paymentMethods: [],
   stores: [],
+  users: [],
   transactions: [],
+  transactionRows: [],
   homeTotals: {
     thisMonth: 0,
     lastMonth: 0
@@ -12,6 +16,7 @@ const state = {
     categories: false,
     paymentMethods: false,
     stores: false,
+    users: false,
     transactions: false,
     homeTotals: false
   },
@@ -26,15 +31,18 @@ const money = new Intl.NumberFormat(undefined, {
 
 const routes = {
   '/': 'homePage',
+  '/me': 'mePage',
   '/categories': 'categoriesPage',
   '/stores': 'storesPage',
   '/payment-methods': 'paymentMethodsPage',
+  '/users': 'usersPage',
   '/transactions': 'transactionsPage',
   '/dashboard': 'dashboardPage',
   '/filter': 'filterPage'
 };
 
 let routeRequestId = 0;
+const authHintCookieName = 'oikos_session';
 
 function qs(selector, root = document) {
   return root.querySelector(selector);
@@ -46,6 +54,15 @@ function qsa(selector, root = document) {
 
 function has(selector, root = document) {
   return Boolean(qs(selector, root));
+}
+
+function setSessionHint(enabled) {
+  document.documentElement.classList.toggle('has-session', enabled);
+  if (enabled) {
+    document.cookie = `${authHintCookieName}=1; Path=/; SameSite=Lax`;
+  } else {
+    document.cookie = `${authHintCookieName}=; Path=/; Max-Age=0; SameSite=Lax`;
+  }
 }
 
 async function api(path, options = {}) {
@@ -86,6 +103,7 @@ function isAdmin() {
 
 function setAuthView(user) {
   state.user = user;
+  setSessionHint(Boolean(user));
   document.body.classList.toggle('is-authenticated', Boolean(user));
   document.body.classList.toggle('is-admin', Boolean(user?.isAdmin || user?.kind === 'admin'));
   document.body.classList.remove('mobile-nav-open');
@@ -211,6 +229,43 @@ function renderStores() {
   `).join('') || '<p>No stores yet.</p>';
 }
 
+function renderUsers() {
+  if (!has('#userList')) return;
+  qs('#userList').innerHTML = state.users.map((user) => `
+    <article class="list-item">
+      <div class="list-heading">
+        <strong>${user.name || user.email}</strong>
+        <span class="pill">${user.isAdmin ? 'Admin' : 'User'}</span>
+      </div>
+      <p>${user.email}</p>
+    </article>
+  `).join('') || '<p>No users yet.</p>';
+}
+
+function renderMe() {
+  if (!has('#meProfile')) return;
+  const user = state.user;
+  if (!user) {
+    qs('#meProfile').innerHTML = '<p>Please sign in to view your profile.</p>';
+    return;
+  }
+
+  qs('#meProfile').innerHTML = `
+    <article class="panel">
+      <div class="detail-list">
+        <div class="detail-row">
+          <span class="detail-label">Name</span>
+          <strong class="detail-value">${user.name || '-'}</strong>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Email</span>
+          <span class="detail-value">${user.email || '-'}</span>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
 function renderPaymentMethods() {
   if (!has('#paymentMethodList')) return;
   qs('#paymentMethodList').innerHTML = state.paymentMethods.map((paymentMethod) => `
@@ -245,7 +300,7 @@ function renderCategories() {
 
 function renderTransactions() {
   if (!has('#transactionsTable')) return;
-  qs('#transactionsTable').innerHTML = state.transactions.map((transaction) => `
+  qs('#transactionsTable').innerHTML = state.transactionRows.map((transaction) => `
     <tr>
       <td class="transaction-cell transaction-date-cell" data-label="Date"><span class="transaction-value transaction-date">${transaction.date.slice(0, 10)}</span></td>
       <td class="transaction-cell transaction-amount-cell" data-label="Amount"><strong class="transaction-value transaction-amount">${money.format(Number(transaction.amount))}</strong></td>
@@ -262,6 +317,71 @@ function renderTransactions() {
       </td>
     </tr>
   `).join('') || '<tr class="table-empty-row"><td colspan="8">No transactions yet.</td></tr>';
+}
+
+function renderTransactionFilterControls() {
+  if (!has('#transactionFilterCategory') || !has('#transactionFilterSubcategory')) return;
+
+  const categorySelect = qs('#transactionFilterCategory');
+  const selectedCategory = categorySelect.value;
+  categorySelect.innerHTML = [
+    option('', 'All categories'),
+    ...state.categories.map((category) => option(category.id, category.name))
+  ].join('');
+  categorySelect.value = state.categories.some((category) => category.id === selectedCategory) ? selectedCategory : '';
+
+  if (has('#transactionFilterUser')) {
+    const userSelect = qs('#transactionFilterUser');
+    const selectedUser = userSelect.value;
+    userSelect.innerHTML = [
+      option('', 'All users'),
+      ...state.users.map((user) => option(user.id, user.name || user.email))
+    ].join('');
+    userSelect.value = state.users.some((user) => user.id === selectedUser) ? selectedUser : '';
+  }
+
+  updateTransactionFilterSubcategories();
+  syncTransactionFilterVisibility();
+}
+
+function updateTransactionFilterSubcategories() {
+  if (!has('#transactionFilterCategory') || !has('#transactionFilterSubcategory')) return;
+
+  const categoryId = qs('#transactionFilterCategory').value;
+  const subcategorySelect = qs('#transactionFilterSubcategory');
+  const selectedSubcategory = subcategorySelect.value;
+  const category = state.categories.find((item) => item.id === categoryId);
+  const subcategories = category?.subcategories || [];
+
+  subcategorySelect.innerHTML = [
+    option('', 'All subcategories'),
+    ...subcategories.map((subcategory) => option(subcategory.id, subcategory.name))
+  ].join('');
+  subcategorySelect.disabled = !categoryId;
+  subcategorySelect.value = subcategories.some((subcategory) => subcategory.id === selectedSubcategory) ? selectedSubcategory : '';
+}
+
+function hasActiveTransactionFilters() {
+  if (!has('#transactionFilterForm')) return false;
+  const data = new FormData(qs('#transactionFilterForm'));
+  return ['fromDate', 'toDate', 'category', 'subcategory', 'user'].some((key) => String(data.get(key) || '').trim());
+}
+
+function syncTransactionFilterVisibility(forceOpen = false) {
+  if (!has('#transactionFiltersPanel') || !has('#toggleTransactionFilters')) return;
+
+  const shouldOpen = forceOpen || hasActiveTransactionFilters();
+  qs('#transactionFiltersPanel').classList.toggle('hidden', !shouldOpen);
+  qs('#toggleTransactionFilters').setAttribute('aria-expanded', String(shouldOpen));
+}
+
+function toggleTransactionFilters() {
+  if (!has('#transactionFiltersPanel') || !has('#toggleTransactionFilters')) return;
+
+  const panel = qs('#transactionFiltersPanel');
+  const willOpen = panel.classList.contains('hidden');
+  panel.classList.toggle('hidden', !willOpen);
+  qs('#toggleTransactionFilters').setAttribute('aria-expanded', String(willOpen));
 }
 
 function renderHomeTotals() {
@@ -319,7 +439,9 @@ function resetDataState() {
   state.categories = [];
   state.paymentMethods = [];
   state.stores = [];
+  state.users = [];
   state.transactions = [];
+  state.transactionRows = [];
   state.homeTotals = { thisMonth: 0, lastMonth: 0 };
   Object.keys(state.loaded).forEach((key) => {
     state.loaded[key] = false;
@@ -366,11 +488,22 @@ async function loadStores(force = false) {
   }, force);
 }
 
+async function loadUsers(force = false) {
+  await ensureLoaded('users', async () => {
+    state.users = await api('/api/users');
+    state.loaded.users = true;
+  }, force);
+}
+
 async function loadTransactions(force = false) {
   await ensureLoaded('transactions', async () => {
     state.transactions = await api('/api/transactions');
     state.loaded.transactions = true;
   }, force);
+}
+
+async function loadTransactionRows() {
+  state.transactionRows = await api(`/api/transactions${buildTransactionFilterQuery()}`);
 }
 
 async function loadHomeTotals(force = false) {
@@ -398,6 +531,10 @@ async function loadHomePage(force = false) {
   renderHomeTotals();
 }
 
+async function loadMePage() {
+  renderMe();
+}
+
 async function loadCategoriesPage(force = false) {
   await loadCategories(force);
   renderCategories();
@@ -413,13 +550,21 @@ async function loadPaymentMethodsPage(force = false) {
   renderPaymentMethods();
 }
 
+async function loadUsersPage(force = false) {
+  await loadUsers(force);
+  renderUsers();
+}
+
 async function loadTransactionsPage(force = false) {
-  await Promise.all([
+  const loaders = [
     loadCategories(force),
     loadPaymentMethods(force),
-    loadStores(force),
-    loadTransactions(force)
-  ]);
+    loadStores(force)
+  ];
+  if (isAdmin()) loaders.push(loadUsers(force));
+  await Promise.all(loaders);
+  renderTransactionFilterControls();
+  await loadTransactionRows();
   renderTransactions();
 }
 
@@ -437,9 +582,11 @@ async function loadFilterPage(force = false) {
 
 const pageLoaders = {
   '/': loadHomePage,
+  '/me': loadMePage,
   '/categories': loadCategoriesPage,
   '/stores': loadStoresPage,
   '/payment-methods': loadPaymentMethodsPage,
+  '/users': loadUsersPage,
   '/transactions': loadTransactionsPage,
   '/dashboard': loadDashboardPage,
   '/filter': loadFilterPage
@@ -531,7 +678,7 @@ async function submitExpense(event) {
 }
 
 function openEditTransaction(id) {
-  const transaction = state.transactions.find((item) => item.id === id);
+  const transaction = state.transactionRows.find((item) => item.id === id) || state.transactions.find((item) => item.id === id);
   if (!transaction || !has('#editTransactionForm') || !has('#editTransactionDialog')) return;
 
   const form = qs('#editTransactionForm');
@@ -680,6 +827,45 @@ async function deleteTransaction(event) {
   }
 }
 
+function buildTransactionFilterQuery() {
+  if (!has('#transactionFilterForm')) return '';
+
+  const data = new FormData(qs('#transactionFilterForm'));
+  const params = new URLSearchParams();
+  ['fromDate', 'toDate', 'category', 'subcategory', 'user'].forEach((key) => {
+    const value = String(data.get(key) || '').trim();
+    if (value) params.set(key, value);
+  });
+
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+async function applyTransactionFilters(event) {
+  event.preventDefault();
+  syncTransactionFilterVisibility(true);
+  try {
+    await loadTransactionRows();
+    renderTransactions();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function clearTransactionFilters() {
+  if (!has('#transactionFilterForm')) return;
+  qs('#transactionFilterForm').reset();
+  updateTransactionFilterSubcategories();
+  syncTransactionFilterVisibility();
+
+  try {
+    await loadTransactionRows();
+    renderTransactions();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
 function handleTransactionClick(event) {
   const editButton = event.target.closest('[data-edit]');
   if (editButton) {
@@ -719,6 +905,10 @@ function bindEvents() {
   if (has('#paymentMethodForm')) qs('#paymentMethodForm').addEventListener('submit', submitPaymentMethod);
   if (has('#paymentMethodList')) qs('#paymentMethodList').addEventListener('click', handlePaymentMethodClick);
   if (has('#transactionsTable')) qs('#transactionsTable').addEventListener('click', handleTransactionClick);
+  if (has('#transactionFilterForm')) qs('#transactionFilterForm').addEventListener('submit', applyTransactionFilters);
+  if (has('#clearTransactionFilters')) qs('#clearTransactionFilters').addEventListener('click', clearTransactionFilters);
+  if (has('#transactionFilterCategory')) qs('#transactionFilterCategory').addEventListener('change', updateTransactionFilterSubcategories);
+  if (has('#toggleTransactionFilters')) qs('#toggleTransactionFilters').addEventListener('click', toggleTransactionFilters);
   if (has('#editTransactionForm')) qs('#editTransactionForm').addEventListener('submit', submitEditTransaction);
   if (has('#closeEditDialog')) qs('#closeEditDialog').addEventListener('click', closeEditTransaction);
   if (has('#editCategory')) qs('#editCategory').addEventListener('change', () => renderEditSelects());

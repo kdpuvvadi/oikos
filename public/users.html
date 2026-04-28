@@ -14,17 +14,12 @@
     <oikos-auth-shell id="authPage" class="auth-shell"></oikos-auth-shell>
 
     <main id="appShell" class="hidden">
-      <section id="categoriesPage">
+      <section id="usersPage">
         <div class="page-title">
-          <p class="eyebrow">Categories</p>
-          <h1>Categories</h1>
+          <p class="eyebrow">Admin</p>
+          <h1>Users</h1>
         </div>
-        <form id="categoryForm" class="panel inline-form admin-only">
-          <input type="text" name="name" placeholder="Category name" required>
-          <input type="text" name="subcategoryName" placeholder="Optional subcategory">
-          <button type="submit">Add category</button>
-        </form>
-        <div id="categoryList" class="list-grid"></div>
+        <div id="userList" class="list-grid"></div>
       </section>
     </main>
 

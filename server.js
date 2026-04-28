@@ -12,6 +12,7 @@ const pbUrl = (process.env.PB_URL || 'http://127.0.0.1:8090').replace(/\/$/, '')
 const pbToken = process.env.PB_TOKEN || '';
 const pb = new PocketBase(pbUrl);
 const authCookieName = 'pb_auth';
+const authHintCookieName = 'oikos_session';
 
 if (pbToken) {
   pb.authStore.save(pbToken, null);
@@ -30,8 +31,15 @@ function authCookie(client) {
   });
 }
 
-function clearAuthCookie() {
-  return `${authCookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+function authHintCookie() {
+  return `${authHintCookieName}=1; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`;
+}
+
+function clearAuthCookies() {
+  return [
+    `${authCookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
+    `${authHintCookieName}=; Path=/; SameSite=Lax; Max-Age=0`
+  ];
 }
 
 function clientFromRequest(req) {
@@ -82,6 +90,11 @@ function pbDate(value) {
 
 function monthBoundary(year, monthIndex) {
   return `${new Date(Date.UTC(year, monthIndex, 1)).toISOString().slice(0, 10)} 00:00:00.000Z`;
+}
+
+function nextDayBoundary(value) {
+  const [year, month, day] = String(value).split('-').map(Number);
+  return `${new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10)} 00:00:00.000Z`;
 }
 
 async function listRecords(client, collection, params) {
@@ -190,7 +203,7 @@ app.post('/api/auth/register', async (req, res) => {
       passwordConfirm: password
     });
     await client.collection('users').authWithPassword(email, password);
-    res.setHeader('Set-Cookie', authCookie(client));
+    res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
     res.status(201).json({ user: publicUser(client.authStore.record) });
   } catch (error) {
     handleError(res, error);
@@ -203,7 +216,7 @@ app.post('/api/auth/login', async (req, res) => {
     const password = String(req.body.password || '');
     const client = new PocketBase(pbUrl);
     await client.collection('users').authWithPassword(email, password);
-    res.setHeader('Set-Cookie', authCookie(client));
+    res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
     res.json({ user: publicUser(client.authStore.record) });
   } catch {
     res.status(401).json({ error: 'Invalid email or password.' });
@@ -211,13 +224,14 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.post('/api/auth/logout', (_req, res) => {
-  res.setHeader('Set-Cookie', clearAuthCookie());
+  res.setHeader('Set-Cookie', clearAuthCookies());
   res.status(204).end();
 });
 
 app.get('/api/auth/me', (req, res) => {
   const client = clientFromRequest(req);
   if (!client.authStore.isValid || !client.authStore.record?.id) {
+    res.setHeader('Set-Cookie', clearAuthCookies());
     return res.status(401).json({ error: 'Not logged in.' });
   }
   res.json({ user: publicUser(client.authStore.record) });
@@ -316,6 +330,15 @@ app.get('/api/payment-methods', requireAuth, async (req, res) => {
   }
 });
 
+app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const users = await listRecords(req.pb, 'users', { sort: 'name,email' });
+    res.json(users.map(publicUser));
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.post('/api/payment-methods', requireAuth, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
@@ -344,7 +367,11 @@ app.get('/api/transactions', requireAuth, async (req, res) => {
       filters.push(`date >= "${monthBoundary(year, month - 1)}"`);
       filters.push(`date < "${monthBoundary(year, month)}"`);
     }
+    if (req.query.fromDate) filters.push(`date >= "${pbDate(req.query.fromDate)}"`);
+    if (req.query.toDate) filters.push(`date < "${nextDayBoundary(req.query.toDate)}"`);
     if (req.query.category) filters.push(`category = "${req.query.category}"`);
+    if (req.query.subcategory) filters.push(`subcategory = "${req.query.subcategory}"`);
+    if (req.query.user && isAdmin(req.user)) filters.push(`user = "${req.query.user}"`);
     if (req.query.store) filters.push(`store = "${req.query.store}"`);
 
     const transactions = await listRecords(req.pb, 'oikos_transactions', {
@@ -486,9 +513,11 @@ app.get('/api/summary', requireAuth, async (req, res) => {
 
 const pageFiles = {
   '/': 'index.html',
+  '/me': 'me.html',
   '/categories': 'categories.html',
   '/stores': 'stores.html',
   '/payment-methods': 'payment-methods.html',
+  '/users': 'users.html',
   '/transactions': 'transactions.html',
   '/dashboard': 'dashboard.html',
   '/filter': 'filter.html'
