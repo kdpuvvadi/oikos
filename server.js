@@ -138,6 +138,14 @@ async function resolvePaymentMethod(client, value) {
 function handleError(res, error) {
   console.error(error);
   const requestUrl = error.url || error.originalError?.url || error.cause?.url || '';
+  const connectionRefused = error.cause?.code === 'ECONNREFUSED' || error.originalError?.cause?.code === 'ECONNREFUSED';
+  if (connectionRefused) {
+    return res.status(503).json({
+      error: 'PocketBase is not running.',
+      details: error.message,
+      hint: 'Start PocketBase service. Service not avaiable at http://127.0.0.1:8090'
+    });
+  }
   if (error.status === 400 && requestUrl.includes('oikos_transactions') && requestUrl.includes('user')) {
     return res.status(409).json({
       error: 'PocketBase needs the latest Oikos expenses schema.',
