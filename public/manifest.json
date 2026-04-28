@@ -1,0 +1,81 @@
+{
+  "name": "Oikos - Expense Tracker",
+  "short_name": "Oikos",
+  "description": "A simple and elegant expense tracking application to manage your spending",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#2e7d4f",
+  "background_color": "#f8faf8",
+  "categories": ["finance", "productivity"],
+  "screenshots": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 540 720'><rect fill='%23f8faf8' width='540' height='720'/><text x='50' y='100' font-size='32' font-weight='bold' fill='%2317201c'>Oikos</text><text x='50' y='150' font-size='18' fill='%23617069'>Expense Tracker</text></svg>",
+      "sizes": "540x720",
+      "type": "image/svg+xml",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1280 720'><rect fill='%23f8faf8' width='1280' height='720'/><text x='100' y='150' font-size='48' font-weight='bold' fill='%2317201c'>Oikos</text><text x='100' y='220' font-size='28' fill='%23617069'>Expense Tracker</text></svg>",
+      "sizes": "1280x720",
+      "type": "image/svg+xml",
+      "form_factor": "wide"
+    }
+  ],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%232e7d4f' width='192' height='192' rx='45'/><text x='96' y='120' font-size='80' font-weight='bold' fill='white' text-anchor='middle'>O</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%232e7d4f' width='192' height='192' rx='45'/><text x='96' y='120' font-size='80' font-weight='bold' fill='white' text-anchor='middle'>O</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%232e7d4f' width='512' height='512' rx='120'/><text x='256' y='340' font-size='200' font-weight='bold' fill='white' text-anchor='middle'>O</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%232e7d4f' width='512' height='512' rx='120'/><text x='256' y='340' font-size='200' font-weight='bold' fill='white' text-anchor='middle'>O</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "View Transactions",
+      "short_name": "Transactions",
+      "description": "Quick access to view and manage your expenses",
+      "url": "/transactions",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect fill='%232e7d4f' width='96' height='96' rx='20'/><text x='48' y='65' font-size='40' font-weight='bold' fill='white' text-anchor='middle'>$</text></svg>",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "View Dashboard",
+      "short_name": "Dashboard",
+      "description": "Quick access to your expense analytics",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect fill='%232e7d4f' width='96' height='96' rx='20'/><text x='48' y='65' font-size='40' font-weight='bold' fill='white' text-anchor='middle'>📊</text></svg>",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false
+}
