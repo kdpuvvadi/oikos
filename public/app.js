@@ -953,6 +953,13 @@ async function init() {
   showPage();
   if (has('#expenseForm [name="date"]')) qs('#expenseForm [name="date"]').valueAsDate = new Date();
   await loadCurrentUser();
+
+  // Register service worker for PWA
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch((error) => {
+      console.log('Service Worker registration failed:', error);
+    });
+  }
 }
 
 init();
