@@ -504,6 +504,7 @@ app.get('/api/summary', requireAuth, async (req, res) => {
 
 const pageFiles = {
   '/': 'index.html',
+  '/me': 'me.html',
   '/categories': 'categories.html',
   '/stores': 'stores.html',
   '/payment-methods': 'payment-methods.html',
