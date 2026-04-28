@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Oikos Dashboard</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-top">
+        <a class="brand" href="/">💸 Oikos</a>
+        <button type="button" class="menu-toggle hidden" id="menuToggle" aria-expanded="false" aria-controls="siteNav" aria-label="Open navigation menu">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+      <div class="header-panel">
+        <nav id="siteNav" aria-label="Main navigation">
+          <a href="/" data-nav="/">Home</a>
+          <a href="/categories" data-nav="/categories">Categories</a>
+          <a href="/stores" data-nav="/stores">Stores</a>
+          <a href="/payment-methods" data-nav="/payment-methods">Payment Methods</a>
+          <a href="/transactions" data-nav="/transactions">Transactions</a>
+          <a href="/dashboard" data-nav="/dashboard">Dashboard</a>
+          <a href="/filter" data-nav="/filter">Filter</a>
+        </nav>
+        <div class="user-menu hidden" id="userMenu">
+          <span id="userName"></span>
+          <button type="button" id="logoutButton">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <section id="authPage" class="auth-shell">
+      <div class="page-title"><h1>Sign in</h1></div>
+      <div class="auth-grid">
+        <form id="loginForm" class="panel form-stack">
+          <h2>Login</h2>
+          <label>Email<input type="email" name="email" autocomplete="email" required></label>
+          <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+          <button type="submit">Login</button>
+        </form>
+        <form id="registerForm" class="panel form-stack">
+          <h2>Create account</h2>
+          <label>Name<input type="text" name="name" autocomplete="name" placeholder="Optional"></label>
+          <label>Email<input type="email" name="email" autocomplete="email" required></label>
+          <label>Password<input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+          <button type="submit">Create account</button>
+        </form>
+      </div>
+    </section>
+
+    <main id="appShell" class="hidden">
+      <section id="dashboardPage">
+        <div class="page-title">
+          <p class="eyebrow">Dashboard</p>
+          <h1>Dashboard</h1>
+        </div>
+        <div class="dashboard-grid">
+          <section class="panel">
+            <h2>By month</h2>
+            <div id="monthChart" class="bars"></div>
+          </section>
+          <section class="panel">
+            <h2>By category</h2>
+            <div id="categoryChart" class="bars"></div>
+          </section>
+          <section class="panel">
+            <h2>By store</h2>
+            <div id="storeChart" class="bars"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

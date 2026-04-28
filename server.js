@@ -138,6 +138,14 @@ async function resolvePaymentMethod(client, value) {
 function handleError(res, error) {
   console.error(error);
   const requestUrl = error.url || error.originalError?.url || error.cause?.url || '';
+  const connectionRefused = error.cause?.code === 'ECONNREFUSED' || error.originalError?.cause?.code === 'ECONNREFUSED';
+  if (connectionRefused) {
+    return res.status(503).json({
+      error: 'PocketBase is not running.',
+      details: error.message,
+      hint: 'Start PocketBase service. Service not avaiable at http://127.0.0.1:8090'
+    });
+  }
   if (error.status === 400 && requestUrl.includes('oikos_transactions') && requestUrl.includes('user')) {
     return res.status(409).json({
       error: 'PocketBase needs the latest Oikos expenses schema.',
@@ -476,8 +484,18 @@ app.get('/api/summary', requireAuth, async (req, res) => {
   }
 });
 
-app.get(['/', '/categories', '/stores', '/payment-methods', '/transactions', '/dashboard', '/filter'], (_req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+const pageFiles = {
+  '/': 'index.html',
+  '/categories': 'categories.html',
+  '/stores': 'stores.html',
+  '/payment-methods': 'payment-methods.html',
+  '/transactions': 'transactions.html',
+  '/dashboard': 'dashboard.html',
+  '/filter': 'filter.html'
+};
+
+app.get(Object.keys(pageFiles), (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', pageFiles[req.path]));
 });
 
 app.listen(port, () => {

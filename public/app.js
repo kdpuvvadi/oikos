@@ -3,7 +3,19 @@ const state = {
   categories: [],
   paymentMethods: [],
   stores: [],
-  transactions: []
+  transactions: [],
+  homeTotals: {
+    thisMonth: 0,
+    lastMonth: 0
+  },
+  loaded: {
+    categories: false,
+    paymentMethods: false,
+    stores: false,
+    transactions: false,
+    homeTotals: false
+  },
+  pending: {}
 };
 
 const money = new Intl.NumberFormat(undefined, {
@@ -22,12 +34,18 @@ const routes = {
   '/filter': 'filterPage'
 };
 
+let routeRequestId = 0;
+
 function qs(selector, root = document) {
   return root.querySelector(selector);
 }
 
 function qsa(selector, root = document) {
   return [...root.querySelectorAll(selector)];
+}
+
+function has(selector, root = document) {
+  return Boolean(qs(selector, root));
 }
 
 async function api(path, options = {}) {
@@ -57,11 +75,9 @@ function currentPath() {
   return routes[window.location.pathname] ? window.location.pathname : '/';
 }
 
-function showPage() {
-  const path = currentPath();
-  qsa('.page').forEach((page) => page.classList.remove('active'));
-  qs(`#${routes[path]}`).classList.add('active');
+function showPage(path = currentPath()) {
   qsa('[data-nav]').forEach((link) => link.classList.toggle('active', link.dataset.nav === path));
+  closeMobileNav();
 }
 
 function isAdmin() {
@@ -72,19 +88,26 @@ function setAuthView(user) {
   state.user = user;
   document.body.classList.toggle('is-authenticated', Boolean(user));
   document.body.classList.toggle('is-admin', Boolean(user?.isAdmin || user?.kind === 'admin'));
-  qs('#authPage').classList.toggle('hidden', Boolean(user));
-  qs('#appShell').classList.toggle('hidden', !user);
-  qs('#userMenu').classList.toggle('hidden', !user);
-  qs('nav').classList.toggle('hidden', !user);
-  qs('#userName').textContent = user ? `${user.name}${isAdmin() ? ' (admin)' : ''}` : '';
+  document.body.classList.remove('mobile-nav-open');
+  if (has('#authPage')) qs('#authPage').classList.toggle('hidden', Boolean(user));
+  if (has('#appShell')) qs('#appShell').classList.toggle('hidden', !user);
+  if (has('#userMenu')) qs('#userMenu').classList.toggle('hidden', !user);
+  if (has('nav')) qs('nav').classList.toggle('hidden', !user);
+  if (has('#menuToggle')) {
+    qs('#menuToggle').classList.toggle('hidden', !user);
+    qs('#menuToggle').setAttribute('aria-expanded', 'false');
+  }
+  if (has('#userName')) qs('#userName').textContent = user ? `${user.name}${isAdmin() ? ' (admin)' : ''}` : '';
 }
 
-function navigate(event) {
-  const link = event.target.closest('a[data-nav]');
-  if (!link) return;
-  event.preventDefault();
-  history.pushState(null, '', link.href);
-  showPage();
+function closeMobileNav() {
+  document.body.classList.remove('mobile-nav-open');
+  if (has('#menuToggle')) qs('#menuToggle').setAttribute('aria-expanded', 'false');
+}
+
+function toggleMobileNav() {
+  const isOpen = document.body.classList.toggle('mobile-nav-open');
+  if (has('#menuToggle')) qs('#menuToggle').setAttribute('aria-expanded', String(isOpen));
 }
 
 function option(value, label) {
@@ -108,6 +131,10 @@ function sumBy(records, group) {
   }, {});
 }
 
+function sumAmounts(records) {
+  return records.reduce((sum, record) => sum + Number(record.amount || 0), 0);
+}
+
 function monthOffset(offset) {
   const date = new Date();
   const target = new Date(date.getFullYear(), date.getMonth() + offset, 1);
@@ -115,6 +142,7 @@ function monthOffset(offset) {
 }
 
 function renderSelects() {
+  if (!has('#oikosCategory') || !has('#oikosStore') || !has('#oikosPaymentMethod') || !has('#oikosSubcategory')) return;
   const admin = isAdmin();
   const categorySelect = qs('#oikosCategory');
   categorySelect.innerHTML = [
@@ -139,6 +167,7 @@ function renderSelects() {
 }
 
 function renderEditSelects(transaction) {
+  if (!has('#editCategory') || !has('#editStore') || !has('#editPaymentMethod') || !has('#editSubcategory')) return;
   const categoryId = transaction?.category || qs('#editCategory').value;
   const category = state.categories.find((item) => item.id === categoryId);
   const subcategories = category?.subcategories || [];
@@ -159,6 +188,7 @@ function renderEditSelects(transaction) {
 }
 
 function renderSubcategorySelect() {
+  if (!has('#oikosCategory') || !has('#oikosSubcategory')) return;
   const categoryId = qs('#oikosCategory').value;
   const category = state.categories.find((item) => item.id === categoryId);
   const subcategories = category?.subcategories || [];
@@ -170,17 +200,19 @@ function renderSubcategorySelect() {
   ].join('');
   if (categoryId === '__new__' && isAdmin()) subcategorySelect.value = '__new__';
 
-  qs('#newCategoryWrap').classList.toggle('hidden', !isAdmin() || categoryId !== '__new__');
-  qs('#newSubcategoryWrap').classList.toggle('hidden', !isAdmin() || (categoryId !== '__new__' && subcategorySelect.value !== '__new__'));
+  if (has('#newCategoryWrap')) qs('#newCategoryWrap').classList.toggle('hidden', !isAdmin() || categoryId !== '__new__');
+  if (has('#newSubcategoryWrap')) qs('#newSubcategoryWrap').classList.toggle('hidden', !isAdmin() || (categoryId !== '__new__' && subcategorySelect.value !== '__new__'));
 }
 
 function renderStores() {
+  if (!has('#storeList')) return;
   qs('#storeList').innerHTML = state.stores.map((store) => `
     <article class="list-item"><strong>${store.name}</strong></article>
   `).join('') || '<p>No stores yet.</p>';
 }
 
 function renderPaymentMethods() {
+  if (!has('#paymentMethodList')) return;
   qs('#paymentMethodList').innerHTML = state.paymentMethods.map((paymentMethod) => `
     <article class="list-item">
       <div class="list-heading">
@@ -192,6 +224,7 @@ function renderPaymentMethods() {
 }
 
 function renderCategories() {
+  if (!has('#categoryList')) return;
   qs('#categoryList').innerHTML = state.categories.map((category) => `
     <article class="list-item">
       <div class="list-heading">
@@ -211,34 +244,34 @@ function renderCategories() {
 }
 
 function renderTransactions() {
+  if (!has('#transactionsTable')) return;
   qs('#transactionsTable').innerHTML = state.transactions.map((transaction) => `
     <tr>
-      <td>${transaction.date.slice(0, 10)}</td>
-      <td>${money.format(Number(transaction.amount))}</td>
-      <td>${transaction.expand?.payment_method?.name || transaction.paymentMethod || ''}</td>
-      <td>${transaction.expand?.category?.name || ''}</td>
-      <td>${transaction.expand?.subcategory?.name || ''}</td>
-      <td>${transaction.expand?.store?.name || ''}</td>
-      <td class="admin-only">${transaction.expand?.user?.email || transaction.expand?.user?.name || ''}</td>
-      <td>
+      <td class="transaction-cell transaction-date-cell" data-label="Date"><span class="transaction-value transaction-date">${transaction.date.slice(0, 10)}</span></td>
+      <td class="transaction-cell transaction-amount-cell" data-label="Amount"><strong class="transaction-value transaction-amount">${money.format(Number(transaction.amount))}</strong></td>
+      <td class="transaction-cell transaction-payment-cell" data-label="Payment mode"><span class="transaction-value">${transaction.expand?.payment_method?.name || transaction.paymentMethod || 'Not set'}</span></td>
+      <td class="transaction-cell transaction-category-cell" data-label="Category"><span class="transaction-value">${transaction.expand?.category?.name || 'Uncategorized'}</span></td>
+      <td class="transaction-cell transaction-subcategory-cell" data-label="Subcategory"><span class="transaction-value">${transaction.expand?.subcategory?.name || 'None'}</span></td>
+      <td class="transaction-cell transaction-store-cell" data-label="Store"><span class="transaction-value">${transaction.expand?.store?.name || 'Unknown'}</span></td>
+      <td class="transaction-cell transaction-user-cell admin-only" data-label="User"><span class="transaction-value">${transaction.expand?.user?.email || transaction.expand?.user?.name || ''}</span></td>
+      <td class="transaction-cell transaction-actions-cell" data-label="Actions">
         <div class="row-actions">
           <button class="ghost" data-edit="${transaction.id}">Edit</button>
           <button class="danger" data-delete="${transaction.id}">Delete</button>
         </div>
       </td>
     </tr>
-  `).join('') || '<tr><td colspan="8">No transactions yet.</td></tr>';
+  `).join('') || '<tr class="table-empty-row"><td colspan="8">No transactions yet.</td></tr>';
 }
 
 function renderHomeTotals() {
-  const thisMonth = monthOffset(0);
-  const lastMonth = monthOffset(-1);
-  const totals = sumBy(state.transactions, (transaction) => transaction.date.slice(0, 7));
-  qs('#thisMonthTotal').textContent = money.format(totals[thisMonth] || 0);
-  qs('#lastMonthTotal').textContent = money.format(totals[lastMonth] || 0);
+  if (!has('#thisMonthTotal') || !has('#lastMonthTotal')) return;
+  qs('#thisMonthTotal').textContent = money.format(state.homeTotals.thisMonth || 0);
+  qs('#lastMonthTotal').textContent = money.format(state.homeTotals.lastMonth || 0);
 }
 
 function renderBars(selector, totals) {
+  if (!has(selector)) return;
   const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, 12);
   const max = Math.max(...entries.map(([, total]) => total), 1);
   qs(selector).innerHTML = entries.map(([name, total]) => `
@@ -257,6 +290,7 @@ function renderDashboard() {
 }
 
 function renderPivot(row = 'month', column = 'category') {
+  if (!has('#pivotTable')) return;
   const rowLabels = [...new Set(state.transactions.map((transaction) => labelFor(transaction, row)))].sort();
   const columnLabels = [...new Set(state.transactions.map((transaction) => labelFor(transaction, column)))].sort();
   const matrix = {};
@@ -281,36 +315,160 @@ function renderPivot(row = 'month', column = 'category') {
   `;
 }
 
-function renderAll() {
-  renderSelects();
-  renderStores();
-  renderPaymentMethods();
-  renderCategories();
-  renderTransactions();
+function resetDataState() {
+  state.categories = [];
+  state.paymentMethods = [];
+  state.stores = [];
+  state.transactions = [];
+  state.homeTotals = { thisMonth: 0, lastMonth: 0 };
+  Object.keys(state.loaded).forEach((key) => {
+    state.loaded[key] = false;
+  });
+  state.pending = {};
   renderHomeTotals();
-  renderDashboard();
-  renderPivot(qs('#pivotForm select[name="row"]').value, qs('#pivotForm select[name="column"]').value);
 }
 
-async function loadData() {
-  const [categories, paymentMethods, stores, transactions] = await Promise.all([
-    api('/api/categories'),
-    api('/api/payment-methods'),
-    api('/api/stores'),
-    api('/api/transactions')
+function invalidate(...keys) {
+  keys.forEach((key) => {
+    state.loaded[key] = false;
+  });
+}
+
+async function ensureLoaded(key, loader, force = false) {
+  if (force) state.loaded[key] = false;
+  if (state.loaded[key]) return;
+  if (!state.pending[key]) {
+    state.pending[key] = loader().finally(() => {
+      delete state.pending[key];
+    });
+  }
+  await state.pending[key];
+}
+
+async function loadCategories(force = false) {
+  await ensureLoaded('categories', async () => {
+    state.categories = await api('/api/categories');
+    state.loaded.categories = true;
+  }, force);
+}
+
+async function loadPaymentMethods(force = false) {
+  await ensureLoaded('paymentMethods', async () => {
+    state.paymentMethods = await api('/api/payment-methods');
+    state.loaded.paymentMethods = true;
+  }, force);
+}
+
+async function loadStores(force = false) {
+  await ensureLoaded('stores', async () => {
+    state.stores = await api('/api/stores');
+    state.loaded.stores = true;
+  }, force);
+}
+
+async function loadTransactions(force = false) {
+  await ensureLoaded('transactions', async () => {
+    state.transactions = await api('/api/transactions');
+    state.loaded.transactions = true;
+  }, force);
+}
+
+async function loadHomeTotals(force = false) {
+  await ensureLoaded('homeTotals', async () => {
+    const [thisMonthRecords, lastMonthRecords] = await Promise.all([
+      api(`/api/transactions?month=${monthOffset(0)}`),
+      api(`/api/transactions?month=${monthOffset(-1)}`)
+    ]);
+    state.homeTotals = {
+      thisMonth: sumAmounts(thisMonthRecords),
+      lastMonth: sumAmounts(lastMonthRecords)
+    };
+    state.loaded.homeTotals = true;
+  }, force);
+}
+
+async function loadHomePage(force = false) {
+  await Promise.all([
+    loadCategories(force),
+    loadPaymentMethods(force),
+    loadStores(force),
+    loadHomeTotals(force)
   ]);
-  state.categories = categories;
-  state.paymentMethods = paymentMethods;
-  state.stores = stores;
-  state.transactions = transactions;
-  renderAll();
+  renderSelects();
+  renderHomeTotals();
+}
+
+async function loadCategoriesPage(force = false) {
+  await loadCategories(force);
+  renderCategories();
+}
+
+async function loadStoresPage(force = false) {
+  await loadStores(force);
+  renderStores();
+}
+
+async function loadPaymentMethodsPage(force = false) {
+  await loadPaymentMethods(force);
+  renderPaymentMethods();
+}
+
+async function loadTransactionsPage(force = false) {
+  await Promise.all([
+    loadCategories(force),
+    loadPaymentMethods(force),
+    loadStores(force),
+    loadTransactions(force)
+  ]);
+  renderTransactions();
+}
+
+async function loadDashboardPage(force = false) {
+  await loadTransactions(force);
+  renderDashboard();
+}
+
+async function loadFilterPage(force = false) {
+  await loadTransactions(force);
+  if (has('#pivotForm')) {
+    renderPivot(qs('#pivotForm select[name="row"]').value, qs('#pivotForm select[name="column"]').value);
+  }
+}
+
+const pageLoaders = {
+  '/': loadHomePage,
+  '/categories': loadCategoriesPage,
+  '/stores': loadStoresPage,
+  '/payment-methods': loadPaymentMethodsPage,
+  '/transactions': loadTransactionsPage,
+  '/dashboard': loadDashboardPage,
+  '/filter': loadFilterPage
+};
+
+async function syncRoute(force = false) {
+  const path = currentPath();
+  const requestId = ++routeRequestId;
+  showPage(path);
+  if (!state.user) return;
+
+  try {
+    await (pageLoaders[path] || loadHomePage)(force);
+  } catch (error) {
+    if (requestId !== routeRequestId) return;
+    toast(error.message);
+  }
+}
+
+async function refreshCurrentPage(keys = []) {
+  invalidate(...keys);
+  await syncRoute(true);
 }
 
 async function loadCurrentUser() {
   try {
     const data = await api('/api/auth/me');
     setAuthView(data.user);
-    await loadData();
+    await syncRoute(true);
   } catch {
     setAuthView(null);
   }
@@ -326,9 +484,10 @@ async function submitAuth(event, endpoint) {
       body: JSON.stringify(data)
     });
     form.reset();
+    resetDataState();
     setAuthView(result.user);
     toast(endpoint.endsWith('login') ? 'Logged in.' : 'Account created.');
-    await loadData();
+    await syncRoute(true);
   } catch (error) {
     toast(error.message);
   }
@@ -338,10 +497,7 @@ async function logout() {
   try {
     await api('/api/auth/logout', { method: 'POST' });
   } finally {
-    state.categories = [];
-    state.paymentMethods = [];
-    state.stores = [];
-    state.transactions = [];
+    resetDataState();
     setAuthView(null);
     toast('Logged out.');
   }
@@ -363,16 +519,20 @@ async function submitExpense(event) {
     storeName: data.storeName
   };
 
-  await api('/api/transactions', { method: 'POST', body: JSON.stringify(body) });
-  form.reset();
-  form.date.valueAsDate = new Date();
-  toast('Expense saved.');
-  await loadData();
+  try {
+    await api('/api/transactions', { method: 'POST', body: JSON.stringify(body) });
+    form.reset();
+    form.date.valueAsDate = new Date();
+    toast('Expense saved.');
+    await refreshCurrentPage(['categories', 'stores', 'transactions', 'homeTotals']);
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 function openEditTransaction(id) {
   const transaction = state.transactions.find((item) => item.id === id);
-  if (!transaction) return;
+  if (!transaction || !has('#editTransactionForm') || !has('#editTransactionDialog')) return;
 
   const form = qs('#editTransactionForm');
   form.elements.id.value = transaction.id;
@@ -383,7 +543,7 @@ function openEditTransaction(id) {
 }
 
 function closeEditTransaction() {
-  qs('#editTransactionDialog').close();
+  if (has('#editTransactionDialog')) qs('#editTransactionDialog').close();
 }
 
 async function submitEditTransaction(event) {
@@ -404,7 +564,7 @@ async function submitEditTransaction(event) {
     });
     closeEditTransaction();
     toast('Transaction updated.');
-    await loadData();
+    await refreshCurrentPage(['transactions', 'homeTotals']);
   } catch (error) {
     toast(error.message);
   }
@@ -420,7 +580,7 @@ async function submitCategory(event) {
     });
     form.reset();
     toast('Category saved.');
-    await loadData();
+    await refreshCurrentPage(['categories', 'transactions']);
   } catch (error) {
     toast(error.message);
   }
@@ -437,7 +597,7 @@ async function editCategory(id) {
       body: JSON.stringify({ name: name.trim() })
     });
     toast('Category updated.');
-    await loadData();
+    await refreshCurrentPage(['categories', 'transactions']);
   } catch (error) {
     toast(error.message);
   }
@@ -454,7 +614,7 @@ async function editSubcategory(id) {
       body: JSON.stringify({ name: name.trim() })
     });
     toast('Subcategory updated.');
-    await loadData();
+    await refreshCurrentPage(['categories', 'transactions']);
   } catch (error) {
     toast(error.message);
   }
@@ -470,7 +630,7 @@ async function submitStore(event) {
     });
     form.reset();
     toast('Store saved.');
-    await loadData();
+    await refreshCurrentPage(['stores', 'transactions']);
   } catch (error) {
     toast(error.message);
   }
@@ -478,7 +638,6 @@ async function submitStore(event) {
 
 async function submitPaymentMethod(event) {
   event.preventDefault();
-  const form = qs('#paymentMethodForm');
   try {
     await api('/api/payment-methods', {
       method: 'POST',
@@ -486,7 +645,7 @@ async function submitPaymentMethod(event) {
     });
     event.currentTarget.reset();
     toast('Payment method saved.');
-    await loadData();
+    await refreshCurrentPage(['paymentMethods', 'transactions']);
   } catch (error) {
     toast(error.message);
   }
@@ -503,7 +662,7 @@ async function editPaymentMethod(id) {
       body: JSON.stringify({ name: name.trim() })
     });
     toast('Payment method updated.');
-    await loadData();
+    await refreshCurrentPage(['paymentMethods', 'transactions']);
   } catch (error) {
     toast(error.message);
   }
@@ -512,9 +671,13 @@ async function editPaymentMethod(id) {
 async function deleteTransaction(event) {
   const button = event.target.closest('[data-delete]');
   if (!button) return;
-  await api(`/api/transactions/${button.dataset.delete}`, { method: 'DELETE' });
-  toast('Transaction deleted.');
-  await loadData();
+  try {
+    await api(`/api/transactions/${button.dataset.delete}`, { method: 'DELETE' });
+    toast('Transaction deleted.');
+    await refreshCurrentPage(['transactions', 'homeTotals']);
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 function handleTransactionClick(event) {
@@ -523,58 +686,66 @@ function handleTransactionClick(event) {
     openEditTransaction(editButton.dataset.edit);
     return;
   }
-  deleteTransaction(event);
+  void deleteTransaction(event);
 }
 
 function handleCategoryClick(event) {
   const categoryButton = event.target.closest('[data-edit-category]');
   if (categoryButton) {
-    editCategory(categoryButton.dataset.editCategory);
+    void editCategory(categoryButton.dataset.editCategory);
     return;
   }
   const subcategoryButton = event.target.closest('[data-edit-subcategory]');
-  if (subcategoryButton) editSubcategory(subcategoryButton.dataset.editSubcategory);
+  if (subcategoryButton) void editSubcategory(subcategoryButton.dataset.editSubcategory);
 }
 
 function handlePaymentMethodClick(event) {
   const paymentMethodButton = event.target.closest('[data-edit-payment-method]');
-  if (paymentMethodButton) editPaymentMethod(paymentMethodButton.dataset.editPaymentMethod);
+  if (paymentMethodButton) void editPaymentMethod(paymentMethodButton.dataset.editPaymentMethod);
 }
 
 function bindEvents() {
-  document.addEventListener('click', navigate);
-  window.addEventListener('popstate', showPage);
-  qs('#expenseForm').addEventListener('submit', submitExpense);
-  qs('#loginForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/login'));
-  qs('#registerForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/register'));
-  qs('#logoutButton').addEventListener('click', logout);
-  qs('#categoryForm').addEventListener('submit', submitCategory);
-  qs('#categoryList').addEventListener('click', handleCategoryClick);
-  qs('#storeForm').addEventListener('submit', submitStore);
-  qs('#paymentMethodForm').addEventListener('submit', submitPaymentMethod);
-  qs('#paymentMethodList').addEventListener('click', handlePaymentMethodClick);
-  qs('#transactionsTable').addEventListener('click', handleTransactionClick);
-  qs('#editTransactionForm').addEventListener('submit', submitEditTransaction);
-  qs('#closeEditDialog').addEventListener('click', closeEditTransaction);
-  qs('#editCategory').addEventListener('change', () => renderEditSelects());
-  qs('#oikosCategory').addEventListener('change', renderSubcategorySelect);
-  qs('#oikosSubcategory').addEventListener('change', () => {
-    qs('#newSubcategoryWrap').classList.toggle('hidden', qs('#oikosSubcategory').value !== '__new__');
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 720) closeMobileNav();
   });
-  qs('#oikosStore').addEventListener('change', () => {
-    qs('#newStoreWrap').classList.toggle('hidden', qs('#oikosStore').value !== '__new__');
-  });
-  qs('#pivotForm').addEventListener('submit', (event) => {
-    event.preventDefault();
-    const data = Object.fromEntries(new FormData(event.currentTarget));
-    renderPivot(data.row, data.column);
-  });
+  if (has('#expenseForm')) qs('#expenseForm').addEventListener('submit', submitExpense);
+  if (has('#loginForm')) qs('#loginForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/login'));
+  if (has('#registerForm')) qs('#registerForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/register'));
+  if (has('#logoutButton')) qs('#logoutButton').addEventListener('click', logout);
+  if (has('#menuToggle')) qs('#menuToggle').addEventListener('click', toggleMobileNav);
+  if (has('#categoryForm')) qs('#categoryForm').addEventListener('submit', submitCategory);
+  if (has('#categoryList')) qs('#categoryList').addEventListener('click', handleCategoryClick);
+  if (has('#storeForm')) qs('#storeForm').addEventListener('submit', submitStore);
+  if (has('#paymentMethodForm')) qs('#paymentMethodForm').addEventListener('submit', submitPaymentMethod);
+  if (has('#paymentMethodList')) qs('#paymentMethodList').addEventListener('click', handlePaymentMethodClick);
+  if (has('#transactionsTable')) qs('#transactionsTable').addEventListener('click', handleTransactionClick);
+  if (has('#editTransactionForm')) qs('#editTransactionForm').addEventListener('submit', submitEditTransaction);
+  if (has('#closeEditDialog')) qs('#closeEditDialog').addEventListener('click', closeEditTransaction);
+  if (has('#editCategory')) qs('#editCategory').addEventListener('change', () => renderEditSelects());
+  if (has('#oikosCategory')) qs('#oikosCategory').addEventListener('change', renderSubcategorySelect);
+  if (has('#oikosSubcategory')) {
+    qs('#oikosSubcategory').addEventListener('change', () => {
+      if (has('#newSubcategoryWrap')) qs('#newSubcategoryWrap').classList.toggle('hidden', qs('#oikosSubcategory').value !== '__new__');
+    });
+  }
+  if (has('#oikosStore')) {
+    qs('#oikosStore').addEventListener('change', () => {
+      if (has('#newStoreWrap')) qs('#newStoreWrap').classList.toggle('hidden', qs('#oikosStore').value !== '__new__');
+    });
+  }
+  if (has('#pivotForm')) {
+    qs('#pivotForm').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(event.currentTarget));
+      renderPivot(data.row, data.column);
+    });
+  }
 }
 
 async function init() {
   bindEvents();
   showPage();
-  qs('#expenseForm [name="date"]').valueAsDate = new Date();
+  if (has('#expenseForm [name="date"]')) qs('#expenseForm [name="date"]').valueAsDate = new Date();
   await loadCurrentUser();
 }
 
