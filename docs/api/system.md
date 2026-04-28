@@ -63,3 +63,25 @@ Response:
   "lastMonth": 6516
 }
 ```
+
+## `GET /api/monthly-totals`
+
+Requires authentication.
+
+Returns expense totals grouped by month, keyed as `YYYY-MM`.
+
+Permissions:
+
+- admin gets totals across all users
+- regular user gets totals only for their own transactions
+
+Response:
+
+```json
+{
+  "totals": {
+    "2026-03": 6516,
+    "2026-04": 2487.99
+  }
+}
+```

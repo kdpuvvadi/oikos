@@ -111,6 +111,15 @@ function sumRecordAmounts(records) {
   return records.reduce((sum, record) => sum + Number(record.amount || 0), 0);
 }
 
+function totalsByMonth(records) {
+  return records.reduce((totals, record) => {
+    const month = String(record.date || '').slice(0, 7);
+    if (!month) return totals;
+    totals[month] = (totals[month] || 0) + Number(record.amount || 0);
+    return totals;
+  }, {});
+}
+
 async function listRecords(client, collection, params) {
   return client.collection(collection).getFullList({
     ...Object.fromEntries(Object.entries(params || {}).filter(([, value]) => value !== undefined && value !== ''))
@@ -424,6 +433,22 @@ app.get('/api/home-totals', requireAuth, async (req, res) => {
     res.json({
       thisMonth: sumRecordAmounts(thisMonthRecords),
       lastMonth: sumRecordAmounts(lastMonthRecords)
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get('/api/monthly-totals', requireAuth, async (req, res) => {
+  try {
+    const filter = isAdmin(req.user) ? '' : `user = "${req.user.id}"`;
+    const transactions = await listRecords(req.pb, 'oikos_transactions', {
+      sort: 'date',
+      filter
+    });
+
+    res.json({
+      totals: totalsByMonth(transactions)
     });
   } catch (error) {
     handleError(res, error);
