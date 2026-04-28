@@ -1,3 +1,5 @@
+import './layout.js';
+
 const state = {
   user: null,
   categories: [],
@@ -28,6 +30,7 @@ const money = new Intl.NumberFormat(undefined, {
 
 const routes = {
   '/': 'homePage',
+  '/me': 'mePage',
   '/categories': 'categoriesPage',
   '/stores': 'storesPage',
   '/payment-methods': 'paymentMethodsPage',
@@ -238,6 +241,30 @@ function renderUsers() {
   `).join('') || '<p>No users yet.</p>';
 }
 
+function renderMe() {
+  if (!has('#meProfile')) return;
+  const user = state.user;
+  if (!user) {
+    qs('#meProfile').innerHTML = '<p>Please sign in to view your profile.</p>';
+    return;
+  }
+
+  qs('#meProfile').innerHTML = `
+    <article class="panel">
+      <div class="detail-list">
+        <div class="detail-row">
+          <span class="detail-label">Name</span>
+          <strong class="detail-value">${user.name || '-'}</strong>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Email</span>
+          <span class="detail-value">${user.email || '-'}</span>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
 function renderPaymentMethods() {
   if (!has('#paymentMethodList')) return;
   qs('#paymentMethodList').innerHTML = state.paymentMethods.map((paymentMethod) => `
@@ -433,6 +460,10 @@ async function loadHomePage(force = false) {
   renderHomeTotals();
 }
 
+async function loadMePage() {
+  renderMe();
+}
+
 async function loadCategoriesPage(force = false) {
   await loadCategories(force);
   renderCategories();
@@ -477,6 +508,7 @@ async function loadFilterPage(force = false) {
 
 const pageLoaders = {
   '/': loadHomePage,
+  '/me': loadMePage,
   '/categories': loadCategoriesPage,
   '/stores': loadStoresPage,
   '/payment-methods': loadPaymentMethodsPage,
