@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Oikos Dashboard</title>
+    <title>Oikos Users</title>
     <script>
       document.documentElement.classList.add('js');
       if (document.cookie.includes('oikos_session=1')) document.documentElement.classList.add('has-session');
@@ -58,25 +58,12 @@
     </section>
 
     <main id="appShell" class="hidden">
-      <section id="dashboardPage">
+      <section id="usersPage">
         <div class="page-title">
-          <p class="eyebrow">Dashboard</p>
-          <h1>Dashboard</h1>
+          <p class="eyebrow">Admin</p>
+          <h1>Users</h1>
         </div>
-        <div class="dashboard-grid">
-          <section class="panel">
-            <h2>By month</h2>
-            <div id="monthChart" class="bars"></div>
-          </section>
-          <section class="panel">
-            <h2>By category</h2>
-            <div id="categoryChart" class="bars"></div>
-          </section>
-          <section class="panel">
-            <h2>By store</h2>
-            <div id="storeChart" class="bars"></div>
-          </section>
-        </div>
+        <div id="userList" class="list-grid"></div>
       </section>
     </main>
 

@@ -3,6 +3,7 @@ const state = {
   categories: [],
   paymentMethods: [],
   stores: [],
+  users: [],
   transactions: [],
   homeTotals: {
     thisMonth: 0,
@@ -12,6 +13,7 @@ const state = {
     categories: false,
     paymentMethods: false,
     stores: false,
+    users: false,
     transactions: false,
     homeTotals: false
   },
@@ -29,6 +31,7 @@ const routes = {
   '/categories': 'categoriesPage',
   '/stores': 'storesPage',
   '/payment-methods': 'paymentMethodsPage',
+  '/users': 'usersPage',
   '/transactions': 'transactionsPage',
   '/dashboard': 'dashboardPage',
   '/filter': 'filterPage'
@@ -222,6 +225,19 @@ function renderStores() {
   `).join('') || '<p>No stores yet.</p>';
 }
 
+function renderUsers() {
+  if (!has('#userList')) return;
+  qs('#userList').innerHTML = state.users.map((user) => `
+    <article class="list-item">
+      <div class="list-heading">
+        <strong>${user.name || user.email}</strong>
+        <span class="pill">${user.isAdmin ? 'Admin' : 'User'}</span>
+      </div>
+      <p>${user.email}</p>
+    </article>
+  `).join('') || '<p>No users yet.</p>';
+}
+
 function renderPaymentMethods() {
   if (!has('#paymentMethodList')) return;
   qs('#paymentMethodList').innerHTML = state.paymentMethods.map((paymentMethod) => `
@@ -330,6 +346,7 @@ function resetDataState() {
   state.categories = [];
   state.paymentMethods = [];
   state.stores = [];
+  state.users = [];
   state.transactions = [];
   state.homeTotals = { thisMonth: 0, lastMonth: 0 };
   Object.keys(state.loaded).forEach((key) => {
@@ -374,6 +391,13 @@ async function loadStores(force = false) {
   await ensureLoaded('stores', async () => {
     state.stores = await api('/api/stores');
     state.loaded.stores = true;
+  }, force);
+}
+
+async function loadUsers(force = false) {
+  await ensureLoaded('users', async () => {
+    state.users = await api('/api/users');
+    state.loaded.users = true;
   }, force);
 }
 
@@ -424,6 +448,11 @@ async function loadPaymentMethodsPage(force = false) {
   renderPaymentMethods();
 }
 
+async function loadUsersPage(force = false) {
+  await loadUsers(force);
+  renderUsers();
+}
+
 async function loadTransactionsPage(force = false) {
   await Promise.all([
     loadCategories(force),
@@ -451,6 +480,7 @@ const pageLoaders = {
   '/categories': loadCategoriesPage,
   '/stores': loadStoresPage,
   '/payment-methods': loadPaymentMethodsPage,
+  '/users': loadUsersPage,
   '/transactions': loadTransactionsPage,
   '/dashboard': loadDashboardPage,
   '/filter': loadFilterPage

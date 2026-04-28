@@ -325,6 +325,15 @@ app.get('/api/payment-methods', requireAuth, async (req, res) => {
   }
 });
 
+app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const users = await listRecords(req.pb, 'users', { sort: 'name,email' });
+    res.json(users.map(publicUser));
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.post('/api/payment-methods', requireAuth, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
@@ -498,6 +507,7 @@ const pageFiles = {
   '/categories': 'categories.html',
   '/stores': 'stores.html',
   '/payment-methods': 'payment-methods.html',
+  '/users': 'users.html',
   '/transactions': 'transactions.html',
   '/dashboard': 'dashboard.html',
   '/filter': 'filter.html'
