@@ -253,13 +253,15 @@ function renderMe() {
         </div>
         <div class="detail-row">
           <span class="detail-label">Email visibility</span>
-          <label class="detail-toggle">
-            <input type="checkbox" id="emailVisibilityToggle" ${user.emailVisibility !== false ? 'checked' : ''}>
-            <span class="detail-toggle-copy">
-              <strong>${user.emailVisibility !== false ? 'Visible' : 'Hidden'}</strong>
-              <span>${user.emailVisibility !== false ? 'Other users and admins can see your email in the app.' : 'Your email is hidden from other users and admin user lists.'}</span>
-            </span>
-          </label>
+          <div class="detail-value">
+            <label class="toggle-switch">
+              <input type="checkbox" ${user.emailVisibility ? 'checked' : ''} data-email-visibility>
+              <span class="toggle-slider"></span>
+            </label>
+            <div style="font-size: 0.85rem; color: #666; margin-top: 0.5rem;">
+              ${user.emailVisibility ? 'Your email is visible to other users and admins.' : 'Your email is hidden from other users and admin lists.'}
+            </div>
+          </div>
         </div>
       </div>
     </article>
@@ -528,10 +530,8 @@ async function loadMePage() {
   renderMe();
 }
 
-async function updateEmailVisibility(event) {
-  const input = event.currentTarget;
-  const nextValue = input.checked;
-  input.disabled = true;
+async function toggleEmailVisibility() {
+  const nextValue = !state.user.emailVisibility;
 
   try {
     const result = await api('/api/auth/me', {
@@ -542,10 +542,7 @@ async function updateEmailVisibility(event) {
     renderMe();
     toast(`Email visibility ${nextValue ? 'enabled' : 'disabled'}.`);
   } catch (error) {
-    input.checked = !nextValue;
     toast(error.message);
-  } finally {
-    input.disabled = false;
   }
 }
 
@@ -925,7 +922,7 @@ function bindEvents() {
   if (has('#toggleTransactionFilters')) qs('#toggleTransactionFilters').addEventListener('click', toggleTransactionFilters);
   if (has('#meProfile')) {
     qs('#meProfile').addEventListener('change', (event) => {
-      if (event.target.matches('#emailVisibilityToggle')) void updateEmailVisibility(event);
+      if (event.target.matches('[data-email-visibility]')) void toggleEmailVisibility();
     });
   }
   if (has('#editTransactionForm')) qs('#editTransactionForm').addEventListener('submit', submitEditTransaction);
