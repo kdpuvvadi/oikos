@@ -330,6 +330,16 @@ function renderTransactionFilterControls() {
   ].join('');
   categorySelect.value = state.categories.some((category) => category.id === selectedCategory) ? selectedCategory : '';
 
+  if (has('#transactionFilterUser')) {
+    const userSelect = qs('#transactionFilterUser');
+    const selectedUser = userSelect.value;
+    userSelect.innerHTML = [
+      option('', 'All users'),
+      ...state.users.map((user) => option(user.id, user.name || user.email))
+    ].join('');
+    userSelect.value = state.users.some((user) => user.id === selectedUser) ? selectedUser : '';
+  }
+
   updateTransactionFilterSubcategories();
   syncTransactionFilterVisibility();
 }
@@ -354,7 +364,7 @@ function updateTransactionFilterSubcategories() {
 function hasActiveTransactionFilters() {
   if (!has('#transactionFilterForm')) return false;
   const data = new FormData(qs('#transactionFilterForm'));
-  return ['fromDate', 'toDate', 'category', 'subcategory'].some((key) => String(data.get(key) || '').trim());
+  return ['fromDate', 'toDate', 'category', 'subcategory', 'user'].some((key) => String(data.get(key) || '').trim());
 }
 
 function syncTransactionFilterVisibility(forceOpen = false) {
@@ -546,11 +556,13 @@ async function loadUsersPage(force = false) {
 }
 
 async function loadTransactionsPage(force = false) {
-  await Promise.all([
+  const loaders = [
     loadCategories(force),
     loadPaymentMethods(force),
     loadStores(force)
-  ]);
+  ];
+  if (isAdmin()) loaders.push(loadUsers(force));
+  await Promise.all(loaders);
   renderTransactionFilterControls();
   await loadTransactionRows();
   renderTransactions();
@@ -820,7 +832,7 @@ function buildTransactionFilterQuery() {
 
   const data = new FormData(qs('#transactionFilterForm'));
   const params = new URLSearchParams();
-  ['fromDate', 'toDate', 'category', 'subcategory'].forEach((key) => {
+  ['fromDate', 'toDate', 'category', 'subcategory', 'user'].forEach((key) => {
     const value = String(data.get(key) || '').trim();
     if (value) params.set(key, value);
   });

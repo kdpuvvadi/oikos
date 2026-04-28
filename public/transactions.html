@@ -25,7 +25,7 @@
           </div>
         </div>
         <div id="transactionFiltersPanel" class="hidden">
-          <form id="transactionFilterForm" class="panel inline-form">
+          <form id="transactionFilterForm" class="panel inline-form transaction-filter-form">
             <label>
               From
               <input type="date" name="fromDate">
@@ -44,6 +44,12 @@
               Subcategory
               <select name="subcategory" id="transactionFilterSubcategory">
                 <option value="">All subcategories</option>
+              </select>
+            </label>
+            <label class="admin-only">
+              User
+              <select name="user" id="transactionFilterUser">
+                <option value="">All users</option>
               </select>
             </label>
             <button type="submit">Apply filters</button>

@@ -371,6 +371,7 @@ app.get('/api/transactions', requireAuth, async (req, res) => {
     if (req.query.toDate) filters.push(`date < "${nextDayBoundary(req.query.toDate)}"`);
     if (req.query.category) filters.push(`category = "${req.query.category}"`);
     if (req.query.subcategory) filters.push(`subcategory = "${req.query.subcategory}"`);
+    if (req.query.user && isAdmin(req.user)) filters.push(`user = "${req.query.user}"`);
     if (req.query.store) filters.push(`store = "${req.query.store}"`);
 
     const transactions = await listRecords(req.pb, 'oikos_transactions', {

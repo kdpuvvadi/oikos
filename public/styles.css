@@ -302,6 +302,17 @@ h2 {
   margin-bottom: 0;
 }
 
+.transaction-filter-form {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+}
+
+.transaction-filter-form > * {
+  min-width: 0;
+}
+
 .inline-form > * {
   flex: 1 1 220px;
 }
@@ -603,6 +614,10 @@ dialog::backdrop {
 
   .inline-form > * {
     flex-basis: 100%;
+  }
+
+  .transaction-filter-form {
+    grid-template-columns: 1fr;
   }
 
   .panel,
