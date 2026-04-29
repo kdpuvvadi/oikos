@@ -4,8 +4,6 @@ on:
   pull_request:
     branches:
       - develop
-  release:
-    types: [published]
 
 jobs:
   check:
@@ -56,10 +54,6 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=PR#${{ github.event.pull_request.number }},enable=${{ github.event_name == 'pull_request' }}
-            type=semver,pattern={{major}}.{{minor}}.{{patch}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
