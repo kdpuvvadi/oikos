@@ -75,29 +75,42 @@ jobs:
         if: steps.check-tag.outputs.exists == 'false'
         id: changelog
         run: |
-          # Find the second most recent tag
-          PREV_TAG=$(git tag --sort=-version:refname | sed -n '2p')
+          VERSION="${{ steps.version.outputs.version }}"
           
-          echo "CHANGELOG_CONTENT<<EOF" >> $GITHUB_ENV
+          # Get all tags and find the previous one
+          PREV_TAG=$(git tag --sort=-version:refname --list | head -2 | tail -1)
+          
           if [ -z "$PREV_TAG" ]; then
-            git log --pretty=format:"- %h: %s (%an)" -n 50 >> $GITHUB_ENV
+            # No previous tag, show all commits
+            CHANGELOG=$(git log --pretty=format:"- %h: %s (%an)" | head -50)
           else
-            git log $PREV_TAG..HEAD --pretty=format:"- %h: %s (%an)" >> $GITHUB_ENV
+            # Show commits since last tag
+            CHANGELOG=$(git log $PREV_TAG..HEAD --pretty=format:"- %h: %s (%an)")
           fi
-          echo "EOF" >> $GITHUB_ENV
+          
+          # Escape newlines for GitHub output
+          CHANGELOG="${CHANGELOG//'%'/'%25'}"
+          CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
+          CHANGELOG="${CHANGELOG//$'\r'/'%0D'}"
+          
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         if: steps.check-tag.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v3
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.version.outputs.version }}
-          name: Release ${{ steps.version.outputs.version }}
+          release_name: Release ${{ steps.version.outputs.version }}
           body: |
-            ## Changes in this release
-            ${{ env.CHANGELOG_CONTENT }}
+            ## Release ${{ steps.version.outputs.version }}
+            
+            ### Changes
+            ${{ steps.changelog.outputs.changelog }}
             
             ---
-            *Automated release from the release branch.*
+            *This release was automatically created from the release branch.*
           draft: false
           prerelease: false
 
