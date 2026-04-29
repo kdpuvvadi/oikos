@@ -1,9 +1,12 @@
-name: Build and Publish Docker Image
+name: Build Docker Image on release
 
 on:
   push:
     tags:
       - 'v*'
+      
+  release:
+    types: [published]
 
 jobs:
   check:
@@ -61,7 +64,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: ${{ github.event_name == 'pull_request' || github.event_name == 'release' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
