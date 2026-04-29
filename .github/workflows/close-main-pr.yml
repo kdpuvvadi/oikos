@@ -1,0 +1,31 @@
+name: Close PRs to Main Branch
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - main
+
+jobs:
+  close-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Close PR and leave comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              state: 'closed'
+            });
+            
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '❌ PRs to `main` are not allowed.\n\n💡 Please open your PR to the `develop` branch instead.\n\n**Workflow:**\n- Feature branches → PR to `develop`\n- `develop` → PR to `release` (when ready for release)\n- `release` → `main` (automatically on merge)\n\nThank you!'
+            });
