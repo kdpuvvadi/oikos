@@ -3,7 +3,7 @@ name: Build and Publish Docker Image
 on:
   pull_request:
     branches:
-      - main
+      - develop
   release:
     types: [published]
 
