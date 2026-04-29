@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -109,6 +110,35 @@ jobs:
             *This release was automatically created from the release branch.*
           draft: false
           prerelease: false
+
+      - name: Log in to GHCR
+        if: steps.check-tag.outputs.exists == 'false'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set Docker tags
+        if: steps.check-tag.outputs.exists == 'false'
+        id: docker-tags
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          VERSION_NO_V="${VERSION#v}"
+          MAJOR="${VERSION_NO_V%%.*}"
+          MINOR_PATCH="${VERSION_NO_V#*.}"
+          MINOR="${MINOR_PATCH%%.*}"
+          echo "tags=ghcr.io/${{ github.repository }}:${VERSION_NO_V},ghcr.io/${{ github.repository }}:${MAJOR}.${MINOR}.${VERSION_NO_V##*.},ghcr.io/${{ github.repository }}:${MAJOR}.${MINOR},ghcr.io/${{ github.repository }}:${MAJOR},ghcr.io/${{ github.repository }}:latest" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        if: steps.check-tag.outputs.exists == 'false'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.docker-tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Update main branch with merge commit
         if: steps.check-tag.outputs.exists == 'false'
