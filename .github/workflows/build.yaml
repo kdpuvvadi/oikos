@@ -1,15 +1,161 @@
-name: Build Docker Image on release
+name: Release and Build Docker Image
 
 on:
   push:
+    branches:
+      - release
     tags:
-      - 'v*'
-      
+      - 'v*.*.*'
   release:
     types: [published]
 
 jobs:
+  create-release:
+    if: github.ref == 'refs/heads/release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag_created: ${{ steps.check-tag.outputs.exists == 'false' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Extract version from latest PR or commit
+        id: version
+        run: |
+          # Get the latest commit message
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Commit message: $COMMIT_MSG"
+          
+          # Extract version from PR title format (release-v1.2.3)
+          if [[ $COMMIT_MSG =~ release-v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            VERSION="v${BASH_REMATCH[1]}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "✓ Extracted version from PR title: $VERSION"
+          elif [[ $COMMIT_MSG =~ v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            VERSION="v${BASH_REMATCH[1]}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "✓ Extracted version from commit message: $VERSION"
+          else
+            echo "⚠️ Could not extract version from commit message, using fallback strategy"
+            
+            # Get the latest tag
+            LATEST_TAG=$(git tag --sort=-version:refname --list 'v*' | head -1)
+            
+            if [ -z "$LATEST_TAG" ]; then
+              echo "⚠️ No previous tags found, using v0.0.1"
+              VERSION="v0.0.1"
+            else
+              # Parse the version and increment patch
+              if [[ $LATEST_TAG =~ v([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+                MAJOR="${BASH_REMATCH[1]}"
+                MINOR="${BASH_REMATCH[2]}"
+                PATCH="${BASH_REMATCH[3]}"
+                
+                # Increment patch version
+                NEW_PATCH=$((PATCH + 1))
+                VERSION="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+                echo "✓ Auto-incremented version from $LATEST_TAG to $VERSION"
+              else
+                echo "⚠️ Could not parse previous tag format, using v0.0.1"
+                VERSION="v0.0.1"
+              fi
+            fi
+            
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if tag already exists
+        id: check-tag
+        run: |
+          TAG="${{ steps.version.outputs.version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Git Tag
+        if: steps.check-tag.outputs.exists == 'false'
+        run: |
+          TAG="${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Generate changelog
+        if: steps.check-tag.outputs.exists == 'false'
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Get all tags and find the previous one
+          PREV_TAG=$(git tag --sort=-version:refname --list | head -2 | tail -1)
+          
+          if [ -z "$PREV_TAG" ]; then
+            # No previous tag, show all commits (excluding merges)
+            CHANGELOG=$(git log --no-merges --pretty=format:"- %h: %s (%an)" | head -50)
+          else
+            # Show commits since last tag (excluding merges)
+            CHANGELOG=$(git log --no-merges $PREV_TAG..HEAD --pretty=format:"- %h: %s (%an)")
+          fi
+          
+          # Escape newlines for GitHub output
+          CHANGELOG="${CHANGELOG//'%'/'%25'}"
+          CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
+          CHANGELOG="${CHANGELOG//$'\r'/'%0D'}"
+          
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        if: steps.check-tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          body: |
+            ## Release ${{ steps.version.outputs.version }}
+            
+            ### Changes
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ---
+            *This release was automatically created from the release branch.*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update main branch with merge commit
+        if: steps.check-tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          TAG="${{ steps.version.outputs.version }}"
+          git merge --no-ff origin/release -m "Merge release ${TAG} into main"
+          git push origin main
+
   check:
+    if: |
+      github.event_name == 'release' || 
+      startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
