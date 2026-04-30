@@ -7,6 +7,7 @@ export const seoConfig = {
   themeColor: '#f8faf8',
   locale: 'en_US',
   twitterCard: 'summary',
+  dateFormat: 'DD-MM-YYYY',
   pages: {
     '/': {
       title: 'Expense Entry',
