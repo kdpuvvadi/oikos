@@ -1,4 +1,5 @@
 import './layout.js';
+import { seoConfig } from './seo.config.js';
 
 const state = {
   user: null,
@@ -28,6 +29,22 @@ const money = new Intl.NumberFormat(undefined, {
   currency: 'INR',
   maximumFractionDigits: 2
 });
+
+function formatDate(dateString) {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  
+  const format = seoConfig.dateFormat || 'DD-MM-YYYY';
+  
+  if (format === 'YYYY-MM-DD') return `${year}-${month}-${day}`;
+  if (format === 'MM-DD-YYYY') return `${month}-${day}-${year}`;
+  if (format === 'DD-MM-YYYY') return `${day}-${month}-${year}`;
+  
+  return `${day}-${month}-${year}`;
+}
 
 const routes = {
   '/': 'homePage',
@@ -304,7 +321,7 @@ function renderTransactions() {
   if (!has('#transactionsTable')) return;
   qs('#transactionsTable').innerHTML = state.transactionRows.map((transaction) => `
     <tr>
-      <td class="transaction-cell transaction-date-cell" data-label="Date"><span class="transaction-value transaction-date">${transaction.date.slice(0, 10)}</span></td>
+      <td class="transaction-cell transaction-date-cell" data-label="Date"><span class="transaction-value transaction-date">${formatDate(transaction.date)}</span></td>
       <td class="transaction-cell transaction-amount-cell" data-label="Amount"><strong class="transaction-value transaction-amount">${money.format(Number(transaction.amount))}</strong></td>
       <td class="transaction-cell transaction-payment-cell" data-label="Payment mode"><span class="transaction-value">${transaction.expand?.payment_method?.name || transaction.paymentMethod || 'Not set'}</span></td>
       <td class="transaction-cell transaction-category-cell" data-label="Category"><span class="transaction-value">${transaction.expand?.category?.name || 'Uncategorized'}</span></td>
