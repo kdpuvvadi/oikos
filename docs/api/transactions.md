@@ -39,7 +39,6 @@ Response shape:
     "id": "TRANSACTION_ID",
     "date": "2026-04-27 00:00:00.000Z",
     "amount": 2364.99,
-    "paymentMethod": "Cash",
     "payment_method": "PAYMENT_METHOD_ID",
     "category": "CATEGORY_ID",
     "subcategory": "SUBCATEGORY_ID",

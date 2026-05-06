@@ -528,17 +528,12 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
       storeText = '';
     }
 
-    let paymentMethod = '';
     const paymentMethodRecord = await resolvePaymentMethod(req.pb, paymentMethodId);
-    if (paymentMethodRecord) {
-      paymentMethod = paymentMethodRecord.name || '';
-    }
 
     const transaction = await createRecord(req.pb, 'oikos_transactions', {
       date: pbDate(date),
       title,
       amount,
-      paymentMethod,
       payment_method: paymentMethodRecord?.id || null,
       category: categoryId,
       subcategory: subcategoryId,
@@ -583,17 +578,12 @@ app.put('/api/transactions/:id', requireAuth, async (req, res) => {
       storeText = '';
     }
 
-    let paymentMethod = '';
     const paymentMethodRecord = await resolvePaymentMethod(req.pb, paymentMethodId);
-    if (paymentMethodRecord) {
-      paymentMethod = paymentMethodRecord.name || '';
-    }
 
     const updated = await req.pb.collection('oikos_transactions').update(req.params.id, {
       date: pbDate(date),
       title,
       amount,
-      paymentMethod,
       payment_method: paymentMethodRecord?.id || null,
       category: categoryId,
       subcategory: subcategoryId,
