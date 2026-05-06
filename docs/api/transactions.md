@@ -80,11 +80,13 @@ Request body:
 ```json
 {
   "date": "2026-04-27",
+  "title": "Fuel refill",
   "amount": 2364.99,
   "paymentMethod": "PAYMENT_METHOD_ID",
   "category": "CATEGORY_ID",
   "subcategory": "SUBCATEGORY_ID",
-  "store": "STORE_ID"
+  "store": "STORE_ID",
+  "storeText": "Local roadside pump"
 }
 ```
 
@@ -103,6 +105,8 @@ Rules:
 - `date` is required
 - `amount` must be positive
 - `category`, `subcategory`, and `store` are required after any admin-side creation logic runs
+- `title` is optional
+- `storeText` is required when the selected store is the seeded `Other` store
 - non-admins cannot use `categoryName`, `subcategoryName`, or `storeName`
 - `paymentMethod` may be omitted or blank
 
@@ -124,11 +128,13 @@ Request body:
 ```json
 {
   "date": "2026-04-27",
+  "title": "Fuel refill",
   "amount": 2364.99,
   "paymentMethod": "PAYMENT_METHOD_ID",
   "category": "CATEGORY_ID",
   "subcategory": "SUBCATEGORY_ID",
-  "store": "STORE_ID"
+  "store": "STORE_ID",
+  "storeText": "Local roadside pump"
 }
 ```
 
