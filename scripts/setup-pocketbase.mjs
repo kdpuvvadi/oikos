@@ -189,12 +189,14 @@ async function main() {
     deleteRule: ownOrAdminTransactionRule,
     fields: [
       dateField('date'),
+      textField('title', false),
       numberField('amount'),
       textField('paymentMethod', false),
       relationField('payment_method', paymentMethods.id, false, false),
       relationField('category', categories.id),
       relationField('subcategory', subcategories.id),
       relationField('store', stores.id),
+      textField('storeText', false),
       relationField('user', users.id, false, false)
     ]
   });
