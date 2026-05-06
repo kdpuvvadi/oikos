@@ -4,11 +4,13 @@
   "description": "Oikos, Simple Express and PocketBase expenses management system.",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/sync-manifest-version.mjs",
     "start": "node server.js",
     "dev": "node --watch server.js",
     "setup:pocketbase": "node scripts/setup-pocketbase.mjs",
     "make:admin": "node scripts/make-admin.mjs",
-    "check": "node --check server.js && node --check public/app.js && node --check public/layout.js && node --check public/head.js && node --check public/seo.config.js && node --check scripts/setup-pocketbase.mjs && node --check scripts/make-admin.mjs"
+    "sync:manifest-version": "node scripts/sync-manifest-version.mjs",
+    "check": "node --check server.js && node --check public/app.js && node --check public/layout.js && node --check public/head.js && node --check public/seo.config.js && node --check scripts/setup-pocketbase.mjs && node --check scripts/make-admin.mjs && node --check scripts/sync-manifest-version.mjs"
   },
   "dependencies": {
     "express": "^4.19.2",
