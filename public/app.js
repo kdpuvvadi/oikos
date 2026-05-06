@@ -149,11 +149,19 @@ function option(value, label) {
   return `<option value="${value}">${label}</option>`;
 }
 
+function otherStoreId() {
+  return state.stores.find((store) => store.name?.trim().toLowerCase() === 'other')?.id || '';
+}
+
+function displayStore(transaction) {
+  return transaction.storeText || transaction.expand?.store?.name || 'Unknown';
+}
+
 function labelFor(transaction, field) {
   if (field === 'month') return transaction.date.slice(0, 7);
   if (field === 'category') return transaction.expand?.category?.name || 'Uncategorized';
   if (field === 'subcategory') return transaction.expand?.subcategory?.name || 'None';
-  if (field === 'store') return transaction.expand?.store?.name || 'Unknown';
+  if (field === 'store') return displayStore(transaction);
   if (field === 'paymentMethod') return transaction.expand?.payment_method?.name || transaction.paymentMethod || 'Not set';
   return 'Total';
 }
@@ -189,6 +197,7 @@ function renderSelects() {
   ].join('');
 
   renderSubcategorySelect();
+  syncStoreInputVisibility();
 }
 
 function renderEditSelects(transaction) {
@@ -210,6 +219,8 @@ function renderEditSelects(transaction) {
   qs('#editSubcategory').value = subcategories.some((item) => item.id === subcategoryId) ? subcategoryId : subcategories[0]?.id || '';
   qs('#editStore').value = transaction?.store || qs('#editStore').value;
   qs('#editPaymentMethod').value = transaction?.payment_method || '';
+  if (has('#editStoreText')) qs('#editStoreText').value = transaction?.storeText || '';
+  syncEditStoreInputVisibility();
 }
 
 function renderSubcategorySelect() {
@@ -234,6 +245,21 @@ function renderStores() {
   qs('#storeList').innerHTML = state.stores.map((store) => `
     <article class="list-item"><strong>${store.name}</strong></article>
   `).join('') || '<p>No stores yet.</p>';
+}
+
+function syncStoreInputVisibility() {
+  if (!has('#oikosStore') || !has('#newStoreWrap')) return;
+  const storeId = qs('#oikosStore').value;
+  const isAdminCreatingStore = isAdmin() && storeId === '__new__';
+  const usesCustomStoreText = storeId === otherStoreId();
+  qs('#newStoreWrap').classList.toggle('hidden', !isAdminCreatingStore && !usesCustomStoreText);
+  const input = qs('#newStoreWrap input');
+  input.name = isAdminCreatingStore ? 'storeName' : 'storeText';
+}
+
+function syncEditStoreInputVisibility() {
+  if (!has('#editStore') || !has('#editStoreTextWrap')) return;
+  qs('#editStoreTextWrap').classList.toggle('hidden', qs('#editStore').value !== otherStoreId());
 }
 
 function renderUsers() {
@@ -322,11 +348,12 @@ function renderTransactions() {
   qs('#transactionsTable').innerHTML = state.transactionRows.map((transaction) => `
     <tr>
       <td class="transaction-cell transaction-date-cell" data-label="Date"><span class="transaction-value transaction-date">${formatDate(transaction.date)}</span></td>
+      <td class="transaction-cell transaction-title-cell" data-label="Title"><span class="transaction-value">${transaction.title || '-'}</span></td>
       <td class="transaction-cell transaction-amount-cell" data-label="Amount"><strong class="transaction-value transaction-amount">${money.format(Number(transaction.amount))}</strong></td>
       <td class="transaction-cell transaction-payment-cell" data-label="Payment mode"><span class="transaction-value">${transaction.expand?.payment_method?.name || transaction.paymentMethod || 'Not set'}</span></td>
       <td class="transaction-cell transaction-category-cell" data-label="Category"><span class="transaction-value">${transaction.expand?.category?.name || 'Uncategorized'}</span></td>
       <td class="transaction-cell transaction-subcategory-cell" data-label="Subcategory"><span class="transaction-value">${transaction.expand?.subcategory?.name || 'None'}</span></td>
-      <td class="transaction-cell transaction-store-cell" data-label="Store"><span class="transaction-value">${transaction.expand?.store?.name || 'Unknown'}</span></td>
+      <td class="transaction-cell transaction-store-cell" data-label="Store"><span class="transaction-value">${displayStore(transaction)}</span></td>
       <td class="transaction-cell transaction-user-cell admin-only" data-label="User"><span class="transaction-value">${transaction.expand?.user?.email || transaction.expand?.user?.name || ''}</span></td>
       <td class="transaction-cell transaction-actions-cell" data-label="Actions">
         <div class="row-actions">
@@ -335,7 +362,7 @@ function renderTransactions() {
         </div>
       </td>
     </tr>
-  `).join('') || '<tr class="table-empty-row"><td colspan="8">No transactions yet.</td></tr>';
+  `).join('') || '<tr class="table-empty-row"><td colspan="9">No transactions yet.</td></tr>';
 }
 
 function renderTransactionFilterControls() {
@@ -425,7 +452,7 @@ function renderBars(selector, totals) {
 function renderDashboard() {
   renderBars('#monthChart', sumBy(state.transactions, (transaction) => transaction.date.slice(0, 7)));
   renderBars('#categoryChart', sumBy(state.transactions, (transaction) => transaction.expand?.category?.name || 'Uncategorized'));
-  renderBars('#storeChart', sumBy(state.transactions, (transaction) => transaction.expand?.store?.name || 'Unknown'));
+  renderBars('#storeChart', sumBy(state.transactions, (transaction) => displayStore(transaction)));
 }
 
 function renderPivot(row = 'month', column = 'category') {
@@ -684,6 +711,7 @@ async function submitExpense(event) {
   const data = Object.fromEntries(new FormData(form));
   const body = {
     date: data.date,
+    title: data.title,
     amount: data.amount,
     paymentMethod: data.paymentMethod,
     category: data.category === '__new__' ? '' : data.category,
@@ -691,7 +719,8 @@ async function submitExpense(event) {
     store: data.store === '__new__' ? '' : data.store,
     categoryName: data.categoryName,
     subcategoryName: data.subcategoryName,
-    storeName: data.storeName
+    storeName: data.storeName,
+    storeText: data.storeText
   };
 
   try {
@@ -712,6 +741,7 @@ function openEditTransaction(id) {
   const form = qs('#editTransactionForm');
   form.elements.id.value = transaction.id;
   form.elements.date.value = transaction.date.slice(0, 10);
+  form.elements.title.value = transaction.title || '';
   form.elements.amount.value = transaction.amount;
   renderEditSelects(transaction);
   qs('#editTransactionDialog').showModal();
@@ -730,11 +760,13 @@ async function submitEditTransaction(event) {
       method: 'PUT',
       body: JSON.stringify({
         date: data.date,
+        title: data.title,
         amount: data.amount,
         paymentMethod: data.paymentMethod,
         category: data.category,
         subcategory: data.subcategory,
-        store: data.store
+        store: data.store,
+        storeText: data.storeText
       })
     });
     closeEditTransaction();
@@ -953,9 +985,10 @@ function bindEvents() {
   }
   if (has('#oikosStore')) {
     qs('#oikosStore').addEventListener('change', () => {
-      if (has('#newStoreWrap')) qs('#newStoreWrap').classList.toggle('hidden', qs('#oikosStore').value !== '__new__');
+      syncStoreInputVisibility();
     });
   }
+  if (has('#editStore')) qs('#editStore').addEventListener('change', syncEditStoreInputVisibility);
   if (has('#pivotForm')) {
     qs('#pivotForm').addEventListener('submit', (event) => {
       event.preventDefault();

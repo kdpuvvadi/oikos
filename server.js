@@ -174,6 +174,16 @@ async function resolvePaymentMethod(client, value) {
   }
 }
 
+async function isOtherStore(client, storeId) {
+  if (!storeId) return false;
+  try {
+    const store = await client.collection('oikos_stores').getOne(storeId);
+    return sanitizeName(store.name).toLowerCase() === 'other';
+  } catch {
+    return false;
+  }
+}
+
 function handleError(res, error) {
   console.error(error);
   const requestUrl = error.url || error.originalError?.url || error.cause?.url || '';
@@ -478,6 +488,7 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
   try {
     const amount = Number(req.body.amount);
     const date = sanitizeName(req.body.date);
+    const title = sanitizeName(req.body.title);
     const paymentMethodId = sanitizeName(req.body.paymentMethod);
     if (!date || Number.isNaN(amount) || amount <= 0) {
       return res.status(400).json({ error: 'Date and a positive amount are required.' });
@@ -486,6 +497,7 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
     let categoryId = sanitizeName(req.body.category);
     let subcategoryId = sanitizeName(req.body.subcategory);
     let storeId = sanitizeName(req.body.store);
+    let storeText = sanitizeName(req.body.storeText);
 
     if ((req.body.categoryName || req.body.subcategoryName || req.body.storeName) && !isAdmin(req.user)) {
       return res.status(403).json({ error: 'Only admins can add categories, subcategories, or stores.' });
@@ -508,6 +520,14 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Category, subcategory, and store are required.' });
     }
 
+    if (await isOtherStore(req.pb, storeId)) {
+      if (!storeText) {
+        return res.status(400).json({ error: 'Store name is required when store is Other.' });
+      }
+    } else {
+      storeText = '';
+    }
+
     let paymentMethod = '';
     const paymentMethodRecord = await resolvePaymentMethod(req.pb, paymentMethodId);
     if (paymentMethodRecord) {
@@ -516,12 +536,14 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
 
     const transaction = await createRecord(req.pb, 'oikos_transactions', {
       date: pbDate(date),
+      title,
       amount,
       paymentMethod,
       payment_method: paymentMethodRecord?.id || null,
       category: categoryId,
       subcategory: subcategoryId,
       store: storeId,
+      storeText,
       user: req.user.id
     });
     res.status(201).json(transaction);
@@ -539,6 +561,7 @@ app.put('/api/transactions/:id', requireAuth, async (req, res) => {
 
     const amount = Number(req.body.amount);
     const date = sanitizeName(req.body.date);
+    const title = sanitizeName(req.body.title);
     const paymentMethodId = sanitizeName(req.body.paymentMethod);
     if (!date || Number.isNaN(amount) || amount <= 0) {
       return res.status(400).json({ error: 'Date and a positive amount are required.' });
@@ -547,8 +570,17 @@ app.put('/api/transactions/:id', requireAuth, async (req, res) => {
     const categoryId = sanitizeName(req.body.category);
     const subcategoryId = sanitizeName(req.body.subcategory);
     const storeId = sanitizeName(req.body.store);
+    let storeText = sanitizeName(req.body.storeText);
     if (!categoryId || !subcategoryId || !storeId) {
       return res.status(400).json({ error: 'Category, subcategory, and store are required.' });
+    }
+
+    if (await isOtherStore(req.pb, storeId)) {
+      if (!storeText) {
+        return res.status(400).json({ error: 'Store name is required when store is Other.' });
+      }
+    } else {
+      storeText = '';
     }
 
     let paymentMethod = '';
@@ -559,12 +591,14 @@ app.put('/api/transactions/:id', requireAuth, async (req, res) => {
 
     const updated = await req.pb.collection('oikos_transactions').update(req.params.id, {
       date: pbDate(date),
+      title,
       amount,
       paymentMethod,
       payment_method: paymentMethodRecord?.id || null,
       category: categoryId,
       subcategory: subcategoryId,
       store: storeId,
+      storeText,
       user: transaction.user || req.user.id
     });
     res.json(updated);
