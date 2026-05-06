@@ -61,6 +61,17 @@ async function createCollection(payload) {
       console.log(`Updated fields for collection: ${payload.name}`);
     }
 
+    const removeFields = payload.removeFields || [];
+    const currentFields = current.fields || fields;
+    const removableFields = currentFields.filter((field) => removeFields.includes(field.name));
+
+    if (removableFields.length) {
+      current = await pb.collections.update(current.id, {
+        fields: currentFields.filter((field) => !removeFields.includes(field.name))
+      });
+      console.log(`Removed obsolete fields from collection: ${payload.name}`);
+    }
+
     const changedRules = Object.fromEntries(
       ruleKeys
         .filter((key) => current[key] !== payload[key])
@@ -187,11 +198,11 @@ async function main() {
     createRule: ownCreateTransactionRule,
     updateRule: ownOrAdminTransactionRule,
     deleteRule: ownOrAdminTransactionRule,
+    removeFields: ['paymentMethod'],
     fields: [
       dateField('date'),
       textField('title', false),
       numberField('amount'),
-      textField('paymentMethod', false),
       relationField('payment_method', paymentMethods.id, false, false),
       relationField('category', categories.id),
       relationField('subcategory', subcategories.id),
