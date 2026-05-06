@@ -61,6 +61,7 @@
             <thead>
               <tr>
                 <th>Date</th>
+                <th>Title</th>
                 <th>Amount</th>
                 <th>Payment mode</th>
                 <th>Category</th>
@@ -84,11 +85,13 @@
         </div>
         <input type="hidden" name="id">
         <label>Date<input type="date" name="date" required></label>
+        <label>Title<input type="text" name="title" placeholder="Example: Fuel refill"></label>
         <label>Amount spent<input type="number" name="amount" min="0.01" step="0.01" required></label>
         <label>Payment mode<select name="paymentMethod" id="editPaymentMethod"></select></label>
         <label>Expense category<select name="category" id="editCategory" required></select></label>
         <label>Subcategory<select name="subcategory" id="editSubcategory" required></select></label>
         <label>Store<select name="store" id="editStore" required></select></label>
+        <label id="editStoreTextWrap" class="hidden">Store name<input type="text" name="storeText" id="editStoreText" placeholder="Example: Corner shop"></label>
         <button type="submit">Save changes</button>
       </form>
     </dialog>
