@@ -32,34 +32,58 @@ jobs:
     permissions:
       contents: write
     outputs:
-      version: ${{ steps.autotag.outputs.tagname }}
+      version: ${{ steps.version.outputs.version }}
+      merge_sha: ${{ steps.merge-main.outputs.merge_sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Create tag from package.json version
-        id: autotag
-        uses: Klemensas/action-autotag@1.2.3
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          tag_prefix: v
-
-      - name: Ensure a new tag was created
+      - name: Merge release into main
+        id: merge-main
         run: |
-          if [ -z "${{ steps.autotag.outputs.tagname }}" ]; then
-            echo "No new tag was created. Bump the package.json version before merging into release."
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main release --tags
+          git checkout main
+          git reset --hard origin/main
+          git merge --no-ff origin/release -m "Merge release into main before GitHub release"
+          git push origin main
+          echo "merge_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Resolve release version from package.json
+        id: version
+        run: |
+          VERSION=$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")
+          if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "package.json version '$VERSION' is not valid semver."
             exit 1
           fi
-          echo "Using release version ${{ steps.autotag.outputs.tagname }}"
+          echo "version=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Using release version v$VERSION"
+
+      - name: Ensure tag does not already exist
+        run: |
+          TAG="${{ steps.version.outputs.version }}"
+          git fetch --tags origin
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists. Bump the package.json version before merging into release."
+            exit 1
+          fi
+
+      - name: Create and push tag
+        run: |
+          TAG="${{ steps.version.outputs.version }}"
+          git tag -a "$TAG" -m "Release $TAG" "${{ steps.merge-main.outputs.merge_sha }}"
+          git push origin "$TAG"
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.autotag.outputs.tagname }}
-          name: Release ${{ steps.autotag.outputs.tagname }}
-          target_commitish: ${{ github.sha }}
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          target_commitish: ${{ steps.merge-main.outputs.merge_sha }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
