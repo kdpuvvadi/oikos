@@ -1,6 +1,7 @@
 {
   "name": "Oikos - Expense Tracker",
   "short_name": "Oikos",
+  "version": "0.3.2",
   "description": "A simple and elegant expense tracking application to manage your spending",
   "start_url": "/",
   "scope": "/",
@@ -8,7 +9,10 @@
   "orientation": "portrait-primary",
   "theme_color": "#2e7d4f",
   "background_color": "#f8faf8",
-  "categories": ["finance", "productivity"],
+  "categories": [
+    "finance",
+    "productivity"
+  ],
   "screenshots": [
     {
       "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 540 720'><rect fill='%23f8faf8' width='540' height='720'/><text x='50' y='100' font-size='32' font-weight='bold' fill='%2317201c'>Oikos</text><text x='50' y='150' font-size='18' fill='%23617069'>Expense Tracker</text></svg>",

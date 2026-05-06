@@ -6,11 +6,12 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --ignore-scripts
 
 COPY server.js ./
 COPY public ./public
 COPY scripts ./scripts
+RUN npm run sync:manifest-version
 
 EXPOSE 3000
 

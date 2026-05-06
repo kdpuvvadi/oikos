@@ -162,7 +162,7 @@ function labelFor(transaction, field) {
   if (field === 'category') return transaction.expand?.category?.name || 'Uncategorized';
   if (field === 'subcategory') return transaction.expand?.subcategory?.name || 'None';
   if (field === 'store') return displayStore(transaction);
-  if (field === 'paymentMethod') return transaction.expand?.payment_method?.name || transaction.paymentMethod || 'Not set';
+  if (field === 'paymentMethod') return transaction.expand?.payment_method?.name || 'Not set';
   return 'Total';
 }
 
@@ -350,7 +350,7 @@ function renderTransactions() {
       <td class="transaction-cell transaction-date-cell" data-label="Date"><span class="transaction-value transaction-date">${formatDate(transaction.date)}</span></td>
       <td class="transaction-cell transaction-title-cell" data-label="Title"><span class="transaction-value">${transaction.title || '-'}</span></td>
       <td class="transaction-cell transaction-amount-cell" data-label="Amount"><strong class="transaction-value transaction-amount">${money.format(Number(transaction.amount))}</strong></td>
-      <td class="transaction-cell transaction-payment-cell" data-label="Payment mode"><span class="transaction-value">${transaction.expand?.payment_method?.name || transaction.paymentMethod || 'Not set'}</span></td>
+      <td class="transaction-cell transaction-payment-cell" data-label="Payment mode"><span class="transaction-value">${transaction.expand?.payment_method?.name || 'Not set'}</span></td>
       <td class="transaction-cell transaction-category-cell" data-label="Category"><span class="transaction-value">${transaction.expand?.category?.name || 'Uncategorized'}</span></td>
       <td class="transaction-cell transaction-subcategory-cell" data-label="Subcategory"><span class="transaction-value">${transaction.expand?.subcategory?.name || 'None'}</span></td>
       <td class="transaction-cell transaction-store-cell" data-label="Store"><span class="transaction-value">${displayStore(transaction)}</span></td>
