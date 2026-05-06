@@ -694,6 +694,7 @@ dialog::backdrop {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas:
       "date amount"
+      "title amount"
       "category store"
       "subcategory payment"
       "user user"
@@ -740,6 +741,11 @@ dialog::backdrop {
     text-align: right;
     background: #f1f6f2;
     border-right: 0;
+  }
+
+  .transactions-table .transaction-title-cell {
+    grid-area: title;
+    background: #fbfcfb;
   }
 
   .transactions-table .transaction-payment-cell {
@@ -847,6 +853,7 @@ dialog::backdrop {
     grid-template-areas:
       "amount"
       "date"
+      "title"
       "category"
       "subcategory"
       "store"
