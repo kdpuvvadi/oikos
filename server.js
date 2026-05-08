@@ -123,6 +123,18 @@ function totalsByMonth(records) {
   }, {});
 }
 
+function summaryTransaction(record) {
+  return {
+    id: record.id,
+    date: record.date,
+    amount: Number(record.amount || 0),
+    category: record.expand?.category?.name || 'Uncategorized',
+    subcategory: record.expand?.subcategory?.name || 'None',
+    store: record.storeText || record.expand?.store?.name || 'Unknown',
+    paymentMethod: record.expand?.payment_method?.name || 'Not set'
+  };
+}
+
 async function listRecords(client, collection, params) {
   return client.collection(collection).getFullList({
     ...Object.fromEntries(Object.entries(params || {}).filter(([, value]) => value !== undefined && value !== ''))
@@ -615,10 +627,12 @@ app.get('/api/summary', requireAuth, async (req, res) => {
     const filter = isAdmin(req.user) ? '' : `user = "${req.user.id}"`;
     const transactions = await listRecords(req.pb, 'oikos_transactions', {
       sort: '-date',
-      expand: 'category,subcategory,store,user,payment_method',
+      expand: 'category,subcategory,store,payment_method',
       filter
     });
-    res.json({ transactions });
+    res.json({
+      transactions: transactions.map(summaryTransaction)
+    });
   } catch (error) {
     handleError(res, error);
   }
