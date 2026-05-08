@@ -8,6 +8,7 @@ const state = {
   stores: [],
   users: [],
   transactions: [],
+  summaryTransactions: [],
   transactionRows: [],
   homeTotals: {
     thisMonth: 0,
@@ -19,6 +20,7 @@ const state = {
     stores: false,
     users: false,
     transactions: false,
+    summaryTransactions: false,
     homeTotals: false
   },
   pending: {}
@@ -155,6 +157,15 @@ function otherStoreId() {
 
 function displayStore(transaction) {
   return transaction.storeText || transaction.expand?.store?.name || 'Unknown';
+}
+
+function summaryLabelFor(transaction, field) {
+  if (field === 'month') return String(transaction.date || '').slice(0, 7);
+  if (field === 'category') return transaction.category || 'Uncategorized';
+  if (field === 'subcategory') return transaction.subcategory || 'None';
+  if (field === 'store') return transaction.store || 'Unknown';
+  if (field === 'paymentMethod') return transaction.paymentMethod || 'Not set';
+  return 'Total';
 }
 
 function labelFor(transaction, field) {
@@ -450,20 +461,20 @@ function renderBars(selector, totals) {
 }
 
 function renderDashboard() {
-  renderBars('#monthChart', sumBy(state.transactions, (transaction) => transaction.date.slice(0, 7)));
-  renderBars('#categoryChart', sumBy(state.transactions, (transaction) => transaction.expand?.category?.name || 'Uncategorized'));
-  renderBars('#storeChart', sumBy(state.transactions, (transaction) => displayStore(transaction)));
+  renderBars('#monthChart', sumBy(state.summaryTransactions, (transaction) => String(transaction.date || '').slice(0, 7)));
+  renderBars('#categoryChart', sumBy(state.summaryTransactions, (transaction) => transaction.category || 'Uncategorized'));
+  renderBars('#storeChart', sumBy(state.summaryTransactions, (transaction) => transaction.store || 'Unknown'));
 }
 
 function renderPivot(row = 'month', column = 'category') {
   if (!has('#pivotTable')) return;
-  const rowLabels = [...new Set(state.transactions.map((transaction) => labelFor(transaction, row)))].sort();
-  const columnLabels = [...new Set(state.transactions.map((transaction) => labelFor(transaction, column)))].sort();
+  const rowLabels = [...new Set(state.summaryTransactions.map((transaction) => summaryLabelFor(transaction, row)))].sort();
+  const columnLabels = [...new Set(state.summaryTransactions.map((transaction) => summaryLabelFor(transaction, column)))].sort();
   const matrix = {};
 
-  state.transactions.forEach((transaction) => {
-    const rowKey = labelFor(transaction, row);
-    const columnKey = labelFor(transaction, column);
+  state.summaryTransactions.forEach((transaction) => {
+    const rowKey = summaryLabelFor(transaction, row);
+    const columnKey = summaryLabelFor(transaction, column);
     matrix[rowKey] = matrix[rowKey] || {};
     matrix[rowKey][columnKey] = (matrix[rowKey][columnKey] || 0) + Number(transaction.amount);
   });
@@ -487,6 +498,7 @@ function resetDataState() {
   state.stores = [];
   state.users = [];
   state.transactions = [];
+  state.summaryTransactions = [];
   state.transactionRows = [];
   state.homeTotals = { thisMonth: 0, lastMonth: 0 };
   Object.keys(state.loaded).forEach((key) => {
@@ -545,6 +557,14 @@ async function loadTransactions(force = false) {
   await ensureLoaded('transactions', async () => {
     state.transactions = await api('/api/transactions');
     state.loaded.transactions = true;
+  }, force);
+}
+
+async function loadSummaryTransactions(force = false) {
+  await ensureLoaded('summaryTransactions', async () => {
+    const data = await api('/api/summary');
+    state.summaryTransactions = data.transactions || [];
+    state.loaded.summaryTransactions = true;
   }, force);
 }
 
@@ -624,12 +644,12 @@ async function loadTransactionsPage(force = false) {
 }
 
 async function loadDashboardPage(force = false) {
-  await loadTransactions(force);
+  await loadSummaryTransactions(force);
   renderDashboard();
 }
 
 async function loadFilterPage(force = false) {
-  await loadTransactions(force);
+  await loadSummaryTransactions(force);
   if (has('#pivotForm')) {
     renderPivot(qs('#pivotForm select[name="row"]').value, qs('#pivotForm select[name="column"]').value);
   }
@@ -1006,9 +1026,11 @@ async function init() {
 
   // Register service worker for PWA
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch((error) => {
-      console.log('Service Worker registration failed:', error);
-    });
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch((error) => {
+        console.log('Service Worker registration failed:', error);
+      });
+    }, { once: true });
   }
 }
 
