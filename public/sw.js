@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oikos-v1';
+const CACHE_NAME = 'oikos-v2';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -13,7 +13,9 @@ const urlsToCache = [
   '/styles.css',
   '/app.js',
   '/layout.js',
-  '/head.js'
+  '/head.js',
+  '/manifest.json',
+  '/seo.config.js'
 ];
 
 self.addEventListener('install', (event) => {
@@ -44,6 +46,8 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+
   // Skip API calls - always fetch from network
   if (event.request.url.includes('/api/')) {
     event.respondWith(
@@ -57,7 +61,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // For everything else, try cache first, then network
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        const responseToCache = response.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseToCache);
+        });
+        return response;
+      }).catch(async () => {
+        return caches.match(event.request) || caches.match('/index.html');
+      })
+    );
+    return;
+  }
+
+  // For static assets, try cache first, then network
   event.respondWith(
     caches.match(event.request).then((response) => {
       if (response) {

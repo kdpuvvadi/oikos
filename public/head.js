@@ -10,6 +10,12 @@ const canonicalUrl = `${window.location.origin}${path}`;
 document.title = title;
 
 const headEntries = [
+  { tag: 'link', attrs: { rel: 'icon', type: 'image/x-icon', href: '/img/favicon.ico' } },
+  { tag: 'link', attrs: { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/img/favicon-32x32.png' } },
+  { tag: 'link', attrs: { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/img/favicon-16x16.png' } },
+  { tag: 'link', attrs: { rel: 'apple-touch-icon', sizes: '180x180', href: '/img/apple-touch-icon.png' } },
+  { tag: 'link', attrs: { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/img/android-chrome-192x192.png' } },
+  { tag: 'link', attrs: { rel: 'icon', type: 'image/png', sizes: '512x512', href: '/img/android-chrome-512x512.png' } },
   { tag: 'meta', attrs: { name: 'description', content: description } },
   { tag: 'meta', attrs: { name: 'keywords', content: keywords } },
   { tag: 'meta', attrs: { name: 'theme-color', content: seoConfig.themeColor } },
@@ -19,7 +25,6 @@ const headEntries = [
   { tag: 'meta', attrs: { name: 'apple-mobile-web-app-capable', content: 'yes' } },
   { tag: 'meta', attrs: { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' } },
   { tag: 'meta', attrs: { name: 'apple-mobile-web-app-title', content: 'Oikos' } },
-  { tag: 'link', attrs: { rel: 'apple-touch-icon', href: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180"><rect fill="%232e7d4f" width="180" height="180" rx="39"/><text x="90" y="120" font-size="72" font-weight="bold" fill="white" text-anchor="middle">O</text></svg>' } },
   { tag: 'link', attrs: { rel: 'manifest', href: '/manifest.json' } },
   { tag: 'meta', attrs: { property: 'og:type', content: 'website' } },
   { tag: 'meta', attrs: { property: 'og:site_name', content: seoConfig.siteName } },
@@ -36,7 +41,7 @@ const headEntries = [
 
 function upsertHeadElement(tag, attrs) {
   const selector = Object.entries(attrs)
-    .filter(([key]) => key === 'name' || key === 'property' || key === 'rel')
+    .filter(([key]) => ['name', 'property', 'rel', 'sizes'].includes(key))
     .map(([key, value]) => `${tag}[${key}="${value}"]`)
     .join('');
 
