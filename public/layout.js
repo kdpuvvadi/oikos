@@ -1,8 +1,8 @@
 const navItems = [
   { href: '/', label: 'Home' },
-  { href: '/categories', label: 'Categories' },
-  { href: '/stores', label: 'Stores' },
-  { href: '/payment-methods', label: 'Payment Methods' },
+  { href: '/categories', label: 'Categories', adminOnly: true },
+  { href: '/stores', label: 'Stores', adminOnly: true },
+  { href: '/payment-methods', label: 'Payment Methods', adminOnly: true },
   { href: '/users', label: 'Users', adminOnly: true },
   { href: '/transactions', label: 'Transactions' },
   { href: '/dashboard', label: 'Dashboard' },
