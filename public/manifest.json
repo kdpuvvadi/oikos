@@ -1,7 +1,7 @@
 {
   "name": "Oikos - Expense Tracker",
   "short_name": "Oikos",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "A simple and elegant expense tracking application to manage your spending",
   "start_url": "/",
   "scope": "/",
