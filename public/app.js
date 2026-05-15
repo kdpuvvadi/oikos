@@ -349,6 +349,12 @@ function renderUsers() {
         ${verificationBadge(user)}
         ${approvalBadge(user)}
       </div>
+      ${!user.verified ? `
+        <div class="inline-actions">
+          ${user.email ? `<button type="button" class="ghost" data-admin-resend-verification="${user.id}">Resend verification</button>` : ''}
+          <button type="button" class="ghost" data-mark-verified="${user.id}">Mark verified</button>
+        </div>
+      ` : ''}
       ${!user.isAdmin && !user.approved ? `<button type="button" class="ghost" data-approve-user="${user.id}">Approve user</button>` : ''}
     </article>
   `).join('') || '<p>No users yet.</p>';
@@ -814,6 +820,29 @@ async function approveUser(userId) {
   }
 }
 
+async function adminResendVerification(userId) {
+  try {
+    const result = await api(`/api/users/${userId}/resend-verification`, {
+      method: 'POST'
+    });
+    toast(result.message || 'Verification email sent.');
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function markUserVerified(userId) {
+  try {
+    await api(`/api/users/${userId}/mark-verified`, {
+      method: 'POST'
+    });
+    toast('User marked as verified.');
+    await refreshCurrentPage(['users']);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
 async function loadCategoriesPage(force = false) {
   await loadCategories(force);
   renderCategories();
@@ -1218,6 +1247,16 @@ function handlePaymentMethodClick(event) {
 }
 
 function handleUserClick(event) {
+  const resendButton = event.target.closest('[data-admin-resend-verification]');
+  if (resendButton) {
+    void adminResendVerification(resendButton.dataset.adminResendVerification);
+    return;
+  }
+  const verifyButton = event.target.closest('[data-mark-verified]');
+  if (verifyButton) {
+    void markUserVerified(verifyButton.dataset.markVerified);
+    return;
+  }
   const approveButton = event.target.closest('[data-approve-user]');
   if (approveButton) void approveUser(approveButton.dataset.approveUser);
 }

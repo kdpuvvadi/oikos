@@ -555,6 +555,38 @@ app.get('/api/users', requireAuth, requireApproved, requireAdmin, async (req, re
   }
 });
 
+app.post('/api/users/:id/resend-verification', requireAuth, requireApproved, requireAdmin, async (req, res) => {
+  try {
+    const user = await req.pb.collection('users').getOne(req.params.id);
+    const email = sanitizeName(user.email).toLowerCase();
+    if (!email) {
+      return res.status(400).json({ error: 'User email is unavailable.' });
+    }
+
+    const client = new PocketBase(pbUrl);
+    await client.collection('users').requestVerification(email);
+    res.json({
+      ok: true,
+      email,
+      message: 'Verification email sent.'
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/users/:id/mark-verified', requireAuth, requireApproved, requireAdmin, async (req, res) => {
+  try {
+    const user = await req.pb.collection('users').getOne(req.params.id);
+    const updated = await req.pb.collection('users').update(user.id, { verified: true });
+    res.json({
+      user: publicUser(updated)
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.post('/api/users/:id/approve', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const user = await req.pb.collection('users').getOne(req.params.id);

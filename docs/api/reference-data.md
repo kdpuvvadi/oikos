@@ -203,3 +203,49 @@ Response shape:
   }
 }
 ```
+
+### `POST /api/users/:id/resend-verification`
+
+Admin only.
+
+Resends the verification email for a specific user from the Users page or admin workflows.
+
+Success:
+
+- `200 OK`
+
+Response shape:
+
+```json
+{
+  "ok": true,
+  "email": "user@example.com",
+  "message": "Verification email sent."
+}
+```
+
+### `POST /api/users/:id/mark-verified`
+
+Admin only.
+
+Marks a user as verified directly. This is intended for recovery or manual administrative workflows when email verification cannot be completed normally.
+
+Success:
+
+- `200 OK`
+
+Response shape:
+
+```json
+{
+  "user": {
+    "id": "USER_ID",
+    "email": "user@example.com",
+    "name": "Example User",
+    "verified": true,
+    "approved": false,
+    "kind": "user",
+    "isAdmin": false
+  }
+}
+```
