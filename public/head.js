@@ -40,10 +40,11 @@ const headEntries = [
 ];
 
 function upsertHeadElement(tag, attrs) {
-  const selector = Object.entries(attrs)
+  const selectorAttributes = Object.entries(attrs)
     .filter(([key]) => ['name', 'property', 'rel', 'sizes'].includes(key))
-    .map(([key, value]) => `${tag}[${key}="${value}"]`)
+    .map(([key, value]) => `[${key}="${value}"]`)
     .join('');
+  const selector = selectorAttributes ? `${tag}${selectorAttributes}` : tag;
 
   const existing = selector ? document.head.querySelector(selector) : null;
   const node = existing || document.createElement(tag);
