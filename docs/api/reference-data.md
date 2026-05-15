@@ -170,8 +170,36 @@ Response shape:
     "id": "USER_ID",
     "email": "user@example.com",
     "name": "Example User",
+    "verified": true,
+    "approved": true,
     "kind": "user",
     "isAdmin": false
   }
 ]
+```
+
+### `POST /api/users/:id/approve`
+
+Admin only.
+
+Marks a verified or newly created user as approved so they can use the rest of the app after login.
+
+Success:
+
+- `200 OK`
+
+Response shape:
+
+```json
+{
+  "user": {
+    "id": "USER_ID",
+    "email": "user@example.com",
+    "name": "Example User",
+    "verified": true,
+    "approved": true,
+    "kind": "user",
+    "isAdmin": false
+  }
+}
 ```

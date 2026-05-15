@@ -73,6 +73,7 @@ Users can control email visibility in their account settings.
 ### Authentication Enhancements
 - Email verification links resolve through Oikos instead of exposing the PocketBase host
 - Verification emails include a direct button and a raw fallback link
+- New users remain blocked until an admin approves their account
 - Optional email OTP login is available for third-party/API-driven use cases
 
 ---
@@ -92,8 +93,9 @@ The Express server (`server.js`) handles:
 1. User registers via `/api/auth/register`
 2. PocketBase sends a verification email
 3. User verifies through Oikos `/verify-email`
-4. Verified user logs in via `/api/auth/login` or the OTP flow
-5. Token is stored in an `HttpOnly` cookie (`pb_auth`)
+4. Admin approves the verified account
+5. User logs in via `/api/auth/login` or the OTP flow
+6. Token is stored in an `HttpOnly` cookie (`pb_auth`)
 
 ### Data Flow
 
@@ -178,6 +180,7 @@ Stores user accounts. Managed by PocketBase.
 | `kind` | string | `"user"` or `"admin"` |
 | `emailVisibility` | boolean | Whether email is visible to others |
 | `verified` | boolean | Whether email verification has completed |
+| `approved` | boolean | Whether an admin has approved the account for use |
 | `transactionPageSize` | number | Preferred transactions page size (`10`, `25`, `50`, or `100`) |
 
 #### `oikos_categories`
