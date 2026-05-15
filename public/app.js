@@ -131,21 +131,30 @@ function isAdmin() {
   return Boolean(state.user?.isAdmin || state.user?.kind === 'admin');
 }
 
+function isApprovedUser(user = state.user) {
+  return Boolean(user?.approved || user?.isAdmin || user?.kind === 'admin');
+}
+
 function setAuthView(user) {
   state.user = user;
+  const approvalPending = Boolean(user && !isApprovedUser(user));
   setSessionHint(Boolean(user));
   document.body.classList.toggle('is-authenticated', Boolean(user));
   document.body.classList.toggle('is-admin', Boolean(user?.isAdmin || user?.kind === 'admin'));
+  document.body.classList.toggle('approval-pending', approvalPending);
   document.body.classList.remove('mobile-nav-open');
-  if (has('#authPage')) qs('#authPage').classList.toggle('hidden', Boolean(user));
-  if (has('#appShell')) qs('#appShell').classList.toggle('hidden', !user);
+  if (has('#authPage')) qs('#authPage').classList.toggle('hidden', Boolean(user) && !approvalPending);
+  if (has('#appShell')) qs('#appShell').classList.toggle('hidden', !user || approvalPending);
+  if (has('#authForms')) qs('#authForms').classList.toggle('hidden', approvalPending);
+  if (has('#approvalPending')) qs('#approvalPending').classList.toggle('hidden', !approvalPending);
   if (has('#userMenu')) qs('#userMenu').classList.toggle('hidden', !user);
-  if (has('nav')) qs('nav').classList.toggle('hidden', !user);
+  if (has('nav')) qs('nav').classList.toggle('hidden', !user || approvalPending);
   if (has('#menuToggle')) {
-    qs('#menuToggle').classList.toggle('hidden', !user);
+    qs('#menuToggle').classList.toggle('hidden', !user || approvalPending);
     qs('#menuToggle').setAttribute('aria-expanded', 'false');
   }
   if (has('#userName')) qs('#userName').textContent = user ? `${user.name}${isAdmin() ? ' (admin)' : ''}` : '';
+  if (approvalPending && has('#approvalPendingEmail')) qs('#approvalPendingEmail').textContent = user.email || '';
   renderAuthStatus();
 }
 
@@ -173,6 +182,12 @@ function verificationBadge(user) {
   return user?.verified
     ? '<span class="status-pill success">Verified</span>'
     : '<span class="status-pill warning">Pending verification</span>';
+}
+
+function approvalBadge(user) {
+  return isApprovedUser(user)
+    ? '<span class="status-pill success">Approved</span>'
+    : '<span class="status-pill warning">Approval pending</span>';
 }
 
 function renderAuthStatus() {
@@ -330,6 +345,17 @@ function renderUsers() {
         <span class="pill">${user.isAdmin ? 'Admin' : 'User'}</span>
       </div>
       <p>${user.email || 'Email hidden'}</p>
+      <div class="pill-list">
+        ${verificationBadge(user)}
+        ${approvalBadge(user)}
+      </div>
+      ${!user.verified ? `
+        <div class="inline-actions">
+          ${user.email ? `<button type="button" class="ghost" data-admin-resend-verification="${user.id}">Resend verification</button>` : ''}
+          <button type="button" class="ghost" data-mark-verified="${user.id}">Mark verified</button>
+        </div>
+      ` : ''}
+      ${!user.isAdmin && !user.approved ? `<button type="button" class="ghost" data-approve-user="${user.id}">Approve user</button>` : ''}
     </article>
   `).join('') || '<p>No users yet.</p>';
 }
@@ -372,6 +398,13 @@ function renderMe() {
           <div class="detail-value detail-stack">
             <div>${user.verified ? 'Your email is verified.' : 'Your email still needs verification.'}</div>
             ${user.verified ? '' : '<button type="button" class="ghost" data-resend-verification>Resend verification email</button>'}
+          </div>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Admin approval</span>
+          <div class="detail-value detail-stack">
+            <div class="detail-inline">${approvalBadge(user)}</div>
+            <div>${isApprovedUser(user) ? 'Your account is approved.' : 'Your account is waiting for admin approval.'}</div>
           </div>
         </div>
         <div class="detail-row">
@@ -775,6 +808,41 @@ async function resendVerificationEmail(email = state.user?.email || state.pendin
   }
 }
 
+async function approveUser(userId) {
+  try {
+    await api(`/api/users/${userId}/approve`, {
+      method: 'POST'
+    });
+    toast('User approved.');
+    await refreshCurrentPage(['users']);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function adminResendVerification(userId) {
+  try {
+    const result = await api(`/api/users/${userId}/resend-verification`, {
+      method: 'POST'
+    });
+    toast(result.message || 'Verification email sent.');
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function markUserVerified(userId) {
+  try {
+    await api(`/api/users/${userId}/mark-verified`, {
+      method: 'POST'
+    });
+    toast('User marked as verified.');
+    await refreshCurrentPage(['users']);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
 async function loadCategoriesPage(force = false) {
   await loadCategories(force);
   renderCategories();
@@ -861,7 +929,9 @@ async function loadCurrentUser() {
       window.location.replace('/');
       return;
     }
-    await syncRoute(true);
+    if (isApprovedUser(data.user)) {
+      await syncRoute(true);
+    }
   } catch {
     setAuthView(null);
   }
@@ -887,6 +957,10 @@ async function submitAuth(event, endpoint) {
     state.pendingVerificationEmail = '';
     state.transactionPagination.perPage = result.user?.transactionPageSize || state.transactionPagination.perPage;
     setAuthView(result.user);
+    if (result.approvalPending) {
+      toast('Admin approval is still pending.');
+      return;
+    }
     toast(endpoint.endsWith('login') ? 'Logged in.' : 'Account created.');
     await syncRoute(true);
   } catch (error) {
@@ -1172,6 +1246,21 @@ function handlePaymentMethodClick(event) {
   if (paymentMethodButton) void editPaymentMethod(paymentMethodButton.dataset.editPaymentMethod);
 }
 
+function handleUserClick(event) {
+  const resendButton = event.target.closest('[data-admin-resend-verification]');
+  if (resendButton) {
+    void adminResendVerification(resendButton.dataset.adminResendVerification);
+    return;
+  }
+  const verifyButton = event.target.closest('[data-mark-verified]');
+  if (verifyButton) {
+    void markUserVerified(verifyButton.dataset.markVerified);
+    return;
+  }
+  const approveButton = event.target.closest('[data-approve-user]');
+  if (approveButton) void approveUser(approveButton.dataset.approveUser);
+}
+
 function renderVerificationStatus(type, message) {
   if (!has('#verificationStatus')) return;
   qs('#verificationStatus').innerHTML = `
@@ -1228,6 +1317,7 @@ function bindEvents() {
   if (has('#storeForm')) qs('#storeForm').addEventListener('submit', submitStore);
   if (has('#paymentMethodForm')) qs('#paymentMethodForm').addEventListener('submit', submitPaymentMethod);
   if (has('#paymentMethodList')) qs('#paymentMethodList').addEventListener('click', handlePaymentMethodClick);
+  if (has('#userList')) qs('#userList').addEventListener('click', handleUserClick);
   if (has('#transactionsTable')) qs('#transactionsTable').addEventListener('click', handleTransactionClick);
   if (has('#transactionFilterForm')) qs('#transactionFilterForm').addEventListener('submit', applyTransactionFilters);
   if (has('#clearTransactionFilters')) qs('#clearTransactionFilters').addEventListener('click', clearTransactionFilters);

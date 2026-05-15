@@ -63,36 +63,46 @@ class OikosAuthShell extends HTMLElement {
       <div class="page-title">
         <h1>Sign in</h1>
       </div>
-      <div class="auth-grid">
-        <form id="loginForm" class="panel form-stack">
-          <h2>Login</h2>
-          <label>
-            Email
-            <input type="email" name="email" autocomplete="email" required>
-          </label>
-          <label>
-            Password
-            <input type="password" name="password" autocomplete="current-password" required>
-          </label>
-          <button type="submit">Login</button>
-        </form>
+      <div id="authForms">
+        <div class="auth-grid">
+          <form id="loginForm" class="panel form-stack">
+            <h2>Login</h2>
+            <label>
+              Email
+              <input type="email" name="email" autocomplete="email" required>
+            </label>
+            <label>
+              Password
+              <input type="password" name="password" autocomplete="current-password" required>
+            </label>
+            <button type="submit">Login</button>
+          </form>
 
-        <form id="registerForm" class="panel form-stack">
-          <h2>Create account</h2>
-          <label>
-            Name
-            <input type="text" name="name" autocomplete="name" placeholder="Optional">
-          </label>
-          <label>
-            Email
-            <input type="email" name="email" autocomplete="email" required>
-          </label>
-          <label>
-            Password
-            <input type="password" name="password" autocomplete="new-password" minlength="8" required>
-          </label>
-          <button type="submit">Create account</button>
-        </form>
+          <form id="registerForm" class="panel form-stack">
+            <h2>Create account</h2>
+            <label>
+              Name
+              <input type="text" name="name" autocomplete="name" placeholder="Optional">
+            </label>
+            <label>
+              Email
+              <input type="email" name="email" autocomplete="email" required>
+            </label>
+            <label>
+              Password
+              <input type="password" name="password" autocomplete="new-password" minlength="8" required>
+            </label>
+            <button type="submit">Create account</button>
+          </form>
+        </div>
+      </div>
+      <div id="approvalPending" class="hidden">
+        <article class="panel approval-pending-panel">
+          <h2>Admin approval pending</h2>
+          <p>Your email is verified, but an administrator still needs to approve your account before you can use Oikos.</p>
+          <p><strong id="approvalPendingEmail"></strong></p>
+          <p>Please check back later or contact your administrator.</p>
+        </article>
       </div>
       <div id="authStatus"></div>
     `;
