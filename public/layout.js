@@ -94,6 +94,7 @@ class OikosAuthShell extends HTMLElement {
           <button type="submit">Create account</button>
         </form>
       </div>
+      <div id="authStatus"></div>
     `;
   }
 }

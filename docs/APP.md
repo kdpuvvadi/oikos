@@ -53,6 +53,7 @@ Create new categories, subcategories, stores, or payment methods directly in the
 
 ### Transaction Management
 - Full transaction history with easy deletion
+- Paginated transaction history with per-user page size preference
 - Filter by date range, category, subcategory, store, or payment method
 - Pivot-style filtering: choose custom row/column dimensions to see how data aggregates
 
@@ -69,6 +70,11 @@ Manage shared reference data:
 ### Privacy Controls
 Users can control email visibility in their account settings.
 
+### Authentication Enhancements
+- Email verification links resolve through Oikos instead of exposing the PocketBase host
+- Verification emails include a direct button and a raw fallback link
+- Optional email OTP login is available for third-party/API-driven use cases
+
 ---
 
 ## Architecture
@@ -83,9 +89,11 @@ The Express server (`server.js`) handles:
 
 ### Authentication Flow
 
-1. User registers or logs in via `/api/auth/register` or `/api/auth/login`
-2. PocketBase authenticates the user and returns an auth token
-3. Token is stored in an `HttpOnly` cookie (`pb_auth`)
+1. User registers via `/api/auth/register`
+2. PocketBase sends a verification email
+3. User verifies through Oikos `/verify-email`
+4. Verified user logs in via `/api/auth/login` or the OTP flow
+5. Token is stored in an `HttpOnly` cookie (`pb_auth`)
 
 ### Data Flow
 
@@ -169,6 +177,8 @@ Stores user accounts. Managed by PocketBase.
 | `name` | string | User's display name |
 | `kind` | string | `"user"` or `"admin"` |
 | `emailVisibility` | boolean | Whether email is visible to others |
+| `verified` | boolean | Whether email verification has completed |
+| `transactionPageSize` | number | Preferred transactions page size (`10`, `25`, `50`, or `100`) |
 
 #### `oikos_categories`
 
@@ -239,6 +249,7 @@ Accessed via routes in `server.js`, all serve `public/index.html` (the main app 
 - `/payment-methods` – Manage payment methods (admin only)
 - `/users` – Manage users (admin only)
 - `/me` – User profile and settings
+- `/verify-email` – Verification completion page used by email links
 
 ### Static Assets
 
@@ -336,6 +347,7 @@ PB_PORT=8090
 | `PB_URL` | `http://127.0.0.1:8090` | PocketBase server URL |
 | `PB_TOKEN` | (empty) | Optional PocketBase admin token for setup |
 | `COOKIE_SECURE` | `false` | Set to `true` in HTTPS production |
+| `APP_PUBLIC_URL` | (empty) | Public Oikos URL used in verification email links |
 | `APP_PORT` | `3000` | Docker compose app port |
 | `PB_PORT` | `8090` | Docker compose PocketBase port |
 
@@ -381,6 +393,8 @@ npm run setup:pocketbase
 ```
 
 This is idempotent and can be run multiple times safely.
+
+When `APP_PUBLIC_URL` is set, this also updates PocketBase email verification and OTP template configuration for Oikos.
 
 #### Make User an Admin
 

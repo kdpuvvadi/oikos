@@ -1,8 +1,36 @@
 import readline from 'node:readline/promises';
+import fs from 'node:fs';
+import path from 'node:path';
 import { stdin as input, stdout as output } from 'node:process';
 import PocketBase from 'pocketbase';
 
+function loadDotEnv() {
+  const envPath = path.resolve('.env');
+  if (!fs.existsSync(envPath)) return;
+
+  const contents = fs.readFileSync(envPath, 'utf8');
+  for (const rawLine of contents.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+
+    const separatorIndex = line.indexOf('=');
+    if (separatorIndex <= 0) continue;
+
+    const key = line.slice(0, separatorIndex).trim();
+    if (!key || process.env[key] !== undefined) continue;
+
+    let value = line.slice(separatorIndex + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith('\'') && value.endsWith('\''))) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  }
+}
+
+loadDotEnv();
+
 const pbUrl = (process.env.PB_URL || 'http://127.0.0.1:8090').replace(/\/$/, '');
+const appPublicUrl = String(process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
 const pb = new PocketBase(pbUrl);
 
 async function auth() {
@@ -92,6 +120,95 @@ async function createCollection(payload) {
   return created;
 }
 
+async function ensureAppSettings() {
+  if (!appPublicUrl) {
+    console.log('APP_PUBLIC_URL not set. Skipping PocketBase public app URL/email template updates.');
+    return;
+  }
+
+  const settings = await pb.settings.getAll();
+  const meta = settings.meta || {};
+  const nextMeta = {
+    ...meta,
+    appName: meta.appName || 'Oikos',
+    appUrl: appPublicUrl,
+    appURL: appPublicUrl
+  };
+
+  if (meta.appUrl !== appPublicUrl || meta.appURL !== appPublicUrl || meta.appName !== nextMeta.appName) {
+    await pb.settings.update({ meta: nextMeta });
+    console.log(`Updated PocketBase app URL to: ${appPublicUrl}`);
+  }
+}
+
+async function ensureVerificationTemplate(collection) {
+  if (!appPublicUrl || !collection?.id) return;
+
+  const actionUrl = `${appPublicUrl}/verify-email?token={TOKEN}`;
+  const subject = 'Verify your {APP_NAME} email';
+  const body = [
+    '<p>Hello,</p>',
+    '<p>Confirm your email address for <strong>{APP_NAME}</strong> by clicking the button below:</p>',
+    `<p><a href="${actionUrl}" style="display:inline-block;padding:12px 20px;border-radius:8px;background:#2e7d4f;color:#ffffff;text-decoration:none;font-weight:700;">Verify email</a></p>`,
+    '<p>If the button does not work, use this direct link:</p>',
+    `<p><a href="${actionUrl}">${actionUrl}</a></p>`
+  ].join('');
+  const currentTemplate = collection.verificationTemplate || {};
+  if (currentTemplate.actionUrl === actionUrl && currentTemplate.subject === subject && currentTemplate.body === body) return;
+
+  await pb.collections.update(collection.id, {
+    verificationTemplate: {
+      ...currentTemplate,
+      subject,
+      body,
+      actionUrl
+    }
+  });
+  console.log(`Updated verification email action URL for ${collection.name}.`);
+}
+
+async function ensureOtpConfig(collection) {
+  if (!collection?.id) return;
+
+  const currentOtp = collection.otp || {};
+  const emailTemplate = currentOtp.emailTemplate || {};
+  const desired = {
+    ...currentOtp,
+    enabled: true,
+    duration: currentOtp.duration || 180,
+    length: currentOtp.length || 6,
+    emailTemplate: {
+      ...emailTemplate,
+      subject: 'Your {APP_NAME} sign-in code',
+      body: [
+        '<p>Hello,</p>',
+        '<p>Use the one-time code below to sign in to <strong>{APP_NAME}</strong>:</p>',
+        '<p style="font-size:28px;font-weight:800;letter-spacing:0.18em;margin:16px 0;">{OTP}</p>',
+        '<p>If you did not request this code, you can ignore this email.</p>'
+      ].join('')
+    }
+  };
+
+  const otpChanged = JSON.stringify({
+    enabled: currentOtp.enabled,
+    duration: currentOtp.duration,
+    length: currentOtp.length,
+    emailTemplate
+  }) !== JSON.stringify({
+    enabled: desired.enabled,
+    duration: desired.duration,
+    length: desired.length,
+    emailTemplate: desired.emailTemplate
+  });
+
+  if (!otpChanged) return;
+
+  await pb.collections.update(collection.id, {
+    otp: desired
+  });
+  console.log(`Enabled OTP login for ${collection.name}.`);
+}
+
 async function seedRecord(collection, body) {
   const escaped = body.name.replaceAll('"', '\\"');
   const list = await pb.collection(collection).getList(1, 1, {
@@ -103,6 +220,7 @@ async function seedRecord(collection, body) {
 
 const textField = (name, required = true) => ({ name, type: 'text', required, min: 0, max: 120, pattern: '' });
 const numberField = (name) => ({ name, type: 'number', required: true, min: 0, max: 1000000000000, noDecimal: false });
+const optionalWholeNumberField = (name, min = 1, max = 1000) => ({ name, type: 'number', required: false, min, max, noDecimal: true });
 const dateField = (name) => ({ name, type: 'date', required: true, min: '', max: '' });
 const relationField = (name, collectionId, cascadeDelete = false, required = true) => ({
   name,
@@ -116,6 +234,7 @@ const relationField = (name, collectionId, cascadeDelete = false, required = tru
 
 async function main() {
   await auth();
+  await ensureAppSettings();
   const users = await createCollection({
     name: 'users',
     type: 'auth',
@@ -126,12 +245,15 @@ async function main() {
     updateRule: 'id = @request.auth.id || @request.auth.kind = "admin"',
     deleteRule: '@request.auth.kind = "admin"',
     fields: [
-      textField('kind', false)
+      textField('kind', false),
+      optionalWholeNumberField('transactionPageSize', 10, 100)
     ]
   });
   if (!users?.id) {
     throw new Error('The default PocketBase users collection was not found.');
   }
+  await ensureVerificationTemplate(users);
+  await ensureOtpConfig(users);
 
   const authRule = '@request.auth.id != ""';
   const adminRule = '@request.auth.kind = "admin"';

@@ -4,6 +4,8 @@ services:
     container_name: pocketbase
     ports:
       - "${PB_PORT:-8090}:8090"
+    environment:
+      APP_PUBLIC_URL: "${APP_PUBLIC_URL}"
     volumes:
       - ./pb_data:/usr/src/app/pb_data
     healthcheck:
@@ -22,5 +24,6 @@ services:
     environment:
       PORT: "3000"
       PB_URL: "http://pocketbase:8090"
+      APP_PUBLIC_URL: "${APP_PUBLIC_URL}"
     ports:
       - "${APP_PORT:-3000}:3000"
