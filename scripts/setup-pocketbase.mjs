@@ -221,6 +221,7 @@ async function seedRecord(collection, body) {
 const textField = (name, required = true) => ({ name, type: 'text', required, min: 0, max: 120, pattern: '' });
 const numberField = (name) => ({ name, type: 'number', required: true, min: 0, max: 1000000000000, noDecimal: false });
 const optionalWholeNumberField = (name, min = 1, max = 1000) => ({ name, type: 'number', required: false, min, max, noDecimal: true });
+const boolField = (name, required = false) => ({ name, type: 'bool', required });
 const dateField = (name) => ({ name, type: 'date', required: true, min: '', max: '' });
 const relationField = (name, collectionId, cascadeDelete = false, required = true) => ({
   name,
@@ -246,6 +247,7 @@ async function main() {
     deleteRule: '@request.auth.kind = "admin"',
     fields: [
       textField('kind', false),
+      boolField('approved', false),
       optionalWholeNumberField('transactionPageSize', 10, 100)
     ]
   });

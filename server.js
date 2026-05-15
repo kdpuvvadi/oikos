@@ -54,20 +54,26 @@ function publicUser(record) {
   if (!record) return null;
   const email = sanitizeName(record.email) || null;
   const name = sanitizeName(record.name) || email || 'Unnamed user';
+  const admin = record.kind === 'admin';
   return {
     id: record.id,
     email,
     name,
     emailVisibility: record.emailVisibility !== false,
     verified: record.verified !== false,
+    approved: admin ? true : record.approved !== false,
     kind: record.kind || 'user',
-    isAdmin: record.kind === 'admin',
+    isAdmin: admin,
     transactionPageSize: normalizeTransactionPageSize(record.transactionPageSize)
   };
 }
 
 function isAdmin(record) {
   return record?.kind === 'admin';
+}
+
+function isApproved(record) {
+  return isAdmin(record) || record?.approved !== false;
 }
 
 function requireAuth(req, res, next) {
@@ -83,6 +89,16 @@ function requireAuth(req, res, next) {
 function requireAdmin(req, res, next) {
   if (!isAdmin(req.user)) {
     return res.status(403).json({ error: 'Admin access is required.' });
+  }
+  next();
+}
+
+function requireApproved(req, res, next) {
+  if (!isApproved(req.user)) {
+    return res.status(403).json({
+      error: 'Admin approval is still pending.',
+      approvalPending: true
+    });
   }
   next();
 }
@@ -267,6 +283,7 @@ app.post('/api/auth/register', async (req, res) => {
       email,
       name,
       kind: 'user',
+      approved: false,
       emailVisibility: true,
       password,
       passwordConfirm: password
@@ -298,7 +315,8 @@ app.post('/api/auth/login', async (req, res) => {
     res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
     res.json({
       token: client.authStore.token,
-      user: publicUser(client.authStore.record)
+      user: publicUser(client.authStore.record),
+      approvalPending: !isApproved(auth.record)
     });
   } catch (error) {
     const message = String(error?.response?.message || error?.message || '').toLowerCase();
@@ -341,7 +359,7 @@ app.post('/api/auth/verify', async (req, res) => {
     await client.collection('users').confirmVerification(token);
     res.json({
       ok: true,
-      message: 'Email verified. You can sign in now.'
+      message: 'Email verified. Your account is now waiting for admin approval.'
     });
   } catch (error) {
     handleError(res, error);
@@ -380,6 +398,7 @@ app.post('/api/auth/login-otp', async (req, res) => {
     res.json({
       token: client.authStore.token,
       user: publicUser(auth.record || client.authStore.record),
+      approvalPending: !isApproved(auth.record || client.authStore.record),
       message: 'OTP login successful.'
     });
   } catch (error) {
@@ -434,7 +453,7 @@ app.put('/api/auth/me', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/categories', requireAuth, async (req, res) => {
+app.get('/api/categories', requireAuth, requireApproved, async (req, res) => {
   try {
     const [categories, subcategories] = await Promise.all([
       listRecords(req.pb, 'oikos_categories', { sort: 'name' }),
@@ -456,7 +475,7 @@ app.get('/api/categories', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/categories', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/categories', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Category name is required.' });
@@ -469,7 +488,7 @@ app.post('/api/categories', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.put('/api/categories/:id', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/categories/:id', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Category name is required.' });
@@ -479,7 +498,7 @@ app.put('/api/categories/:id', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/subcategories', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/subcategories', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     const category = sanitizeName(req.body.category);
@@ -491,7 +510,7 @@ app.post('/api/subcategories', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.put('/api/subcategories/:id', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/subcategories/:id', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Subcategory name is required.' });
@@ -501,7 +520,7 @@ app.put('/api/subcategories/:id', requireAuth, requireAdmin, async (req, res) =>
   }
 });
 
-app.get('/api/stores', requireAuth, async (req, res) => {
+app.get('/api/stores', requireAuth, requireApproved, async (req, res) => {
   try {
     res.json(await listRecords(req.pb, 'oikos_stores', { sort: 'name' }));
   } catch (error) {
@@ -509,7 +528,7 @@ app.get('/api/stores', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/stores', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/stores', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Store name is required.' });
@@ -519,7 +538,7 @@ app.post('/api/stores', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.get('/api/payment-methods', requireAuth, async (req, res) => {
+app.get('/api/payment-methods', requireAuth, requireApproved, async (req, res) => {
   try {
     res.json(await listRecords(req.pb, 'oikos_payment_methods', { sort: 'name' }));
   } catch (error) {
@@ -527,7 +546,7 @@ app.get('/api/payment-methods', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
+app.get('/api/users', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const users = await listRecords(req.pb, 'users', { sort: 'name,email' });
     res.json(users.map(publicUser));
@@ -536,7 +555,19 @@ app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/payment-methods', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/users/:id/approve', requireAuth, requireApproved, requireAdmin, async (req, res) => {
+  try {
+    const user = await req.pb.collection('users').getOne(req.params.id);
+    const updated = await req.pb.collection('users').update(user.id, { approved: true });
+    res.json({
+      user: publicUser(updated)
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/payment-methods', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Payment method name is required.' });
@@ -546,7 +577,7 @@ app.post('/api/payment-methods', requireAuth, requireAdmin, async (req, res) => 
   }
 });
 
-app.put('/api/payment-methods/:id', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/payment-methods/:id', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Payment method name is required.' });
@@ -556,7 +587,7 @@ app.put('/api/payment-methods/:id', requireAuth, requireAdmin, async (req, res) 
   }
 });
 
-app.get('/api/transactions', requireAuth, async (req, res) => {
+app.get('/api/transactions', requireAuth, requireApproved, async (req, res) => {
   try {
     const filters = isAdmin(req.user) ? [] : [`user = "${req.user.id}"`];
     const page = parsePositiveInt(req.query.page, 1);
@@ -590,7 +621,7 @@ app.get('/api/transactions', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/home-totals', requireAuth, async (req, res) => {
+app.get('/api/home-totals', requireAuth, requireApproved, async (req, res) => {
   try {
     const baseFilters = isAdmin(req.user) ? [] : [`user = "${req.user.id}"`];
     const thisMonth = currentMonthRange(0);
@@ -612,7 +643,7 @@ app.get('/api/home-totals', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/monthly-totals', requireAuth, async (req, res) => {
+app.get('/api/monthly-totals', requireAuth, requireApproved, async (req, res) => {
   try {
     const filter = isAdmin(req.user) ? '' : `user = "${req.user.id}"`;
     const transactions = await listRecords(req.pb, 'oikos_transactions', {
@@ -628,7 +659,7 @@ app.get('/api/monthly-totals', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/transactions', requireAuth, async (req, res) => {
+app.post('/api/transactions', requireAuth, requireApproved, async (req, res) => {
   try {
     const amount = Number(req.body.amount);
     const date = sanitizeName(req.body.date);
@@ -691,7 +722,7 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
   }
 });
 
-app.put('/api/transactions/:id', requireAuth, async (req, res) => {
+app.put('/api/transactions/:id', requireAuth, requireApproved, async (req, res) => {
   try {
     const transaction = await req.pb.collection('oikos_transactions').getOne(req.params.id);
     if (!isAdmin(req.user) && transaction.user !== req.user.id) {
@@ -741,7 +772,7 @@ app.put('/api/transactions/:id', requireAuth, async (req, res) => {
   }
 });
 
-app.delete('/api/transactions/:id', requireAuth, async (req, res) => {
+app.delete('/api/transactions/:id', requireAuth, requireApproved, async (req, res) => {
   try {
     const transaction = await req.pb.collection('oikos_transactions').getOne(req.params.id);
     if (!isAdmin(req.user) && transaction.user !== req.user.id) {
@@ -754,7 +785,7 @@ app.delete('/api/transactions/:id', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/summary', requireAuth, async (req, res) => {
+app.get('/api/summary', requireAuth, requireApproved, async (req, res) => {
   try {
     const filter = isAdmin(req.user) ? '' : `user = "${req.user.id}"`;
     const transactions = await listRecords(req.pb, 'oikos_transactions', {
