@@ -10,6 +10,11 @@ Returns transactions sorted by descending date.
 
 Supported query parameters:
 
+- `page`
+  1-based page number. Defaults to `1`.
+- `perPage`
+  Page size. Allowed values are `10`, `25`, `50`, and `100`.
+  If omitted, Oikos uses the current user's stored `transactionPageSize`.
 - `month`
   Month in `YYYY-MM` format. Filters to that calendar month.
 - `fromDate`
@@ -34,40 +39,46 @@ GET /api/transactions?fromDate=2026-04-01&toDate=2026-04-30&category=CATEGORY_ID
 Response shape:
 
 ```json
-[
-  {
-    "id": "TRANSACTION_ID",
-    "date": "2026-04-27 00:00:00.000Z",
-    "amount": 2364.99,
-    "payment_method": "PAYMENT_METHOD_ID",
-    "category": "CATEGORY_ID",
-    "subcategory": "SUBCATEGORY_ID",
-    "store": "STORE_ID",
-    "user": "USER_ID",
-    "expand": {
-      "category": {
-        "id": "CATEGORY_ID",
-        "name": "Transport"
-      },
-      "subcategory": {
-        "id": "SUBCATEGORY_ID",
-        "name": "Fuel"
-      },
-      "store": {
-        "id": "STORE_ID",
-        "name": "Amazon"
-      },
-      "user": {
-        "id": "USER_ID",
-        "email": "user@example.com"
-      },
-      "payment_method": {
-        "id": "PAYMENT_METHOD_ID",
-        "name": "Cash"
+{
+  "items": [
+    {
+      "id": "TRANSACTION_ID",
+      "date": "2026-04-27 00:00:00.000Z",
+      "amount": 2364.99,
+      "payment_method": "PAYMENT_METHOD_ID",
+      "category": "CATEGORY_ID",
+      "subcategory": "SUBCATEGORY_ID",
+      "store": "STORE_ID",
+      "user": "USER_ID",
+      "expand": {
+        "category": {
+          "id": "CATEGORY_ID",
+          "name": "Transport"
+        },
+        "subcategory": {
+          "id": "SUBCATEGORY_ID",
+          "name": "Fuel"
+        },
+        "store": {
+          "id": "STORE_ID",
+          "name": "Amazon"
+        },
+        "user": {
+          "id": "USER_ID",
+          "email": "user@example.com"
+        },
+        "payment_method": {
+          "id": "PAYMENT_METHOD_ID",
+          "name": "Cash"
+        }
       }
     }
-  }
-]
+  ],
+  "page": 1,
+  "perPage": 25,
+  "totalItems": 42,
+  "totalPages": 2
+}
 ```
 
 ## `POST /api/transactions`

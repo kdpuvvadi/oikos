@@ -23,6 +23,8 @@ After a successful login or registration, send later requests with the cookies r
 
 Auth responses also include the current PocketBase auth token in the JSON body.
 
+`GET /api/auth/me` refreshes the PocketBase auth record before responding, so profile settings changed in Oikos or directly in PocketBase Admin stay in sync with the app.
+
 ## Roles
 
 - `user`
