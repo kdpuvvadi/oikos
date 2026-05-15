@@ -13,6 +13,8 @@ const pbToken = process.env.PB_TOKEN || '';
 const pb = new PocketBase(pbUrl);
 const authCookieName = 'pb_auth';
 const authHintCookieName = 'oikos_session';
+const DEFAULT_TRANSACTION_PAGE_SIZE = 25;
+const TRANSACTION_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 if (pbToken) {
   pb.authStore.save(pbToken, null);
@@ -57,8 +59,10 @@ function publicUser(record) {
     email,
     name,
     emailVisibility: record.emailVisibility !== false,
+    verified: record.verified !== false,
     kind: record.kind || 'user',
-    isAdmin: record.kind === 'admin'
+    isAdmin: record.kind === 'admin',
+    transactionPageSize: normalizeTransactionPageSize(record.transactionPageSize)
   };
 }
 
@@ -85,6 +89,16 @@ function requireAdmin(req, res, next) {
 
 function sanitizeName(value) {
   return String(value || '').trim();
+}
+
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(String(value || ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeTransactionPageSize(value) {
+  const parsed = parsePositiveInt(value, DEFAULT_TRANSACTION_PAGE_SIZE);
+  return TRANSACTION_PAGE_SIZE_OPTIONS.includes(parsed) ? parsed : DEFAULT_TRANSACTION_PAGE_SIZE;
 }
 
 function pbDate(value) {
@@ -137,6 +151,12 @@ function summaryTransaction(record) {
 
 async function listRecords(client, collection, params) {
   return client.collection(collection).getFullList({
+    ...Object.fromEntries(Object.entries(params || {}).filter(([, value]) => value !== undefined && value !== ''))
+  });
+}
+
+async function listPageRecords(client, collection, page, perPage, params) {
+  return client.collection(collection).getList(page, perPage, {
     ...Object.fromEntries(Object.entries(params || {}).filter(([, value]) => value !== undefined && value !== ''))
   });
 }
@@ -251,11 +271,11 @@ app.post('/api/auth/register', async (req, res) => {
       password,
       passwordConfirm: password
     });
-    await client.collection('users').authWithPassword(email, password);
-    res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
+    await client.collection('users').requestVerification(email);
     res.status(201).json({
-      token: client.authStore.token,
-      user: publicUser(client.authStore.record)
+      requiresVerification: true,
+      email,
+      message: 'Account created. Check your email to verify your address before signing in.'
     });
   } catch (error) {
     handleError(res, error);
@@ -267,14 +287,103 @@ app.post('/api/auth/login', async (req, res) => {
     const email = sanitizeName(req.body.email).toLowerCase();
     const password = String(req.body.password || '');
     const client = new PocketBase(pbUrl);
-    await client.collection('users').authWithPassword(email, password);
+    const auth = await client.collection('users').authWithPassword(email, password);
+    if (auth.record?.verified === false) {
+      return res.status(403).json({
+        error: 'Please verify your email before signing in.',
+        requiresVerification: true,
+        email
+      });
+    }
     res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
     res.json({
       token: client.authStore.token,
       user: publicUser(client.authStore.record)
     });
-  } catch {
-    res.status(401).json({ error: 'Invalid email or password.' });
+  } catch (error) {
+    const message = String(error?.response?.message || error?.message || '').toLowerCase();
+    if (message.includes('verified') || message.includes('verification')) {
+      return res.status(403).json({
+        error: 'Please verify your email before signing in.',
+        requiresVerification: true,
+        email
+      });
+    }
+    res.status(401).json({ error: 'Invalid email or password, or your email is not verified yet.' });
+  }
+});
+
+app.post('/api/auth/request-verification', async (req, res) => {
+  try {
+    const email = sanitizeName(req.body.email).toLowerCase();
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
+    const client = new PocketBase(pbUrl);
+    await client.collection('users').requestVerification(email);
+    res.json({
+      ok: true,
+      email,
+      message: 'Verification email sent.'
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/auth/verify', async (req, res) => {
+  try {
+    const token = sanitizeName(req.body.token);
+    if (!token) {
+      return res.status(400).json({ error: 'Verification token is required.' });
+    }
+    const client = new PocketBase(pbUrl);
+    await client.collection('users').confirmVerification(token);
+    res.json({
+      ok: true,
+      message: 'Email verified. You can sign in now.'
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/auth/request-otp', async (req, res) => {
+  try {
+    const email = sanitizeName(req.body.email).toLowerCase();
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
+    const client = new PocketBase(pbUrl);
+    const result = await client.collection('users').requestOTP(email);
+    res.json({
+      ok: true,
+      email,
+      otpId: result.otpId,
+      message: 'OTP sent.'
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/auth/login-otp', async (req, res) => {
+  try {
+    const otpId = sanitizeName(req.body.otpId);
+    const otp = sanitizeName(req.body.otp);
+    if (!otpId || !otp) {
+      return res.status(400).json({ error: 'otpId and otp are required.' });
+    }
+    const client = new PocketBase(pbUrl);
+    const auth = await client.collection('users').authWithOTP(otpId, otp);
+    res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
+    res.json({
+      token: client.authStore.token,
+      user: publicUser(auth.record || client.authStore.record),
+      message: 'OTP login successful.'
+    });
+  } catch (error) {
+    handleError(res, error);
   }
 });
 
@@ -283,24 +392,39 @@ app.post('/api/auth/logout', (_req, res) => {
   res.status(204).end();
 });
 
-app.get('/api/auth/me', (req, res) => {
+app.get('/api/auth/me', async (req, res) => {
   const client = clientFromRequest(req);
   if (!client.authStore.isValid || !client.authStore.record?.id) {
     res.setHeader('Set-Cookie', clearAuthCookies());
     return res.status(401).json({ error: 'Not logged in.' });
   }
-  res.json({
-    token: client.authStore.token,
-    user: publicUser(client.authStore.record)
-  });
+
+  try {
+    const auth = await client.collection('users').authRefresh();
+    res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
+    res.json({
+      token: client.authStore.token,
+      user: publicUser(auth.record || client.authStore.record)
+    });
+  } catch {
+    res.setHeader('Set-Cookie', clearAuthCookies());
+    res.status(401).json({ error: 'Not logged in.' });
+  }
 });
 
 app.put('/api/auth/me', requireAuth, async (req, res) => {
   try {
-    const updated = await req.pb.collection('users').update(req.user.id, {
+    const updateBody = {
       emailVisibility: Boolean(req.body.emailVisibility)
+    };
+    if (req.body.transactionPageSize !== undefined) {
+      updateBody.transactionPageSize = normalizeTransactionPageSize(req.body.transactionPageSize);
+    }
+    const updated = await req.pb.collection('users').update(req.user.id, {
+      ...updateBody
     });
     req.pb.authStore.save(req.pb.authStore.token, updated);
+    res.setHeader('Set-Cookie', [authCookie(req.pb), authHintCookie()]);
     res.json({
       token: req.pb.authStore.token,
       user: publicUser(updated)
@@ -435,6 +559,8 @@ app.put('/api/payment-methods/:id', requireAuth, requireAdmin, async (req, res) 
 app.get('/api/transactions', requireAuth, async (req, res) => {
   try {
     const filters = isAdmin(req.user) ? [] : [`user = "${req.user.id}"`];
+    const page = parsePositiveInt(req.query.page, 1);
+    const perPage = normalizeTransactionPageSize(req.query.perPage || req.user.transactionPageSize);
     if (req.query.month) {
       const [year, month] = String(req.query.month).split('-').map(Number);
       filters.push(`date >= "${monthBoundary(year, month - 1)}"`);
@@ -447,12 +573,18 @@ app.get('/api/transactions', requireAuth, async (req, res) => {
     if (req.query.user && isAdmin(req.user)) filters.push(`user = "${req.query.user}"`);
     if (req.query.store) filters.push(`store = "${req.query.store}"`);
 
-    const transactions = await listRecords(req.pb, 'oikos_transactions', {
+    const transactions = await listPageRecords(req.pb, 'oikos_transactions', page, perPage, {
       sort: '-date',
       expand: 'category,subcategory,store,user,payment_method',
       filter: filters.join(' && ')
     });
-    res.json(transactions);
+    res.json({
+      items: transactions.items || [],
+      page: transactions.page,
+      perPage: transactions.perPage,
+      totalItems: transactions.totalItems,
+      totalPages: transactions.totalPages
+    });
   } catch (error) {
     handleError(res, error);
   }
@@ -641,6 +773,7 @@ app.get('/api/summary', requireAuth, async (req, res) => {
 const pageFiles = {
   '/': 'index.html',
   '/me': 'me.html',
+  '/verify-email': 'verify-email.html',
   '/categories': 'categories.html',
   '/stores': 'stores.html',
   '/payment-methods': 'payment-methods.html',
