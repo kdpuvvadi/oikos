@@ -3,6 +3,7 @@ import { seoConfig } from './seo.config.js';
 
 const state = {
   user: null,
+  pendingVerificationEmail: '',
   categories: [],
   paymentMethods: [],
   stores: [],
@@ -10,6 +11,12 @@ const state = {
   transactions: [],
   summaryTransactions: [],
   transactionRows: [],
+  transactionPagination: {
+    page: 1,
+    perPage: 25,
+    totalItems: 0,
+    totalPages: 1
+  },
   homeTotals: {
     thisMonth: 0,
     lastMonth: 0
@@ -62,6 +69,7 @@ const routes = {
 
 let routeRequestId = 0;
 const authHintCookieName = 'oikos_session';
+const transactionPageSizeOptions = [10, 25, 50, 100];
 
 function qs(selector, root = document) {
   return root.querySelector(selector);
@@ -95,7 +103,10 @@ async function api(path, options = {}) {
   const data = response.status === 204 ? null : await response.json();
   if (!response.ok) {
     if (response.status === 401 && path !== '/api/auth/me') setAuthView(null);
-    throw new Error(data?.error || 'Request failed');
+    const error = new Error(data?.error || 'Request failed');
+    error.status = response.status;
+    error.data = data;
+    throw error;
   }
   return data;
 }
@@ -135,6 +146,7 @@ function setAuthView(user) {
     qs('#menuToggle').setAttribute('aria-expanded', 'false');
   }
   if (has('#userName')) qs('#userName').textContent = user ? `${user.name}${isAdmin() ? ' (admin)' : ''}` : '';
+  renderAuthStatus();
 }
 
 function closeMobileNav() {
@@ -149,6 +161,42 @@ function toggleMobileNav() {
 
 function option(value, label) {
   return `<option value="${value}">${label}</option>`;
+}
+
+function transactionPageSizeOptionMarkup(selectedValue) {
+  return transactionPageSizeOptions.map((value) => `
+    <option value="${value}" ${String(value) === String(selectedValue) ? 'selected' : ''}>${value} per page</option>
+  `).join('');
+}
+
+function verificationBadge(user) {
+  return user?.verified
+    ? '<span class="status-pill success">Verified</span>'
+    : '<span class="status-pill warning">Pending verification</span>';
+}
+
+function renderAuthStatus() {
+  if (!has('#authStatus')) return;
+  if (state.user || !state.pendingVerificationEmail) {
+    qs('#authStatus').innerHTML = '';
+    return;
+  }
+
+  qs('#authStatus').innerHTML = `
+    <article class="panel auth-status-panel">
+      <div class="detail-list">
+        <div class="detail-row">
+          <span class="detail-label">Verification pending</span>
+          <strong class="detail-value">${state.pendingVerificationEmail}</strong>
+        </div>
+        <p class="auth-status-copy">Check your inbox for the verification email before signing in. If it didn’t arrive, resend it here.</p>
+        <div class="inline-actions">
+          <button type="button" class="ghost" data-resend-verification="${state.pendingVerificationEmail}">Resend verification email</button>
+          <a class="text-link" href="/verify-email">Open verification page</a>
+        </div>
+      </div>
+    </article>
+  `;
 }
 
 function otherStoreId() {
@@ -303,7 +351,28 @@ function renderMe() {
         </div>
         <div class="detail-row">
           <span class="detail-label">Email</span>
-          <span class="detail-value">${user.email || '-'}</span>
+          <div class="detail-value detail-inline">
+            <span>${user.email || '-'}</span>
+            ${verificationBadge(user)}
+          </div>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Transaction page size</span>
+          <div class="detail-value detail-stack">
+            <label>
+              <select data-transaction-page-size>
+                ${transactionPageSizeOptionMarkup(user.transactionPageSize || state.transactionPagination.perPage)}
+              </select>
+            </label>
+            <div class="detail-help">Choose how many transactions load on each page by default.</div>
+          </div>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Email verification</span>
+          <div class="detail-value detail-stack">
+            <div>${user.verified ? 'Your email is verified.' : 'Your email still needs verification.'}</div>
+            ${user.verified ? '' : '<button type="button" class="ghost" data-resend-verification>Resend verification email</button>'}
+          </div>
         </div>
         <div class="detail-row">
           <span class="detail-label">Email visibility</span>
@@ -319,6 +388,34 @@ function renderMe() {
         </div>
       </div>
     </article>
+  `;
+}
+
+function renderTransactionPagination() {
+  if (!has('#transactionsPagination')) return;
+
+  const { page, perPage, totalItems, totalPages } = state.transactionPagination;
+  const safePage = Math.max(page || 1, 1);
+  const safeTotalPages = Math.max(totalPages || 1, 1);
+  const startItem = totalItems ? ((safePage - 1) * perPage) + 1 : 0;
+  const endItem = totalItems ? Math.min(safePage * perPage, totalItems) : 0;
+  qs('#transactionsPagination').classList.remove('hidden');
+
+  qs('#transactionsPagination').innerHTML = `
+    <div class="pagination-summary">
+      <strong>${startItem}-${endItem} of ${totalItems}</strong>
+      <span>Page ${safePage} of ${safeTotalPages}</span>
+    </div>
+    <div class="pagination-actions">
+      <label class="pagination-page-size">
+        <span>Rows</span>
+        <select data-transaction-page-size>
+          ${transactionPageSizeOptionMarkup(perPage)}
+        </select>
+      </label>
+      <button type="button" class="ghost" data-page-action="prev" ${safePage <= 1 ? 'disabled' : ''}>Previous</button>
+      <button type="button" class="ghost" data-page-action="next" ${safePage >= safeTotalPages ? 'disabled' : ''}>Next</button>
+    </div>
   `;
 }
 
@@ -374,6 +471,7 @@ function renderTransactions() {
       </td>
     </tr>
   `).join('') || '<tr class="table-empty-row"><td colspan="9">No transactions yet.</td></tr>';
+  renderTransactionPagination();
 }
 
 function renderTransactionFilterControls() {
@@ -493,6 +591,7 @@ function renderPivot(row = 'month', column = 'category') {
 }
 
 function resetDataState() {
+  const defaultPerPage = state.user?.transactionPageSize || 25;
   state.categories = [];
   state.paymentMethods = [];
   state.stores = [];
@@ -500,6 +599,12 @@ function resetDataState() {
   state.transactions = [];
   state.summaryTransactions = [];
   state.transactionRows = [];
+  state.transactionPagination = {
+    page: 1,
+    perPage: defaultPerPage,
+    totalItems: 0,
+    totalPages: 1
+  };
   state.homeTotals = { thisMonth: 0, lastMonth: 0 };
   Object.keys(state.loaded).forEach((key) => {
     state.loaded[key] = false;
@@ -555,7 +660,8 @@ async function loadUsers(force = false) {
 
 async function loadTransactions(force = false) {
   await ensureLoaded('transactions', async () => {
-    state.transactions = await api('/api/transactions');
+    const data = await api('/api/transactions');
+    state.transactions = data.items || [];
     state.loaded.transactions = true;
   }, force);
 }
@@ -569,7 +675,18 @@ async function loadSummaryTransactions(force = false) {
 }
 
 async function loadTransactionRows() {
-  state.transactionRows = await api(`/api/transactions${buildTransactionFilterQuery()}`);
+  const data = await api(`/api/transactions${buildTransactionFilterQuery()}`);
+  if ((data.items || []).length === 0 && (data.totalItems || 0) > 0 && (data.totalPages || 1) < (data.page || 1)) {
+    state.transactionPagination.page = data.totalPages || 1;
+    return loadTransactionRows();
+  }
+  state.transactionRows = data.items || [];
+  state.transactionPagination = {
+    page: data.page || 1,
+    perPage: data.perPage || state.transactionPagination.perPage,
+    totalItems: data.totalItems || 0,
+    totalPages: data.totalPages || 1
+  };
 }
 
 async function loadHomeTotals(force = false) {
@@ -594,17 +711,65 @@ async function loadMePage() {
   renderMe();
 }
 
+async function saveProfileSettings(updates, successMessage) {
+  const result = await api('/api/auth/me', {
+    method: 'PUT',
+    body: JSON.stringify({
+      emailVisibility: state.user?.emailVisibility !== false,
+      transactionPageSize: state.user?.transactionPageSize || state.transactionPagination.perPage,
+      ...updates
+    })
+  });
+  setAuthView(result.user);
+  state.transactionPagination.perPage = result.user.transactionPageSize || state.transactionPagination.perPage;
+  renderMe();
+  if (successMessage) toast(successMessage);
+  return result.user;
+}
+
 async function toggleEmailVisibility() {
   const nextValue = !state.user.emailVisibility;
 
   try {
-    const result = await api('/api/auth/me', {
-      method: 'PUT',
-      body: JSON.stringify({ emailVisibility: nextValue })
+    await saveProfileSettings({ emailVisibility: nextValue }, `Email visibility ${nextValue ? 'enabled' : 'disabled'}.`);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function updateTransactionPageSize(nextValue, { refreshTransactions = false } = {}) {
+  const pageSize = Number.parseInt(String(nextValue || ''), 10);
+  if (!transactionPageSizeOptions.includes(pageSize)) return;
+
+  try {
+    await saveProfileSettings({ transactionPageSize: pageSize }, 'Transaction page size updated.');
+    if (refreshTransactions && has('#transactionsTable')) {
+      state.transactionPagination.page = 1;
+      state.transactionPagination.perPage = pageSize;
+      await loadTransactionRows();
+      renderTransactions();
+    }
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function resendVerificationEmail(email = state.user?.email || state.pendingVerificationEmail) {
+  const targetEmail = String(email || '').trim();
+  if (!targetEmail) {
+    toast('Email address unavailable for verification.');
+    return;
+  }
+
+  try {
+    const result = await api('/api/auth/request-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email: targetEmail })
     });
-    setAuthView(result.user);
+    state.pendingVerificationEmail = result.email || targetEmail;
+    renderAuthStatus();
     renderMe();
-    toast(`Email visibility ${nextValue ? 'enabled' : 'disabled'}.`);
+    toast(result.message || 'Verification email sent.');
   } catch (error) {
     toast(error.message);
   }
@@ -689,7 +854,13 @@ async function refreshCurrentPage(keys = []) {
 async function loadCurrentUser() {
   try {
     const data = await api('/api/auth/me');
+    state.pendingVerificationEmail = '';
+    state.transactionPagination.perPage = data.user?.transactionPageSize || state.transactionPagination.perPage;
     setAuthView(data.user);
+    if (window.location.pathname === '/verify-email') {
+      window.location.replace('/');
+      return;
+    }
     await syncRoute(true);
   } catch {
     setAuthView(null);
@@ -706,11 +877,23 @@ async function submitAuth(event, endpoint) {
       body: JSON.stringify(data)
     });
     form.reset();
+    if (result.requiresVerification) {
+      state.pendingVerificationEmail = result.email || String(data.email || '').trim().toLowerCase();
+      renderAuthStatus();
+      toast(result.message || 'Check your email to verify your account.');
+      return;
+    }
     resetDataState();
+    state.pendingVerificationEmail = '';
+    state.transactionPagination.perPage = result.user?.transactionPageSize || state.transactionPagination.perPage;
     setAuthView(result.user);
     toast(endpoint.endsWith('login') ? 'Logged in.' : 'Account created.');
     await syncRoute(true);
   } catch (error) {
+    if (error.data?.requiresVerification) {
+      state.pendingVerificationEmail = error.data.email || String(data.email || '').trim().toLowerCase();
+      renderAuthStatus();
+    }
     toast(error.message);
   }
 }
@@ -720,6 +903,7 @@ async function logout() {
     await api('/api/auth/logout', { method: 'POST' });
   } finally {
     resetDataState();
+    state.pendingVerificationEmail = '';
     setAuthView(null);
     toast('Logged out.');
   }
@@ -912,6 +1096,8 @@ function buildTransactionFilterQuery() {
 
   const data = new FormData(qs('#transactionFilterForm'));
   const params = new URLSearchParams();
+  params.set('page', String(state.transactionPagination.page || 1));
+  params.set('perPage', String(state.transactionPagination.perPage || state.user?.transactionPageSize || 25));
   ['fromDate', 'toDate', 'category', 'subcategory', 'user'].forEach((key) => {
     const value = String(data.get(key) || '').trim();
     if (value) params.set(key, value);
@@ -923,6 +1109,7 @@ function buildTransactionFilterQuery() {
 
 async function applyTransactionFilters(event) {
   event.preventDefault();
+  state.transactionPagination.page = 1;
   syncTransactionFilterVisibility(true);
   try {
     await loadTransactionRows();
@@ -935,9 +1122,24 @@ async function applyTransactionFilters(event) {
 async function clearTransactionFilters() {
   if (!has('#transactionFilterForm')) return;
   qs('#transactionFilterForm').reset();
+  state.transactionPagination.page = 1;
   updateTransactionFilterSubcategories();
   syncTransactionFilterVisibility();
 
+  try {
+    await loadTransactionRows();
+    renderTransactions();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function changeTransactionPage(page) {
+  const totalPages = Math.max(state.transactionPagination.totalPages || 1, 1);
+  const nextPage = Math.min(Math.max(page, 1), totalPages);
+  if (nextPage === state.transactionPagination.page) return;
+
+  state.transactionPagination.page = nextPage;
   try {
     await loadTransactionRows();
     renderTransactions();
@@ -970,6 +1172,48 @@ function handlePaymentMethodClick(event) {
   if (paymentMethodButton) void editPaymentMethod(paymentMethodButton.dataset.editPaymentMethod);
 }
 
+function renderVerificationStatus(type, message) {
+  if (!has('#verificationStatus')) return;
+  qs('#verificationStatus').innerHTML = `
+    <article class="verification-card ${type || ''}">
+      <h1>Email verification</h1>
+      <p>${message}</p>
+      <div class="inline-actions">
+        <a class="ghost-link" href="/">Go to sign in</a>
+      </div>
+    </article>
+  `;
+}
+
+async function initVerificationPage() {
+  if (!has('#verificationStatus')) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const token = String(params.get('token') || params.get('verificationToken') || '').trim();
+  const email = String(params.get('email') || '').trim().toLowerCase();
+  if (email) state.pendingVerificationEmail = email;
+  renderAuthStatus();
+
+  if (!token) {
+    renderVerificationStatus('warning', 'Open the verification link from your email to finish verifying your account.');
+    return;
+  }
+
+  renderVerificationStatus('pending', 'Verifying your email now...');
+
+  try {
+    const result = await api('/api/auth/verify', {
+      method: 'POST',
+      body: JSON.stringify({ token })
+    });
+    state.pendingVerificationEmail = '';
+    renderAuthStatus();
+    renderVerificationStatus('success', result.message || 'Email verified. You can sign in now.');
+  } catch (error) {
+    renderVerificationStatus('error', error.message || 'Verification failed.');
+  }
+}
+
 function bindEvents() {
   window.addEventListener('resize', () => {
     if (window.innerWidth > 720) closeMobileNav();
@@ -989,9 +1233,33 @@ function bindEvents() {
   if (has('#clearTransactionFilters')) qs('#clearTransactionFilters').addEventListener('click', clearTransactionFilters);
   if (has('#transactionFilterCategory')) qs('#transactionFilterCategory').addEventListener('change', updateTransactionFilterSubcategories);
   if (has('#toggleTransactionFilters')) qs('#toggleTransactionFilters').addEventListener('click', toggleTransactionFilters);
+  if (has('#authStatus')) {
+    qs('#authStatus').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-resend-verification]');
+      if (button) void resendVerificationEmail(button.dataset.resendVerification || undefined);
+    });
+  }
   if (has('#meProfile')) {
     qs('#meProfile').addEventListener('change', (event) => {
       if (event.target.matches('[data-email-visibility]')) void toggleEmailVisibility();
+      if (event.target.matches('[data-transaction-page-size]')) void updateTransactionPageSize(event.target.value);
+    });
+    qs('#meProfile').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-resend-verification]');
+      if (button) void resendVerificationEmail(button.dataset.resendVerification || undefined);
+    });
+  }
+  if (has('#transactionsPagination')) {
+    qs('#transactionsPagination').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-page-action]');
+      if (!button) return;
+      if (button.dataset.pageAction === 'prev') void changeTransactionPage(state.transactionPagination.page - 1);
+      if (button.dataset.pageAction === 'next') void changeTransactionPage(state.transactionPagination.page + 1);
+    });
+    qs('#transactionsPagination').addEventListener('change', (event) => {
+      if (event.target.matches('[data-transaction-page-size]')) {
+        void updateTransactionPageSize(event.target.value, { refreshTransactions: true });
+      }
     });
   }
   if (has('#editTransactionForm')) qs('#editTransactionForm').addEventListener('submit', submitEditTransaction);
@@ -1020,8 +1288,10 @@ function bindEvents() {
 
 async function init() {
   bindEvents();
+  renderAuthStatus();
   showPage();
   if (has('#expenseForm [name="date"]')) qs('#expenseForm [name="date"]').valueAsDate = new Date();
+  await initVerificationPage();
   await loadCurrentUser();
 
   // Register service worker for PWA

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script>
+      document.documentElement.classList.add('js');
+      if (document.cookie.includes('oikos_session=1')) document.documentElement.classList.add('has-session');
+    </script>
+    <link rel="stylesheet" href="/styles.css">
+    <script type="module" src="/head.js"></script>
+  </head>
+  <body>
+    <oikos-header></oikos-header>
+    <oikos-auth-shell id="authPage" class="auth-shell"></oikos-auth-shell>
+
+    <section class="auth-shell">
+      <div id="verificationStatus"></div>
+    </section>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

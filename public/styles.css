@@ -140,6 +140,42 @@ nav a:hover {
   font-size: 1.05rem;
 }
 
+.detail-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.detail-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-help {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.status-pill.success {
+  background: #e6f3ea;
+  color: #1e6a3f;
+}
+
+.status-pill.warning {
+  background: #fff4d7;
+  color: #8b6500;
+}
+
 .detail-toggle {
   display: flex;
   align-items: start;
@@ -217,6 +253,34 @@ main {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 16px;
+}
+
+#authStatus {
+  margin-top: 16px;
+}
+
+.auth-status-copy {
+  margin: 0;
+  color: var(--muted);
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.text-link,
+.ghost-link {
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.text-link:hover,
+.ghost-link:hover {
+  text-decoration: underline;
 }
 
 .page {
@@ -321,6 +385,43 @@ h2 {
 .transactions-toolbar {
   display: flex;
   justify-content: flex-end;
+}
+
+.transactions-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.pagination-summary {
+  display: grid;
+  gap: 4px;
+}
+
+.pagination-summary span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.pagination-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pagination-page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.pagination-page-size select {
+  min-width: 140px;
 }
 
 #transactionFiltersPanel {
@@ -518,6 +619,40 @@ tr:last-child td {
   background: #eef4f1;
 }
 
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.verification-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 18px;
+  box-shadow: 0 12px 30px rgba(23, 32, 28, 0.06);
+}
+
+.verification-card h1 {
+  margin-bottom: 12px;
+}
+
+.verification-card p {
+  margin: 0 0 16px;
+  color: var(--muted);
+}
+
+.verification-card.success {
+  border-color: #b9dcc6;
+}
+
+.verification-card.warning {
+  border-color: #f1d78b;
+}
+
+.verification-card.error {
+  border-color: #e3b2ad;
+}
+
 dialog {
   width: min(520px, calc(100% - 28px));
   border: 1px solid var(--line);
@@ -658,6 +793,23 @@ dialog::backdrop {
   .page-title-bar {
     align-items: start;
     flex-wrap: wrap;
+  }
+
+  .transactions-pagination {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pagination-actions {
+    justify-content: stretch;
+  }
+
+  .pagination-actions > * {
+    flex: 1 1 100%;
+  }
+
+  .pagination-page-size {
+    justify-content: space-between;
   }
 
   table {
