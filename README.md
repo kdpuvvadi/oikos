@@ -12,7 +12,7 @@ It uses the PocketBase JavaScript SDK to handle the heavy lifting on the backend
   * **Deep Dives:** Manage your categories and stores separately.
   * **Paginated Transactions:** Transaction history loads in pages, with a per-user page size preference stored in PocketBase.
   * **Pivot-style filters:** Choose your own row and column dimensions to see exactly how your data aggregates.
-  * **Email Verification and OTP:** Standard signup verification happens through Oikos, and third-party flows can use email OTP login via API.
+  * **Email Verification, Approval, and OTP:** New accounts verify through Oikos, then wait for admin approval before they can use the app. Third-party flows can use email OTP login via API.
   * **Privacy First:** Transactions are linked to your specific PocketBase user record. Regular users only see their own data, while admins (flagged with `kind=admin`) can manage the global categories and see the full picture.
 
 ## Getting Started (The Easy Way)

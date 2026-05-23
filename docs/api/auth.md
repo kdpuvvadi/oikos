@@ -9,6 +9,7 @@ New users are created with:
 - `emailVisibility: true`
 - `kind: "user"`
 - `verified: false` until the email confirmation succeeds
+- `approved: false` until an admin explicitly approves the account
 
 Request body:
 
@@ -43,6 +44,8 @@ Response:
 ## `POST /api/auth/login`
 
 Authenticates an existing verified user and sets auth cookies.
+
+If the email is verified but admin approval is still pending, the route still returns auth data so Oikos can show the approval-pending screen, but all business endpoints remain blocked until approval is granted.
 
 Request body:
 
@@ -135,7 +138,7 @@ Response:
 ```json
 {
   "ok": true,
-  "message": "Email verified. You can sign in now."
+  "message": "Email verified. Your account is now waiting for admin approval."
 }
 ```
 
@@ -168,6 +171,7 @@ Response:
     "name": "Example User",
     "emailVisibility": true,
     "verified": true,
+    "approved": true,
     "kind": "user",
     "isAdmin": false,
     "transactionPageSize": 25
@@ -201,6 +205,7 @@ Response:
     "name": "Example User",
     "emailVisibility": true,
     "verified": true,
+    "approved": true,
     "kind": "user",
     "isAdmin": false,
     "transactionPageSize": 25
@@ -275,6 +280,7 @@ Response:
     "name": "Example User",
     "emailVisibility": true,
     "verified": true,
+    "approved": true,
     "kind": "user",
     "isAdmin": false,
     "transactionPageSize": 25

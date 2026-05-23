@@ -3,6 +3,7 @@ import { seoConfig } from './seo.config.js';
 
 const state = {
   user: null,
+  profileEditMode: false,
   pendingVerificationEmail: '',
   categories: [],
   paymentMethods: [],
@@ -41,10 +42,9 @@ const money = new Intl.NumberFormat(undefined, {
 
 function formatDate(dateString) {
   if (!dateString) return '';
-  const date = new Date(dateString);
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
+  const isoDate = String(dateString).slice(0, 10);
+  const [year = '', month = '', day = ''] = isoDate.split('-');
+  if (!year || !month || !day) return isoDate || String(dateString);
   
   const format = seoConfig.dateFormat || 'DD-MM-YYYY';
   
@@ -131,21 +131,36 @@ function isAdmin() {
   return Boolean(state.user?.isAdmin || state.user?.kind === 'admin');
 }
 
+function isApprovedUser(user = state.user) {
+  return Boolean(user?.approved || user?.isAdmin || user?.kind === 'admin');
+}
+
 function setAuthView(user) {
   state.user = user;
+  state.profileEditMode = false;
+  const approvalPending = Boolean(user && !isApprovedUser(user));
   setSessionHint(Boolean(user));
   document.body.classList.toggle('is-authenticated', Boolean(user));
   document.body.classList.toggle('is-admin', Boolean(user?.isAdmin || user?.kind === 'admin'));
+  document.body.classList.toggle('approval-pending', approvalPending);
   document.body.classList.remove('mobile-nav-open');
-  if (has('#authPage')) qs('#authPage').classList.toggle('hidden', Boolean(user));
-  if (has('#appShell')) qs('#appShell').classList.toggle('hidden', !user);
+  if (has('#authPage')) qs('#authPage').classList.toggle('hidden', Boolean(user) && !approvalPending);
+  if (has('#appShell')) qs('#appShell').classList.toggle('hidden', !user || approvalPending);
+  if (has('#authForms')) qs('#authForms').classList.toggle('hidden', approvalPending);
+  if (has('#approvalPending')) qs('#approvalPending').classList.toggle('hidden', !approvalPending);
   if (has('#userMenu')) qs('#userMenu').classList.toggle('hidden', !user);
-  if (has('nav')) qs('nav').classList.toggle('hidden', !user);
+  if (has('nav')) qs('nav').classList.toggle('hidden', !user || approvalPending);
   if (has('#menuToggle')) {
-    qs('#menuToggle').classList.toggle('hidden', !user);
+    qs('#menuToggle').classList.toggle('hidden', !user || approvalPending);
     qs('#menuToggle').setAttribute('aria-expanded', 'false');
   }
-  if (has('#userName')) qs('#userName').textContent = user ? `${user.name}${isAdmin() ? ' (admin)' : ''}` : '';
+  const userLabel = user ? `${user.name}${isAdmin() ? ' (admin)' : ''}` : '';
+  if (has('#userName')) qs('#userName').textContent = userLabel;
+  if (has('#mobileProfileLink')) {
+    qs('#mobileProfileLink').title = userLabel || 'Profile';
+    qs('#mobileProfileLink').classList.toggle('hidden', !user || approvalPending);
+  }
+  if (approvalPending && has('#approvalPendingEmail')) qs('#approvalPendingEmail').textContent = user.email || '';
   renderAuthStatus();
 }
 
@@ -173,6 +188,12 @@ function verificationBadge(user) {
   return user?.verified
     ? '<span class="status-pill success">Verified</span>'
     : '<span class="status-pill warning">Pending verification</span>';
+}
+
+function approvalBadge(user) {
+  return isApprovedUser(user)
+    ? '<span class="status-pill success">Approved</span>'
+    : '<span class="status-pill warning">Approval pending</span>';
 }
 
 function renderAuthStatus() {
@@ -323,15 +344,59 @@ function syncEditStoreInputVisibility() {
 
 function renderUsers() {
   if (!has('#userList')) return;
-  qs('#userList').innerHTML = state.users.map((user) => `
-    <article class="list-item">
-      <div class="list-heading">
-        <strong>${user.name || user.email}</strong>
-        <span class="pill">${user.isAdmin ? 'Admin' : 'User'}</span>
-      </div>
-      <p>${user.email || 'Email hidden'}</p>
-    </article>
-  `).join('') || '<p>No users yet.</p>';
+  if (!state.users.length) {
+    qs('#userList').innerHTML = '<p class="panel-empty">No users yet.</p>';
+    return;
+  }
+
+  qs('#userList').innerHTML = `
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th scope="col">User</th>
+          <th scope="col">Role</th>
+          <th scope="col">Verification</th>
+          <th scope="col">Approval</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${state.users.map((user) => {
+          const actions = [];
+          if (!user.verified && user.email) {
+            actions.push(`<button type="button" class="ghost" data-admin-resend-verification="${user.id}">Resend verification</button>`);
+          }
+          if (!user.isAdmin && !user.approved) {
+            actions.push(`<button type="button" class="ghost" data-approve-user="${user.id}">Approve user</button>`);
+          }
+
+          return `
+            <tr>
+              <td class="users-table-user-cell" data-label="User">
+                <strong class="users-table-name">${user.name || user.email}</strong>
+                <span class="users-table-email">${user.email || 'Email hidden'}</span>
+              </td>
+              <td data-label="Role">
+                <span class="pill">${user.isAdmin ? 'Admin' : 'User'}</span>
+              </td>
+              <td data-label="Verification">${verificationBadge(user)}</td>
+              <td data-label="Approval">${approvalBadge(user)}</td>
+              <td class="users-table-actions-cell" data-label="Actions">
+                ${actions.length ? `
+                  <details class="row-menu">
+                    <summary class="row-menu-trigger">Actions</summary>
+                    <div class="row-menu-panel">
+                      ${actions.join('')}
+                    </div>
+                  </details>
+                ` : '<span class="users-table-empty">No actions</span>'}
+              </td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
 }
 
 function renderMe() {
@@ -342,19 +407,103 @@ function renderMe() {
     return;
   }
 
+  const profileHeader = `
+    <div class="page-title-bar">
+      <div class="page-title">
+        <p class="eyebrow">Profile</p>
+        <h1>Me</h1>
+      </div>
+      <div class="inline-actions">
+        ${state.profileEditMode ? `
+          <button type="submit" form="profileEditForm">Save profile</button>
+          <button type="button" class="ghost" data-cancel-profile-edit>Cancel</button>
+        ` : `
+          <button type="button" class="ghost" data-edit-profile>Edit profile</button>
+        `}
+      </div>
+    </div>
+  `;
+
+  if (!state.profileEditMode) {
+    qs('#meProfile').innerHTML = `
+      ${profileHeader}
+      <article class="panel">
+        <div class="detail-list">
+          <div class="detail-row">
+            <span class="detail-label">Name</span>
+            <strong class="detail-value">${user.name || '-'}</strong>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Email</span>
+            <div class="detail-value detail-inline">
+              <span>${user.email || '-'}</span>
+              ${verificationBadge(user)}
+            </div>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Transaction page size</span>
+            <div class="detail-value detail-stack">
+              <label>
+                <select data-transaction-page-size>
+                  ${transactionPageSizeOptionMarkup(user.transactionPageSize || state.transactionPagination.perPage)}
+                </select>
+              </label>
+              <div class="detail-help">Choose how many transactions load on each page by default.</div>
+            </div>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Email verification</span>
+            <div class="detail-value detail-stack">
+              <div>${user.verified ? 'Your email is verified.' : 'Your email still needs verification.'}</div>
+              ${user.verified ? '' : '<button type="button" class="ghost" data-resend-verification>Resend verification email</button>'}
+            </div>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Admin approval</span>
+            <div class="detail-value detail-stack">
+              <div class="detail-inline">${approvalBadge(user)}</div>
+              <div>${isApprovedUser(user) ? 'Your account is approved.' : 'Your account is waiting for admin approval.'}</div>
+            </div>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Email visibility</span>
+            <div class="detail-value">
+              <label class="toggle-switch">
+                <input type="checkbox" ${user.emailVisibility ? 'checked' : ''} data-email-visibility>
+                <span class="toggle-slider"></span>
+              </label>
+              <div style="font-size: 0.85rem; color: #666; margin-top: 0.5rem;">
+                ${user.emailVisibility ? 'Your email is visible to other users and admins.' : 'Your email is hidden from other users and admin lists.'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+    `;
+    return;
+  }
+
   qs('#meProfile').innerHTML = `
+    ${profileHeader}
     <article class="panel">
-      <div class="detail-list">
+      <form id="profileEditForm" class="detail-list" data-profile-form>
         <div class="detail-row">
           <span class="detail-label">Name</span>
-          <strong class="detail-value">${user.name || '-'}</strong>
+          <label class="detail-value detail-stack">
+            <input type="text" name="name" value="${user.name || ''}" autocomplete="name" required>
+            <div class="detail-help">Update the display name shown around the app.</div>
+          </label>
         </div>
         <div class="detail-row">
           <span class="detail-label">Email</span>
-          <div class="detail-value detail-inline">
-            <span>${user.email || '-'}</span>
-            ${verificationBadge(user)}
-          </div>
+          <label class="detail-value detail-stack">
+            <input type="email" name="email" value="${user.email || ''}" autocomplete="email" required>
+            <div class="detail-inline">
+              <span>${user.email || '-'}</span>
+              ${verificationBadge(user)}
+            </div>
+            <div class="detail-help">If your email changes, you may need to verify the new address again.</div>
+          </label>
         </div>
         <div class="detail-row">
           <span class="detail-label">Transaction page size</span>
@@ -375,6 +524,13 @@ function renderMe() {
           </div>
         </div>
         <div class="detail-row">
+          <span class="detail-label">Admin approval</span>
+          <div class="detail-value detail-stack">
+            <div class="detail-inline">${approvalBadge(user)}</div>
+            <div>${isApprovedUser(user) ? 'Your account is approved.' : 'Your account is waiting for admin approval.'}</div>
+          </div>
+        </div>
+        <div class="detail-row">
           <span class="detail-label">Email visibility</span>
           <div class="detail-value">
             <label class="toggle-switch">
@@ -386,9 +542,32 @@ function renderMe() {
             </div>
           </div>
         </div>
-      </div>
+      </form>
     </article>
   `;
+}
+
+async function submitProfileBasics(form) {
+  const formData = new FormData(form);
+  const name = String(formData.get('name') || '').trim();
+  const email = String(formData.get('email') || '').trim();
+
+  if (!name || !email) {
+    toast('Name and email are required.');
+    return;
+  }
+
+  try {
+    const emailChanged = email.toLowerCase() !== String(state.user?.email || '').toLowerCase();
+    await saveProfileSettings(
+      { name, email },
+      emailChanged ? 'Profile updated. Verify the new email if prompted.' : 'Profile updated.'
+    );
+    state.profileEditMode = false;
+    renderMe();
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 function renderTransactionPagination() {
@@ -775,6 +954,29 @@ async function resendVerificationEmail(email = state.user?.email || state.pendin
   }
 }
 
+async function approveUser(userId) {
+  try {
+    await api(`/api/users/${userId}/approve`, {
+      method: 'POST'
+    });
+    toast('User approved.');
+    await refreshCurrentPage(['users']);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function adminResendVerification(userId) {
+  try {
+    const result = await api(`/api/users/${userId}/resend-verification`, {
+      method: 'POST'
+    });
+    toast(result.message || 'Verification email sent.');
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
 async function loadCategoriesPage(force = false) {
   await loadCategories(force);
   renderCategories();
@@ -861,7 +1063,9 @@ async function loadCurrentUser() {
       window.location.replace('/');
       return;
     }
-    await syncRoute(true);
+    if (isApprovedUser(data.user)) {
+      await syncRoute(true);
+    }
   } catch {
     setAuthView(null);
   }
@@ -887,6 +1091,10 @@ async function submitAuth(event, endpoint) {
     state.pendingVerificationEmail = '';
     state.transactionPagination.perPage = result.user?.transactionPageSize || state.transactionPagination.perPage;
     setAuthView(result.user);
+    if (result.approvalPending) {
+      toast('Admin approval is still pending.');
+      return;
+    }
     toast(endpoint.endsWith('login') ? 'Logged in.' : 'Account created.');
     await syncRoute(true);
   } catch (error) {
@@ -1172,6 +1380,16 @@ function handlePaymentMethodClick(event) {
   if (paymentMethodButton) void editPaymentMethod(paymentMethodButton.dataset.editPaymentMethod);
 }
 
+function handleUserClick(event) {
+  const resendButton = event.target.closest('[data-admin-resend-verification]');
+  if (resendButton) {
+    void adminResendVerification(resendButton.dataset.adminResendVerification);
+    return;
+  }
+  const approveButton = event.target.closest('[data-approve-user]');
+  if (approveButton) void approveUser(approveButton.dataset.approveUser);
+}
+
 function renderVerificationStatus(type, message) {
   if (!has('#verificationStatus')) return;
   qs('#verificationStatus').innerHTML = `
@@ -1228,6 +1446,7 @@ function bindEvents() {
   if (has('#storeForm')) qs('#storeForm').addEventListener('submit', submitStore);
   if (has('#paymentMethodForm')) qs('#paymentMethodForm').addEventListener('submit', submitPaymentMethod);
   if (has('#paymentMethodList')) qs('#paymentMethodList').addEventListener('click', handlePaymentMethodClick);
+  if (has('#userList')) qs('#userList').addEventListener('click', handleUserClick);
   if (has('#transactionsTable')) qs('#transactionsTable').addEventListener('click', handleTransactionClick);
   if (has('#transactionFilterForm')) qs('#transactionFilterForm').addEventListener('submit', applyTransactionFilters);
   if (has('#clearTransactionFilters')) qs('#clearTransactionFilters').addEventListener('click', clearTransactionFilters);
@@ -1244,7 +1463,25 @@ function bindEvents() {
       if (event.target.matches('[data-email-visibility]')) void toggleEmailVisibility();
       if (event.target.matches('[data-transaction-page-size]')) void updateTransactionPageSize(event.target.value);
     });
+    qs('#meProfile').addEventListener('submit', (event) => {
+      const form = event.target.closest('[data-profile-form]');
+      if (!form) return;
+      event.preventDefault();
+      void submitProfileBasics(form);
+    });
     qs('#meProfile').addEventListener('click', (event) => {
+      const editButton = event.target.closest('[data-edit-profile]');
+      if (editButton) {
+        state.profileEditMode = true;
+        renderMe();
+        return;
+      }
+      const cancelButton = event.target.closest('[data-cancel-profile-edit]');
+      if (cancelButton) {
+        state.profileEditMode = false;
+        renderMe();
+        return;
+      }
       const button = event.target.closest('[data-resend-verification]');
       if (button) void resendVerificationEmail(button.dataset.resendVerification || undefined);
     });
