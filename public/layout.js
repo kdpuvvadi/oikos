@@ -28,28 +28,30 @@ class OikosHeader extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
       <header class="site-header">
-        <div class="header-top">
-          <a class="brand" href="/">💸 Oikos</a>
-          <button
-            type="button"
-            class="menu-toggle hidden"
-            id="menuToggle"
-            aria-expanded="false"
-            aria-controls="siteNav"
-            aria-label="Open navigation menu"
-          >
-            <span></span>
-            <span></span>
-            <span></span>
-          </button>
-        </div>
-        <div class="header-panel">
-          <nav id="siteNav" aria-label="Main navigation">
-            ${navMarkup()}
-          </nav>
-          <div class="user-menu hidden" id="userMenu">
-            <a href="/me" id="userName" class="user-link"></a>
-            <button type="button" id="logoutButton">Logout</button>
+        <div class="header-shell">
+          <div class="header-top">
+            <a class="brand" href="/">💸 Oikos</a>
+            <button
+              type="button"
+              class="menu-toggle hidden"
+              id="menuToggle"
+              aria-expanded="false"
+              aria-controls="siteNav"
+              aria-label="Open navigation menu"
+            >
+              <span></span>
+              <span></span>
+              <span></span>
+            </button>
+          </div>
+          <div class="header-panel">
+            <nav id="siteNav" aria-label="Main navigation">
+              ${navMarkup()}
+            </nav>
+            <div class="user-menu hidden" id="userMenu">
+              <a href="/me" id="userName" class="user-link"></a>
+              <button type="button" id="logoutButton">Logout</button>
+            </div>
           </div>
         </div>
       </header>

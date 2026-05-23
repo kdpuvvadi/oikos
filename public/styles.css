@@ -45,25 +45,29 @@ html.has-session #appShell.hidden {
   background: rgba(248, 250, 248, 0.96);
 }
 
-.header-top,
-.header-panel {
+.header-shell {
   width: min(1180px, 100%);
   margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
 }
 
 .header-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
+  flex: 0 0 auto;
 }
 
 .header-panel {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 20px;
-  margin-top: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 0;
 }
 
 .brand {
@@ -77,6 +81,8 @@ nav {
   flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
+  justify-content: flex-end;
+  flex: 1 1 auto;
 }
 
 body:not(.is-authenticated) nav {
@@ -108,6 +114,7 @@ nav a:hover {
   gap: 10px;
   color: var(--muted);
   font-weight: 700;
+  margin-left: auto;
 }
 
 .user-link {
@@ -830,9 +837,19 @@ dialog::backdrop {
     padding: 14px 16px;
   }
 
+  .header-top {
+    justify-content: space-between;
+    width: 100%;
+  }
+
   .header-panel {
     display: none;
     margin-top: 14px;
+    width: 100%;
+  }
+
+  .header-shell {
+    display: block;
   }
 
   body.is-authenticated .menu-toggle {
@@ -849,6 +866,7 @@ dialog::backdrop {
   nav {
     flex-direction: column;
     align-items: stretch;
+    margin-left: 0;
   }
 
   nav a {
@@ -857,6 +875,7 @@ dialog::backdrop {
 
   .user-menu {
     justify-content: space-between;
+    margin-left: 0;
   }
 
   main {
