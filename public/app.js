@@ -154,7 +154,12 @@ function setAuthView(user) {
     qs('#menuToggle').classList.toggle('hidden', !user || approvalPending);
     qs('#menuToggle').setAttribute('aria-expanded', 'false');
   }
-  if (has('#userName')) qs('#userName').textContent = user ? `${user.name}${isAdmin() ? ' (admin)' : ''}` : '';
+  const userLabel = user ? `${user.name}${isAdmin() ? ' (admin)' : ''}` : '';
+  if (has('#userName')) qs('#userName').textContent = userLabel;
+  if (has('#mobileProfileLink')) {
+    qs('#mobileProfileLink').title = userLabel || 'Profile';
+    qs('#mobileProfileLink').classList.toggle('hidden', !user || approvalPending);
+  }
   if (approvalPending && has('#approvalPendingEmail')) qs('#approvalPendingEmail').textContent = user.email || '';
   renderAuthStatus();
 }

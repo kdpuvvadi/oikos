@@ -31,6 +31,9 @@ class OikosHeader extends HTMLElement {
         <div class="header-shell">
           <div class="header-top">
             <a class="brand" href="/">💸 Oikos</a>
+            <a class="mobile-profile-link hidden" id="mobileProfileLink" href="/me" aria-label="Open profile">
+              <span aria-hidden="true">👤</span>
+            </a>
             <button
               type="button"
               class="menu-toggle hidden"
