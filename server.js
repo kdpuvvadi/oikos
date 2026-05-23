@@ -436,6 +436,11 @@ app.put('/api/auth/me', requireAuth, async (req, res) => {
     const updateBody = {
       emailVisibility: Boolean(req.body.emailVisibility)
     };
+    const name = sanitizeName(req.body.name);
+    const email = sanitizeName(req.body.email).toLowerCase();
+
+    if (name) updateBody.name = name;
+    if (email) updateBody.email = email;
     if (req.body.transactionPageSize !== undefined) {
       updateBody.transactionPageSize = normalizeTransactionPageSize(req.body.transactionPageSize);
     }

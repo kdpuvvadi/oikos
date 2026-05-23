@@ -3,6 +3,7 @@ import { seoConfig } from './seo.config.js';
 
 const state = {
   user: null,
+  profileEditMode: false,
   pendingVerificationEmail: '',
   categories: [],
   paymentMethods: [],
@@ -137,6 +138,7 @@ function isApprovedUser(user = state.user) {
 
 function setAuthView(user) {
   state.user = user;
+  state.profileEditMode = false;
   const approvalPending = Boolean(user && !isApprovedUser(user));
   setSessionHint(Boolean(user));
   document.body.classList.toggle('is-authenticated', Boolean(user));
@@ -401,19 +403,103 @@ function renderMe() {
     return;
   }
 
+  const profileHeader = `
+    <div class="page-title-bar">
+      <div class="page-title">
+        <p class="eyebrow">Profile</p>
+        <h1>Me</h1>
+      </div>
+      <div class="inline-actions">
+        ${state.profileEditMode ? `
+          <button type="submit" form="profileEditForm">Save profile</button>
+          <button type="button" class="ghost" data-cancel-profile-edit>Cancel</button>
+        ` : `
+          <button type="button" class="ghost" data-edit-profile>Edit profile</button>
+        `}
+      </div>
+    </div>
+  `;
+
+  if (!state.profileEditMode) {
+    qs('#meProfile').innerHTML = `
+      ${profileHeader}
+      <article class="panel">
+        <div class="detail-list">
+          <div class="detail-row">
+            <span class="detail-label">Name</span>
+            <strong class="detail-value">${user.name || '-'}</strong>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Email</span>
+            <div class="detail-value detail-inline">
+              <span>${user.email || '-'}</span>
+              ${verificationBadge(user)}
+            </div>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Transaction page size</span>
+            <div class="detail-value detail-stack">
+              <label>
+                <select data-transaction-page-size>
+                  ${transactionPageSizeOptionMarkup(user.transactionPageSize || state.transactionPagination.perPage)}
+                </select>
+              </label>
+              <div class="detail-help">Choose how many transactions load on each page by default.</div>
+            </div>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Email verification</span>
+            <div class="detail-value detail-stack">
+              <div>${user.verified ? 'Your email is verified.' : 'Your email still needs verification.'}</div>
+              ${user.verified ? '' : '<button type="button" class="ghost" data-resend-verification>Resend verification email</button>'}
+            </div>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Admin approval</span>
+            <div class="detail-value detail-stack">
+              <div class="detail-inline">${approvalBadge(user)}</div>
+              <div>${isApprovedUser(user) ? 'Your account is approved.' : 'Your account is waiting for admin approval.'}</div>
+            </div>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Email visibility</span>
+            <div class="detail-value">
+              <label class="toggle-switch">
+                <input type="checkbox" ${user.emailVisibility ? 'checked' : ''} data-email-visibility>
+                <span class="toggle-slider"></span>
+              </label>
+              <div style="font-size: 0.85rem; color: #666; margin-top: 0.5rem;">
+                ${user.emailVisibility ? 'Your email is visible to other users and admins.' : 'Your email is hidden from other users and admin lists.'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+    `;
+    return;
+  }
+
   qs('#meProfile').innerHTML = `
+    ${profileHeader}
     <article class="panel">
-      <div class="detail-list">
+      <form id="profileEditForm" class="detail-list" data-profile-form>
         <div class="detail-row">
           <span class="detail-label">Name</span>
-          <strong class="detail-value">${user.name || '-'}</strong>
+          <label class="detail-value detail-stack">
+            <input type="text" name="name" value="${user.name || ''}" autocomplete="name" required>
+            <div class="detail-help">Update the display name shown around the app.</div>
+          </label>
         </div>
         <div class="detail-row">
           <span class="detail-label">Email</span>
-          <div class="detail-value detail-inline">
-            <span>${user.email || '-'}</span>
-            ${verificationBadge(user)}
-          </div>
+          <label class="detail-value detail-stack">
+            <input type="email" name="email" value="${user.email || ''}" autocomplete="email" required>
+            <div class="detail-inline">
+              <span>${user.email || '-'}</span>
+              ${verificationBadge(user)}
+            </div>
+            <div class="detail-help">If your email changes, you may need to verify the new address again.</div>
+          </label>
         </div>
         <div class="detail-row">
           <span class="detail-label">Transaction page size</span>
@@ -452,9 +538,32 @@ function renderMe() {
             </div>
           </div>
         </div>
-      </div>
+      </form>
     </article>
   `;
+}
+
+async function submitProfileBasics(form) {
+  const formData = new FormData(form);
+  const name = String(formData.get('name') || '').trim();
+  const email = String(formData.get('email') || '').trim();
+
+  if (!name || !email) {
+    toast('Name and email are required.');
+    return;
+  }
+
+  try {
+    const emailChanged = email.toLowerCase() !== String(state.user?.email || '').toLowerCase();
+    await saveProfileSettings(
+      { name, email },
+      emailChanged ? 'Profile updated. Verify the new email if prompted.' : 'Profile updated.'
+    );
+    state.profileEditMode = false;
+    renderMe();
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 function renderTransactionPagination() {
@@ -1350,7 +1459,25 @@ function bindEvents() {
       if (event.target.matches('[data-email-visibility]')) void toggleEmailVisibility();
       if (event.target.matches('[data-transaction-page-size]')) void updateTransactionPageSize(event.target.value);
     });
+    qs('#meProfile').addEventListener('submit', (event) => {
+      const form = event.target.closest('[data-profile-form]');
+      if (!form) return;
+      event.preventDefault();
+      void submitProfileBasics(form);
+    });
     qs('#meProfile').addEventListener('click', (event) => {
+      const editButton = event.target.closest('[data-edit-profile]');
+      if (editButton) {
+        state.profileEditMode = true;
+        renderMe();
+        return;
+      }
+      const cancelButton = event.target.closest('[data-cancel-profile-edit]');
+      if (cancelButton) {
+        state.profileEditMode = false;
+        renderMe();
+        return;
+      }
       const button = event.target.closest('[data-resend-verification]');
       if (button) void resendVerificationEmail(button.dataset.resendVerification || undefined);
     });
