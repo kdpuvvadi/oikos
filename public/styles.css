@@ -605,6 +605,11 @@ tr:last-child td {
   white-space: nowrap;
 }
 
+.transactions-table .transaction-date-cell,
+.transactions-table .transaction-date {
+  white-space: nowrap;
+}
+
 .users-table {
   min-width: 0;
 }

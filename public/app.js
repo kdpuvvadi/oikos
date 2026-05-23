@@ -42,10 +42,9 @@ const money = new Intl.NumberFormat(undefined, {
 
 function formatDate(dateString) {
   if (!dateString) return '';
-  const date = new Date(dateString);
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
+  const isoDate = String(dateString).slice(0, 10);
+  const [year = '', month = '', day = ''] = isoDate.split('-');
+  if (!year || !month || !day) return isoDate || String(dateString);
   
   const format = seoConfig.dateFormat || 'DD-MM-YYYY';
   
