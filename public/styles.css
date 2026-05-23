@@ -45,25 +45,29 @@ html.has-session #appShell.hidden {
   background: rgba(248, 250, 248, 0.96);
 }
 
-.header-top,
-.header-panel {
+.header-shell {
   width: min(1180px, 100%);
   margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
 }
 
 .header-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
+  flex: 0 0 auto;
 }
 
 .header-panel {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 20px;
-  margin-top: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 0;
 }
 
 .brand {
@@ -72,11 +76,31 @@ html.has-session #appShell.hidden {
   text-decoration: none;
 }
 
+.mobile-profile-link {
+  display: none;
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+}
+
+.mobile-profile-link:hover {
+  background: #eef4f1;
+}
+
 nav {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
+  justify-content: flex-end;
+  flex: 1 1 auto;
 }
 
 body:not(.is-authenticated) nav {
@@ -108,6 +132,7 @@ nav a:hover {
   gap: 10px;
   color: var(--muted);
   font-weight: 700;
+  margin-left: auto;
 }
 
 .user-link {
@@ -138,6 +163,42 @@ nav a:hover {
 .detail-value {
   color: var(--ink);
   font-size: 1.05rem;
+}
+
+.detail-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.detail-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-help {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.status-pill.success {
+  background: #e6f3ea;
+  color: #1e6a3f;
+}
+
+.status-pill.warning {
+  background: #fff4d7;
+  color: #8b6500;
 }
 
 .detail-toggle {
@@ -217,6 +278,34 @@ main {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 16px;
+}
+
+#authStatus {
+  margin-top: 16px;
+}
+
+.auth-status-copy {
+  margin: 0;
+  color: var(--muted);
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.text-link,
+.ghost-link {
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.text-link:hover,
+.ghost-link:hover {
+  text-decoration: underline;
 }
 
 .page {
@@ -321,6 +410,43 @@ h2 {
 .transactions-toolbar {
   display: flex;
   justify-content: flex-end;
+}
+
+.transactions-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.pagination-summary {
+  display: grid;
+  gap: 4px;
+}
+
+.pagination-summary span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.pagination-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pagination-page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.pagination-page-size select {
+  min-width: 140px;
 }
 
 #transactionFiltersPanel {
@@ -504,6 +630,103 @@ tr:last-child td {
   white-space: nowrap;
 }
 
+.transactions-table .transaction-date-cell,
+.transactions-table .transaction-date {
+  white-space: nowrap;
+}
+
+.users-table {
+  min-width: 0;
+}
+
+.users-table th:first-child {
+  width: 34%;
+}
+
+.users-table th:last-child,
+.users-table td:last-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.users-table-user-cell {
+  min-width: 220px;
+}
+
+.users-table-name {
+  display: block;
+}
+
+.users-table-email {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.users-table-actions-cell {
+  white-space: normal;
+}
+
+.users-table-empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.row-menu {
+  position: relative;
+}
+
+.row-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+}
+
+.row-menu-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.row-menu-trigger::after {
+  content: "▾";
+  margin-left: 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.row-menu[open] .row-menu-trigger {
+  background: #eef4f1;
+}
+
+.row-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
+  display: grid;
+  gap: 8px;
+  min-width: 220px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(23, 32, 28, 0.12);
+}
+
+.row-menu-panel button {
+  width: 100%;
+}
+
 .danger {
   background: var(--red);
 }
@@ -516,6 +739,40 @@ tr:last-child td {
 
 .ghost:hover {
   background: #eef4f1;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.verification-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 18px;
+  box-shadow: 0 12px 30px rgba(23, 32, 28, 0.06);
+}
+
+.verification-card h1 {
+  margin-bottom: 12px;
+}
+
+.verification-card p {
+  margin: 0 0 16px;
+  color: var(--muted);
+}
+
+.verification-card.success {
+  border-color: #b9dcc6;
+}
+
+.verification-card.warning {
+  border-color: #f1d78b;
+}
+
+.verification-card.error {
+  border-color: #e3b2ad;
 }
 
 dialog {
@@ -598,9 +855,23 @@ dialog::backdrop {
     padding: 14px 16px;
   }
 
+  .header-top {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .mobile-profile-link {
+    display: inline-flex;
+  }
+
   .header-panel {
     display: none;
     margin-top: 14px;
+    width: 100%;
+  }
+
+  .header-shell {
+    display: block;
   }
 
   body.is-authenticated .menu-toggle {
@@ -617,6 +888,7 @@ dialog::backdrop {
   nav {
     flex-direction: column;
     align-items: stretch;
+    margin-left: 0;
   }
 
   nav a {
@@ -625,6 +897,7 @@ dialog::backdrop {
 
   .user-menu {
     justify-content: space-between;
+    margin-left: 0;
   }
 
   main {
@@ -660,8 +933,131 @@ dialog::backdrop {
     flex-wrap: wrap;
   }
 
+  .transactions-pagination {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pagination-actions {
+    justify-content: stretch;
+  }
+
+  .pagination-actions > * {
+    flex: 1 1 100%;
+  }
+
+  .pagination-page-size {
+    justify-content: space-between;
+  }
+
   table {
     min-width: 620px;
+  }
+
+  .users-table-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .users-table {
+    min-width: 0;
+    border-collapse: collapse;
+  }
+
+  .users-table thead {
+    display: none;
+  }
+
+  .users-table tbody,
+  .users-table td {
+    width: 100%;
+  }
+
+  .users-table tbody {
+    display: grid;
+    gap: 16px;
+  }
+
+  .users-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "user role"
+      "verification approval"
+      "actions actions";
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 12px 30px rgba(23, 32, 28, 0.06);
+    overflow: hidden;
+  }
+
+  .users-table td {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: 62px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .users-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 0.74rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .users-table .users-table-user-cell {
+    grid-area: user;
+    background: #f8faf8;
+  }
+
+  .users-table td:nth-child(2) {
+    grid-area: role;
+    border-right: 0;
+    background: #f8faf8;
+  }
+
+  .users-table td:nth-child(3) {
+    grid-area: verification;
+    background: #fbfcfb;
+  }
+
+  .users-table td:nth-child(4) {
+    grid-area: approval;
+    border-right: 0;
+    background: #fbfcfb;
+  }
+
+  .users-table .users-table-actions-cell {
+    grid-area: actions;
+    border-right: 0;
+    border-bottom: 0;
+    background: #fcfdfc;
+  }
+
+  .users-table .row-menu {
+    width: 100%;
+  }
+
+  .users-table .row-menu-trigger {
+    width: 100%;
+  }
+
+  .users-table .row-menu-panel {
+    position: static;
+    min-width: 0;
+    margin-top: 10px;
+    box-shadow: none;
   }
 
   .transaction-table-wrap {
@@ -848,6 +1244,23 @@ dialog::backdrop {
 }
 
 @media (max-width: 460px) {
+  .users-table tr {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "user"
+      "role"
+      "verification"
+      "approval"
+      "actions";
+  }
+
+  .users-table td,
+  .users-table td:nth-child(2),
+  .users-table td:nth-child(4),
+  .users-table .users-table-actions-cell {
+    border-right: 0;
+  }
+
   .transactions-table tr {
     grid-template-columns: 1fr;
     grid-template-areas:

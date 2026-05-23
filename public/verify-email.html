@@ -14,15 +14,9 @@
     <oikos-header></oikos-header>
     <oikos-auth-shell id="authPage" class="auth-shell"></oikos-auth-shell>
 
-    <main id="appShell" class="hidden">
-      <section id="usersPage">
-        <div class="page-title">
-          <p class="eyebrow">Admin</p>
-          <h1>Users</h1>
-        </div>
-        <div id="userList" class="table-wrap users-table-wrap"></div>
-      </section>
-    </main>
+    <section class="auth-shell">
+      <div id="verificationStatus"></div>
+    </section>
 
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="/app.js" type="module"></script>

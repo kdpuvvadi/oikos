@@ -2,6 +2,8 @@ const CACHE_NAME = 'oikos-v2';
 const urlsToCache = [
   '/',
   '/index.html',
+  '/verify-email',
+  '/verify-email.html',
   '/me.html',
   '/categories.html',
   '/stores.html',
