@@ -338,25 +338,59 @@ function syncEditStoreInputVisibility() {
 
 function renderUsers() {
   if (!has('#userList')) return;
-  qs('#userList').innerHTML = state.users.map((user) => `
-    <article class="list-item">
-      <div class="list-heading">
-        <strong>${user.name || user.email}</strong>
-        <span class="pill">${user.isAdmin ? 'Admin' : 'User'}</span>
-      </div>
-      <p>${user.email || 'Email hidden'}</p>
-      <div class="pill-list">
-        ${verificationBadge(user)}
-        ${approvalBadge(user)}
-      </div>
-      ${!user.verified ? `
-        <div class="inline-actions">
-          ${user.email ? `<button type="button" class="ghost" data-admin-resend-verification="${user.id}">Resend verification</button>` : ''}
-        </div>
-      ` : ''}
-      ${!user.isAdmin && !user.approved ? `<button type="button" class="ghost" data-approve-user="${user.id}">Approve user</button>` : ''}
-    </article>
-  `).join('') || '<p>No users yet.</p>';
+  if (!state.users.length) {
+    qs('#userList').innerHTML = '<p class="panel-empty">No users yet.</p>';
+    return;
+  }
+
+  qs('#userList').innerHTML = `
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th scope="col">User</th>
+          <th scope="col">Role</th>
+          <th scope="col">Verification</th>
+          <th scope="col">Approval</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${state.users.map((user) => {
+          const actions = [];
+          if (!user.verified && user.email) {
+            actions.push(`<button type="button" class="ghost" data-admin-resend-verification="${user.id}">Resend verification</button>`);
+          }
+          if (!user.isAdmin && !user.approved) {
+            actions.push(`<button type="button" class="ghost" data-approve-user="${user.id}">Approve user</button>`);
+          }
+
+          return `
+            <tr>
+              <td class="users-table-user-cell" data-label="User">
+                <strong class="users-table-name">${user.name || user.email}</strong>
+                <span class="users-table-email">${user.email || 'Email hidden'}</span>
+              </td>
+              <td data-label="Role">
+                <span class="pill">${user.isAdmin ? 'Admin' : 'User'}</span>
+              </td>
+              <td data-label="Verification">${verificationBadge(user)}</td>
+              <td data-label="Approval">${approvalBadge(user)}</td>
+              <td class="users-table-actions-cell" data-label="Actions">
+                ${actions.length ? `
+                  <details class="row-menu">
+                    <summary class="row-menu-trigger">Actions</summary>
+                    <div class="row-menu-panel">
+                      ${actions.join('')}
+                    </div>
+                  </details>
+                ` : '<span class="users-table-empty">No actions</span>'}
+              </td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
 }
 
 function renderMe() {
