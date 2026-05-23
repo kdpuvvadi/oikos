@@ -17,6 +17,10 @@ export const seoConfig = {
       title: 'My Profile',
       description: 'View your account details and signed-in profile information in Oikos.'
     },
+    '/verify-email': {
+      title: 'Verify Email',
+      description: 'Verify your Oikos account email address and continue signing in without leaving the app.'
+    },
     '/categories': {
       title: 'Categories',
       description: 'Manage expense categories and subcategories used across your Oikos expense tracking workflow.'

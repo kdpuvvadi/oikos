@@ -13,6 +13,8 @@ const pbToken = process.env.PB_TOKEN || '';
 const pb = new PocketBase(pbUrl);
 const authCookieName = 'pb_auth';
 const authHintCookieName = 'oikos_session';
+const DEFAULT_TRANSACTION_PAGE_SIZE = 25;
+const TRANSACTION_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 if (pbToken) {
   pb.authStore.save(pbToken, null);
@@ -52,18 +54,26 @@ function publicUser(record) {
   if (!record) return null;
   const email = sanitizeName(record.email) || null;
   const name = sanitizeName(record.name) || email || 'Unnamed user';
+  const admin = record.kind === 'admin';
   return {
     id: record.id,
     email,
     name,
     emailVisibility: record.emailVisibility !== false,
+    verified: record.verified !== false,
+    approved: admin ? true : record.approved !== false,
     kind: record.kind || 'user',
-    isAdmin: record.kind === 'admin'
+    isAdmin: admin,
+    transactionPageSize: normalizeTransactionPageSize(record.transactionPageSize)
   };
 }
 
 function isAdmin(record) {
   return record?.kind === 'admin';
+}
+
+function isApproved(record) {
+  return isAdmin(record) || record?.approved !== false;
 }
 
 function requireAuth(req, res, next) {
@@ -83,8 +93,28 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function requireApproved(req, res, next) {
+  if (!isApproved(req.user)) {
+    return res.status(403).json({
+      error: 'Admin approval is still pending.',
+      approvalPending: true
+    });
+  }
+  next();
+}
+
 function sanitizeName(value) {
   return String(value || '').trim();
+}
+
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(String(value || ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeTransactionPageSize(value) {
+  const parsed = parsePositiveInt(value, DEFAULT_TRANSACTION_PAGE_SIZE);
+  return TRANSACTION_PAGE_SIZE_OPTIONS.includes(parsed) ? parsed : DEFAULT_TRANSACTION_PAGE_SIZE;
 }
 
 function pbDate(value) {
@@ -137,6 +167,12 @@ function summaryTransaction(record) {
 
 async function listRecords(client, collection, params) {
   return client.collection(collection).getFullList({
+    ...Object.fromEntries(Object.entries(params || {}).filter(([, value]) => value !== undefined && value !== ''))
+  });
+}
+
+async function listPageRecords(client, collection, page, perPage, params) {
+  return client.collection(collection).getList(page, perPage, {
     ...Object.fromEntries(Object.entries(params || {}).filter(([, value]) => value !== undefined && value !== ''))
   });
 }
@@ -247,15 +283,16 @@ app.post('/api/auth/register', async (req, res) => {
       email,
       name,
       kind: 'user',
+      approved: false,
       emailVisibility: true,
       password,
       passwordConfirm: password
     });
-    await client.collection('users').authWithPassword(email, password);
-    res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
+    await client.collection('users').requestVerification(email);
     res.status(201).json({
-      token: client.authStore.token,
-      user: publicUser(client.authStore.record)
+      requiresVerification: true,
+      email,
+      message: 'Account created. Check your email to verify your address before signing in.'
     });
   } catch (error) {
     handleError(res, error);
@@ -267,14 +304,105 @@ app.post('/api/auth/login', async (req, res) => {
     const email = sanitizeName(req.body.email).toLowerCase();
     const password = String(req.body.password || '');
     const client = new PocketBase(pbUrl);
-    await client.collection('users').authWithPassword(email, password);
+    const auth = await client.collection('users').authWithPassword(email, password);
+    if (auth.record?.verified === false) {
+      return res.status(403).json({
+        error: 'Please verify your email before signing in.',
+        requiresVerification: true,
+        email
+      });
+    }
     res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
     res.json({
       token: client.authStore.token,
-      user: publicUser(client.authStore.record)
+      user: publicUser(client.authStore.record),
+      approvalPending: !isApproved(auth.record)
     });
-  } catch {
-    res.status(401).json({ error: 'Invalid email or password.' });
+  } catch (error) {
+    const message = String(error?.response?.message || error?.message || '').toLowerCase();
+    if (message.includes('verified') || message.includes('verification')) {
+      return res.status(403).json({
+        error: 'Please verify your email before signing in.',
+        requiresVerification: true,
+        email
+      });
+    }
+    res.status(401).json({ error: 'Invalid email or password, or your email is not verified yet.' });
+  }
+});
+
+app.post('/api/auth/request-verification', async (req, res) => {
+  try {
+    const email = sanitizeName(req.body.email).toLowerCase();
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
+    const client = new PocketBase(pbUrl);
+    await client.collection('users').requestVerification(email);
+    res.json({
+      ok: true,
+      email,
+      message: 'Verification email sent.'
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/auth/verify', async (req, res) => {
+  try {
+    const token = sanitizeName(req.body.token);
+    if (!token) {
+      return res.status(400).json({ error: 'Verification token is required.' });
+    }
+    const client = new PocketBase(pbUrl);
+    await client.collection('users').confirmVerification(token);
+    res.json({
+      ok: true,
+      message: 'Email verified. Your account is now waiting for admin approval.'
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/auth/request-otp', async (req, res) => {
+  try {
+    const email = sanitizeName(req.body.email).toLowerCase();
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
+    const client = new PocketBase(pbUrl);
+    const result = await client.collection('users').requestOTP(email);
+    res.json({
+      ok: true,
+      email,
+      otpId: result.otpId,
+      message: 'OTP sent.'
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/auth/login-otp', async (req, res) => {
+  try {
+    const otpId = sanitizeName(req.body.otpId);
+    const otp = sanitizeName(req.body.otp);
+    if (!otpId || !otp) {
+      return res.status(400).json({ error: 'otpId and otp are required.' });
+    }
+    const client = new PocketBase(pbUrl);
+    const auth = await client.collection('users').authWithOTP(otpId, otp);
+    res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
+    res.json({
+      token: client.authStore.token,
+      user: publicUser(auth.record || client.authStore.record),
+      approvalPending: !isApproved(auth.record || client.authStore.record),
+      message: 'OTP login successful.'
+    });
+  } catch (error) {
+    handleError(res, error);
   }
 });
 
@@ -283,24 +411,44 @@ app.post('/api/auth/logout', (_req, res) => {
   res.status(204).end();
 });
 
-app.get('/api/auth/me', (req, res) => {
+app.get('/api/auth/me', async (req, res) => {
   const client = clientFromRequest(req);
   if (!client.authStore.isValid || !client.authStore.record?.id) {
     res.setHeader('Set-Cookie', clearAuthCookies());
     return res.status(401).json({ error: 'Not logged in.' });
   }
-  res.json({
-    token: client.authStore.token,
-    user: publicUser(client.authStore.record)
-  });
+
+  try {
+    const auth = await client.collection('users').authRefresh();
+    res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
+    res.json({
+      token: client.authStore.token,
+      user: publicUser(auth.record || client.authStore.record)
+    });
+  } catch {
+    res.setHeader('Set-Cookie', clearAuthCookies());
+    res.status(401).json({ error: 'Not logged in.' });
+  }
 });
 
 app.put('/api/auth/me', requireAuth, async (req, res) => {
   try {
-    const updated = await req.pb.collection('users').update(req.user.id, {
+    const updateBody = {
       emailVisibility: Boolean(req.body.emailVisibility)
+    };
+    const name = sanitizeName(req.body.name);
+    const email = sanitizeName(req.body.email).toLowerCase();
+
+    if (name) updateBody.name = name;
+    if (email) updateBody.email = email;
+    if (req.body.transactionPageSize !== undefined) {
+      updateBody.transactionPageSize = normalizeTransactionPageSize(req.body.transactionPageSize);
+    }
+    const updated = await req.pb.collection('users').update(req.user.id, {
+      ...updateBody
     });
     req.pb.authStore.save(req.pb.authStore.token, updated);
+    res.setHeader('Set-Cookie', [authCookie(req.pb), authHintCookie()]);
     res.json({
       token: req.pb.authStore.token,
       user: publicUser(updated)
@@ -310,7 +458,7 @@ app.put('/api/auth/me', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/categories', requireAuth, async (req, res) => {
+app.get('/api/categories', requireAuth, requireApproved, async (req, res) => {
   try {
     const [categories, subcategories] = await Promise.all([
       listRecords(req.pb, 'oikos_categories', { sort: 'name' }),
@@ -332,7 +480,7 @@ app.get('/api/categories', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/categories', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/categories', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Category name is required.' });
@@ -345,7 +493,7 @@ app.post('/api/categories', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.put('/api/categories/:id', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/categories/:id', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Category name is required.' });
@@ -355,7 +503,7 @@ app.put('/api/categories/:id', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/subcategories', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/subcategories', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     const category = sanitizeName(req.body.category);
@@ -367,7 +515,7 @@ app.post('/api/subcategories', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.put('/api/subcategories/:id', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/subcategories/:id', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Subcategory name is required.' });
@@ -377,7 +525,7 @@ app.put('/api/subcategories/:id', requireAuth, requireAdmin, async (req, res) =>
   }
 });
 
-app.get('/api/stores', requireAuth, async (req, res) => {
+app.get('/api/stores', requireAuth, requireApproved, async (req, res) => {
   try {
     res.json(await listRecords(req.pb, 'oikos_stores', { sort: 'name' }));
   } catch (error) {
@@ -385,7 +533,7 @@ app.get('/api/stores', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/stores', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/stores', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Store name is required.' });
@@ -395,7 +543,7 @@ app.post('/api/stores', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.get('/api/payment-methods', requireAuth, async (req, res) => {
+app.get('/api/payment-methods', requireAuth, requireApproved, async (req, res) => {
   try {
     res.json(await listRecords(req.pb, 'oikos_payment_methods', { sort: 'name' }));
   } catch (error) {
@@ -403,7 +551,7 @@ app.get('/api/payment-methods', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
+app.get('/api/users', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const users = await listRecords(req.pb, 'users', { sort: 'name,email' });
     res.json(users.map(publicUser));
@@ -412,7 +560,51 @@ app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/payment-methods', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/users/:id/resend-verification', requireAuth, requireApproved, requireAdmin, async (req, res) => {
+  try {
+    const user = await req.pb.collection('users').getOne(req.params.id);
+    const email = sanitizeName(user.email).toLowerCase();
+    if (!email) {
+      return res.status(400).json({ error: 'User email is unavailable.' });
+    }
+
+    const client = new PocketBase(pbUrl);
+    await client.collection('users').requestVerification(email);
+    res.json({
+      ok: true,
+      email,
+      message: 'Verification email sent.'
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/users/:id/mark-verified', requireAuth, requireApproved, requireAdmin, async (req, res) => {
+  try {
+    const user = await req.pb.collection('users').getOne(req.params.id);
+    const updated = await req.pb.collection('users').update(user.id, { verified: true });
+    res.json({
+      user: publicUser(updated)
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/users/:id/approve', requireAuth, requireApproved, requireAdmin, async (req, res) => {
+  try {
+    const user = await req.pb.collection('users').getOne(req.params.id);
+    const updated = await req.pb.collection('users').update(user.id, { approved: true });
+    res.json({
+      user: publicUser(updated)
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/payment-methods', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Payment method name is required.' });
@@ -422,7 +614,7 @@ app.post('/api/payment-methods', requireAuth, requireAdmin, async (req, res) => 
   }
 });
 
-app.put('/api/payment-methods/:id', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/payment-methods/:id', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Payment method name is required.' });
@@ -432,9 +624,11 @@ app.put('/api/payment-methods/:id', requireAuth, requireAdmin, async (req, res) 
   }
 });
 
-app.get('/api/transactions', requireAuth, async (req, res) => {
+app.get('/api/transactions', requireAuth, requireApproved, async (req, res) => {
   try {
     const filters = isAdmin(req.user) ? [] : [`user = "${req.user.id}"`];
+    const page = parsePositiveInt(req.query.page, 1);
+    const perPage = normalizeTransactionPageSize(req.query.perPage || req.user.transactionPageSize);
     if (req.query.month) {
       const [year, month] = String(req.query.month).split('-').map(Number);
       filters.push(`date >= "${monthBoundary(year, month - 1)}"`);
@@ -447,18 +641,24 @@ app.get('/api/transactions', requireAuth, async (req, res) => {
     if (req.query.user && isAdmin(req.user)) filters.push(`user = "${req.query.user}"`);
     if (req.query.store) filters.push(`store = "${req.query.store}"`);
 
-    const transactions = await listRecords(req.pb, 'oikos_transactions', {
+    const transactions = await listPageRecords(req.pb, 'oikos_transactions', page, perPage, {
       sort: '-date',
       expand: 'category,subcategory,store,user,payment_method',
       filter: filters.join(' && ')
     });
-    res.json(transactions);
+    res.json({
+      items: transactions.items || [],
+      page: transactions.page,
+      perPage: transactions.perPage,
+      totalItems: transactions.totalItems,
+      totalPages: transactions.totalPages
+    });
   } catch (error) {
     handleError(res, error);
   }
 });
 
-app.get('/api/home-totals', requireAuth, async (req, res) => {
+app.get('/api/home-totals', requireAuth, requireApproved, async (req, res) => {
   try {
     const baseFilters = isAdmin(req.user) ? [] : [`user = "${req.user.id}"`];
     const thisMonth = currentMonthRange(0);
@@ -480,7 +680,7 @@ app.get('/api/home-totals', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/monthly-totals', requireAuth, async (req, res) => {
+app.get('/api/monthly-totals', requireAuth, requireApproved, async (req, res) => {
   try {
     const filter = isAdmin(req.user) ? '' : `user = "${req.user.id}"`;
     const transactions = await listRecords(req.pb, 'oikos_transactions', {
@@ -496,7 +696,7 @@ app.get('/api/monthly-totals', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/transactions', requireAuth, async (req, res) => {
+app.post('/api/transactions', requireAuth, requireApproved, async (req, res) => {
   try {
     const amount = Number(req.body.amount);
     const date = sanitizeName(req.body.date);
@@ -559,7 +759,7 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
   }
 });
 
-app.put('/api/transactions/:id', requireAuth, async (req, res) => {
+app.put('/api/transactions/:id', requireAuth, requireApproved, async (req, res) => {
   try {
     const transaction = await req.pb.collection('oikos_transactions').getOne(req.params.id);
     if (!isAdmin(req.user) && transaction.user !== req.user.id) {
@@ -609,7 +809,7 @@ app.put('/api/transactions/:id', requireAuth, async (req, res) => {
   }
 });
 
-app.delete('/api/transactions/:id', requireAuth, async (req, res) => {
+app.delete('/api/transactions/:id', requireAuth, requireApproved, async (req, res) => {
   try {
     const transaction = await req.pb.collection('oikos_transactions').getOne(req.params.id);
     if (!isAdmin(req.user) && transaction.user !== req.user.id) {
@@ -622,7 +822,7 @@ app.delete('/api/transactions/:id', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/summary', requireAuth, async (req, res) => {
+app.get('/api/summary', requireAuth, requireApproved, async (req, res) => {
   try {
     const filter = isAdmin(req.user) ? '' : `user = "${req.user.id}"`;
     const transactions = await listRecords(req.pb, 'oikos_transactions', {
@@ -641,6 +841,7 @@ app.get('/api/summary', requireAuth, async (req, res) => {
 const pageFiles = {
   '/': 'index.html',
   '/me': 'me.html',
+  '/verify-email': 'verify-email.html',
   '/categories': 'categories.html',
   '/stores': 'stores.html',
   '/payment-methods': 'payment-methods.html',
