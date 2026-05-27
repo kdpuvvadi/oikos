@@ -664,6 +664,26 @@ function renderTransactionFilterControls() {
   ].join('');
   categorySelect.value = state.categories.some((category) => category.id === selectedCategory) ? selectedCategory : '';
 
+  if (has('#transactionFilterPaymentMethod')) {
+    const paymentMethodSelect = qs('#transactionFilterPaymentMethod');
+    const selectedPaymentMethod = paymentMethodSelect.value;
+    paymentMethodSelect.innerHTML = [
+      option('', 'All payment methods'),
+      ...state.paymentMethods.map((method) => option(method.id, method.name))
+    ].join('');
+    paymentMethodSelect.value = state.paymentMethods.some((method) => method.id === selectedPaymentMethod) ? selectedPaymentMethod : '';
+  }
+
+  if (has('#transactionFilterStore')) {
+    const storeSelect = qs('#transactionFilterStore');
+    const selectedStore = storeSelect.value;
+    storeSelect.innerHTML = [
+      option('', 'All stores'),
+      ...state.stores.map((store) => option(store.id, store.name))
+    ].join('');
+    storeSelect.value = state.stores.some((store) => store.id === selectedStore) ? selectedStore : '';
+  }
+
   if (has('#transactionFilterUser')) {
     const userSelect = qs('#transactionFilterUser');
     const selectedUser = userSelect.value;
@@ -698,7 +718,7 @@ function updateTransactionFilterSubcategories() {
 function hasActiveTransactionFilters() {
   if (!has('#transactionFilterForm')) return false;
   const data = new FormData(qs('#transactionFilterForm'));
-  return ['fromDate', 'toDate', 'category', 'subcategory', 'user'].some((key) => String(data.get(key) || '').trim());
+  return ['fromDate', 'toDate', 'category', 'subcategory', 'paymentMethod', 'store', 'user'].some((key) => String(data.get(key) || '').trim());
 }
 
 function syncTransactionFilterVisibility(forceOpen = false) {
@@ -1306,7 +1326,7 @@ function buildTransactionFilterQuery() {
   const params = new URLSearchParams();
   params.set('page', String(state.transactionPagination.page || 1));
   params.set('perPage', String(state.transactionPagination.perPage || state.user?.transactionPageSize || 25));
-  ['fromDate', 'toDate', 'category', 'subcategory', 'user'].forEach((key) => {
+  ['fromDate', 'toDate', 'category', 'subcategory', 'paymentMethod', 'store', 'user'].forEach((key) => {
     const value = String(data.get(key) || '').trim();
     if (value) params.set(key, value);
   });

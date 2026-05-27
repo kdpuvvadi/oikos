@@ -640,6 +640,7 @@ app.get('/api/transactions', requireAuth, requireApproved, async (req, res) => {
     if (req.query.subcategory) filters.push(`subcategory = "${req.query.subcategory}"`);
     if (req.query.user && isAdmin(req.user)) filters.push(`user = "${req.query.user}"`);
     if (req.query.store) filters.push(`store = "${req.query.store}"`);
+    if (req.query.paymentMethod) filters.push(`payment_method = "${req.query.paymentMethod}"`);
 
     const transactions = await listPageRecords(req.pb, 'oikos_transactions', page, perPage, {
       sort: '-date',
