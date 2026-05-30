@@ -12,6 +12,7 @@ const state = {
   transactions: [],
   summaryTransactions: [],
   transactionRows: [],
+  currentTransaction: null,
   transactionPagination: {
     page: 1,
     perPage: 25,
@@ -55,6 +56,18 @@ function formatDate(dateString) {
   return `${day}-${month}-${year}`;
 }
 
+function formatLongDate(dateString) {
+  if (!dateString) return '';
+  const isoDate = String(dateString).slice(0, 10);
+  const date = new Date(`${isoDate}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return formatDate(dateString);
+  return new Intl.DateTimeFormat(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  }).format(date);
+}
+
 const routes = {
   '/': 'homePage',
   '/me': 'mePage',
@@ -63,6 +76,7 @@ const routes = {
   '/payment-methods': 'paymentMethodsPage',
   '/users': 'usersPage',
   '/transactions': 'transactionsPage',
+  '/transactions/:id': 'transactionDetailPage',
   '/dashboard': 'dashboardPage',
   '/filter': 'filterPage'
 };
@@ -118,12 +132,19 @@ function toast(message) {
   window.setTimeout(() => node.classList.remove('show'), 3200);
 }
 
+function routeKeyForPath(pathname = window.location.pathname) {
+  if (routes[pathname]) return pathname;
+  if (pathname.startsWith('/transactions/')) return '/transactions/:id';
+  return '/';
+}
+
 function currentPath() {
-  return routes[window.location.pathname] ? window.location.pathname : '/';
+  return routeKeyForPath(window.location.pathname);
 }
 
 function showPage(path = currentPath()) {
-  qsa('[data-nav]').forEach((link) => link.classList.toggle('active', link.dataset.nav === path));
+  const navPath = path === '/transactions/:id' ? '/transactions' : path;
+  qsa('[data-nav]').forEach((link) => link.classList.toggle('active', link.dataset.nav === navPath));
   closeMobileNav();
 }
 
@@ -178,10 +199,36 @@ function option(value, label) {
   return `<option value="${value}">${label}</option>`;
 }
 
+function transactionDetailPath(id) {
+  return `/transactions/${id}`;
+}
+
+function currentTransactionId() {
+  if (currentPath() !== '/transactions/:id') return '';
+  return decodeURIComponent(window.location.pathname.slice('/transactions/'.length));
+}
+
 function transactionPageSizeOptionMarkup(selectedValue) {
   return transactionPageSizeOptions.map((value) => `
     <option value="${value}" ${String(value) === String(selectedValue) ? 'selected' : ''}>${value} per page</option>
   `).join('');
+}
+
+function transactionToneClass(transaction) {
+  const seed = String(
+    transaction.expand?.category?.name
+    || transaction.expand?.subcategory?.name
+    || transaction.title
+    || 'x'
+  ).toLowerCase();
+  const tones = ['emerald', 'indigo', 'amber', 'rose', 'violet'];
+  const index = seed.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % tones.length;
+  return `transaction-tone-${tones[index]}`;
+}
+
+function transactionAvatarLabel(transaction) {
+  const text = String(transaction.title || transaction.expand?.subcategory?.name || transaction.expand?.category?.name || 'T').trim();
+  return (text[0] || 'T').toUpperCase();
 }
 
 function verificationBadge(user) {
@@ -631,26 +678,112 @@ function renderCategories() {
 }
 
 function renderTransactions() {
-  if (!has('#transactionsTable')) return;
-  qs('#transactionsTable').innerHTML = state.transactionRows.map((transaction) => `
-    <tr>
-      <td class="transaction-cell transaction-date-cell" data-label="Date"><span class="transaction-value transaction-date">${formatDate(transaction.date)}</span></td>
-      <td class="transaction-cell transaction-title-cell" data-label="Title"><span class="transaction-value">${transaction.title || '-'}</span></td>
-      <td class="transaction-cell transaction-amount-cell" data-label="Amount"><strong class="transaction-value transaction-amount">${money.format(Number(transaction.amount))}</strong></td>
-      <td class="transaction-cell transaction-payment-cell" data-label="Payment mode"><span class="transaction-value">${transaction.expand?.payment_method?.name || 'Not set'}</span></td>
-      <td class="transaction-cell transaction-category-cell" data-label="Category"><span class="transaction-value">${transaction.expand?.category?.name || 'Uncategorized'}</span></td>
-      <td class="transaction-cell transaction-subcategory-cell" data-label="Subcategory"><span class="transaction-value">${transaction.expand?.subcategory?.name || 'None'}</span></td>
-      <td class="transaction-cell transaction-store-cell" data-label="Store"><span class="transaction-value">${displayStore(transaction)}</span></td>
-      <td class="transaction-cell transaction-user-cell admin-only" data-label="User"><span class="transaction-value">${transaction.expand?.user?.email || transaction.expand?.user?.name || ''}</span></td>
-      <td class="transaction-cell transaction-actions-cell" data-label="Actions">
-        <div class="row-actions">
-          <button class="ghost" data-edit="${transaction.id}">Edit</button>
-          <button class="danger" data-delete="${transaction.id}">Delete</button>
+  if (!has('#transactionsList')) return;
+  if (!state.transactionRows.length) {
+    qs('#transactionsList').innerHTML = '<div class="panel"><p class="panel-empty">No transactions yet.</p></div>';
+    renderTransactionPagination();
+    return;
+  }
+
+  const grouped = state.transactionRows.reduce((acc, transaction) => {
+    const key = String(transaction.date || '').slice(0, 10);
+    if (!acc[key]) {
+      acc[key] = { date: key, total: 0, items: [] };
+    }
+    acc[key].items.push(transaction);
+    acc[key].total += Number(transaction.amount || 0);
+    return acc;
+  }, {});
+
+  qs('#transactionsList').innerHTML = Object.values(grouped).map((group) => `
+    <section class="transaction-day-group">
+      <header class="transaction-day-header">
+        <div>
+          <h2>${formatLongDate(group.date)}</h2>
         </div>
-      </td>
-    </tr>
-  `).join('') || '<tr class="table-empty-row"><td colspan="9">No transactions yet.</td></tr>';
+        <strong class="transaction-day-total">${money.format(group.total)}</strong>
+      </header>
+      <div class="transaction-day-items">
+        ${group.items.map((transaction) => `
+          <a class="transaction-list-card" href="${transactionDetailPath(transaction.id)}" data-transaction-link="${transaction.id}">
+            <div class="transaction-list-avatar ${transactionToneClass(transaction)}" aria-hidden="true">${transactionAvatarLabel(transaction)}</div>
+            <div class="transaction-list-main">
+              <div class="transaction-list-topline">
+                <strong class="transaction-list-title">${transaction.title || transaction.expand?.subcategory?.name || 'Untitled transaction'}</strong>
+                ${transaction.expand?.category?.name ? `<span class="transaction-list-badge">${transaction.expand?.category?.name}</span>` : ''}
+              </div>
+              <div class="transaction-list-subline">${transaction.expand?.subcategory?.name || 'None'} • ${displayStore(transaction)}</div>
+              <div class="transaction-list-meta">
+                <span>${transaction.expand?.payment_method?.name || 'Not set'}</span>
+                ${isAdmin() ? `<span class="admin-only">${transaction.expand?.user?.email || transaction.expand?.user?.name || 'Unknown user'}</span>` : ''}
+              </div>
+            </div>
+            <div class="transaction-list-side">
+              <strong class="transaction-list-amount">${money.format(Number(transaction.amount || 0))}</strong>
+              <span class="transaction-list-date">${formatLongDate(transaction.date)}</span>
+            </div>
+            <div class="transaction-list-chevron" aria-hidden="true">›</div>
+            <div class="transaction-list-mobile-meta">
+              <strong class="transaction-list-amount">${money.format(Number(transaction.amount || 0))}</strong>
+              <span class="transaction-list-date">${formatLongDate(transaction.date)}</span>
+            </div>
+          </a>
+        `).join('')}
+      </div>
+    </section>
+  `).join('');
   renderTransactionPagination();
+}
+
+function renderTransactionDetail() {
+  if (!has('#transactionDetailCard')) return;
+  const transaction = state.currentTransaction;
+  if (!transaction) {
+    qs('#transactionDetailCard').innerHTML = '<p class="panel-empty">Transaction not found.</p>';
+    return;
+  }
+
+  qs('#transactionDetailCard').innerHTML = `
+    <div class="transaction-detail-hero">
+      <div>
+        <p class="eyebrow">Recorded on ${formatLongDate(transaction.date)}</p>
+        <h2>${transaction.title || transaction.expand?.subcategory?.name || 'Untitled transaction'}</h2>
+      </div>
+      <strong class="transaction-detail-amount">${money.format(Number(transaction.amount || 0))}</strong>
+    </div>
+    <div class="detail-list transaction-detail-list">
+      <div class="detail-row">
+        <span class="detail-label">Category</span>
+        <strong class="detail-value">${transaction.expand?.category?.name || 'Uncategorized'}</strong>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Subcategory</span>
+        <strong class="detail-value">${transaction.expand?.subcategory?.name || 'None'}</strong>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Store</span>
+        <strong class="detail-value">${displayStore(transaction)}</strong>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Payment method</span>
+        <strong class="detail-value">${transaction.expand?.payment_method?.name || 'Not set'}</strong>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Date</span>
+        <strong class="detail-value">${formatDate(transaction.date)}</strong>
+      </div>
+      ${isAdmin() ? `
+        <div class="detail-row admin-only">
+          <span class="detail-label">User</span>
+          <strong class="detail-value">${transaction.expand?.user?.email || transaction.expand?.user?.name || 'Unknown user'}</strong>
+        </div>
+      ` : ''}
+    </div>
+    <div class="inline-actions transaction-detail-actions">
+      <button type="button" class="ghost" data-edit-transaction-detail="${transaction.id}">Edit transaction</button>
+      <button type="button" class="danger" data-delete-transaction-detail="${transaction.id}">Delete transaction</button>
+    </div>
+  `;
 }
 
 function renderTransactionFilterControls() {
@@ -798,6 +931,7 @@ function resetDataState() {
   state.transactions = [];
   state.summaryTransactions = [];
   state.transactionRows = [];
+  state.currentTransaction = null;
   state.transactionPagination = {
     page: 1,
     perPage: defaultPerPage,
@@ -888,6 +1022,15 @@ async function loadTransactionRows() {
   };
 }
 
+async function loadTransactionDetail() {
+  const transactionId = currentTransactionId();
+  if (!transactionId) {
+    state.currentTransaction = null;
+    return;
+  }
+  state.currentTransaction = await api(`/api/transactions/${transactionId}`);
+}
+
 async function loadHomeTotals(force = false) {
   await ensureLoaded('homeTotals', async () => {
     state.homeTotals = await api('/api/home-totals');
@@ -942,7 +1085,7 @@ async function updateTransactionPageSize(nextValue, { refreshTransactions = fals
 
   try {
     await saveProfileSettings({ transactionPageSize: pageSize }, 'Transaction page size updated.');
-    if (refreshTransactions && has('#transactionsTable')) {
+    if (refreshTransactions && has('#transactionsList')) {
       state.transactionPagination.page = 1;
       state.transactionPagination.perPage = pageSize;
       await loadTransactionRows();
@@ -1030,6 +1173,16 @@ async function loadTransactionsPage(force = false) {
   renderTransactions();
 }
 
+async function loadTransactionDetailPage(force = false) {
+  await Promise.all([
+    loadCategories(force),
+    loadPaymentMethods(force),
+    loadStores(force),
+    loadTransactionDetail()
+  ]);
+  renderTransactionDetail();
+}
+
 async function loadDashboardPage(force = false) {
   await loadSummaryTransactions(force);
   renderDashboard();
@@ -1050,6 +1203,7 @@ const pageLoaders = {
   '/payment-methods': loadPaymentMethodsPage,
   '/users': loadUsersPage,
   '/transactions': loadTransactionsPage,
+  '/transactions/:id': loadTransactionDetailPage,
   '/dashboard': loadDashboardPage,
   '/filter': loadFilterPage
 };
@@ -1167,7 +1321,9 @@ async function submitExpense(event) {
 }
 
 function openEditTransaction(id) {
-  const transaction = state.transactionRows.find((item) => item.id === id) || state.transactions.find((item) => item.id === id);
+  const transaction = state.transactionRows.find((item) => item.id === id)
+    || state.transactions.find((item) => item.id === id)
+    || (state.currentTransaction?.id === id ? state.currentTransaction : null);
   if (!transaction || !has('#editTransactionForm') || !has('#editTransactionDialog')) return;
 
   const form = qs('#editTransactionForm');
@@ -1203,7 +1359,11 @@ async function submitEditTransaction(event) {
     });
     closeEditTransaction();
     toast('Transaction updated.');
-    await refreshCurrentPage(['transactions', 'homeTotals']);
+    if (currentPath() === '/transactions/:id') {
+      await syncRoute(true);
+    } else {
+      await refreshCurrentPage(['transactions', 'homeTotals']);
+    }
   } catch (error) {
     toast(error.message);
   }
@@ -1307,12 +1467,15 @@ async function editPaymentMethod(id) {
   }
 }
 
-async function deleteTransaction(event) {
-  const button = event.target.closest('[data-delete]');
-  if (!button) return;
+async function deleteTransaction(transactionId) {
+  if (!transactionId) return;
   try {
-    await api(`/api/transactions/${button.dataset.delete}`, { method: 'DELETE' });
+    await api(`/api/transactions/${transactionId}`, { method: 'DELETE' });
     toast('Transaction deleted.');
+    if (currentPath() === '/transactions/:id') {
+      window.location.assign('/transactions');
+      return;
+    }
     await refreshCurrentPage(['transactions', 'homeTotals']);
   } catch (error) {
     toast(error.message);
@@ -1377,12 +1540,18 @@ async function changeTransactionPage(page) {
 }
 
 function handleTransactionClick(event) {
+  const card = event.target.closest('[data-transaction-link]');
+  if (card) {
+    window.location.assign(transactionDetailPath(card.dataset.transactionLink));
+    return;
+  }
   const editButton = event.target.closest('[data-edit]');
   if (editButton) {
     openEditTransaction(editButton.dataset.edit);
     return;
   }
-  void deleteTransaction(event);
+  const deleteButton = event.target.closest('[data-delete]');
+  if (deleteButton) void deleteTransaction(deleteButton.dataset.delete);
 }
 
 function handleCategoryClick(event) {
@@ -1467,7 +1636,7 @@ function bindEvents() {
   if (has('#paymentMethodForm')) qs('#paymentMethodForm').addEventListener('submit', submitPaymentMethod);
   if (has('#paymentMethodList')) qs('#paymentMethodList').addEventListener('click', handlePaymentMethodClick);
   if (has('#userList')) qs('#userList').addEventListener('click', handleUserClick);
-  if (has('#transactionsTable')) qs('#transactionsTable').addEventListener('click', handleTransactionClick);
+  if (has('#transactionsList')) qs('#transactionsList').addEventListener('click', handleTransactionClick);
   if (has('#transactionFilterForm')) qs('#transactionFilterForm').addEventListener('submit', applyTransactionFilters);
   if (has('#clearTransactionFilters')) qs('#clearTransactionFilters').addEventListener('click', clearTransactionFilters);
   if (has('#transactionFilterCategory')) qs('#transactionFilterCategory').addEventListener('change', updateTransactionFilterSubcategories);
@@ -1521,6 +1690,17 @@ function bindEvents() {
   }
   if (has('#editTransactionForm')) qs('#editTransactionForm').addEventListener('submit', submitEditTransaction);
   if (has('#closeEditDialog')) qs('#closeEditDialog').addEventListener('click', closeEditTransaction);
+  if (has('#transactionDetailCard')) {
+    qs('#transactionDetailCard').addEventListener('click', (event) => {
+      const editButton = event.target.closest('[data-edit-transaction-detail]');
+      if (editButton) {
+        openEditTransaction(editButton.dataset.editTransactionDetail);
+        return;
+      }
+      const deleteButton = event.target.closest('[data-delete-transaction-detail]');
+      if (deleteButton) void deleteTransaction(deleteButton.dataset.deleteTransactionDetail);
+    });
+  }
   if (has('#editCategory')) qs('#editCategory').addEventListener('change', () => renderEditSelects());
   if (has('#oikosCategory')) qs('#oikosCategory').addEventListener('change', renderSubcategorySelect);
   if (has('#oikosSubcategory')) {

@@ -17,12 +17,13 @@
     <main id="appShell" class="hidden">
       <section id="transactionsPage">
         <div class="page-title-bar">
-          <div class="page-title">
+          <div class="page-title transaction-page-title">
             <p class="eyebrow">Transactions</p>
             <h1>Transactions</h1>
+            <p class="page-subtitle">All your transactions</p>
           </div>
           <div class="transactions-toolbar">
-            <button type="button" class="ghost" id="toggleTransactionFilters" aria-expanded="false" aria-controls="transactionFiltersPanel">Filter</button>
+            <button type="button" class="ghost transactions-filter-button" id="toggleTransactionFilters" aria-expanded="false" aria-controls="transactionFiltersPanel">Filter</button>
           </div>
         </div>
         <div id="transactionFiltersPanel" class="hidden">
@@ -69,24 +70,7 @@
             <button type="button" class="ghost" id="clearTransactionFilters">Clear</button>
           </form>
         </div>
-        <div class="table-wrap transaction-table-wrap">
-          <table class="transactions-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Title</th>
-                <th>Amount</th>
-                <th>Payment mode</th>
-                <th>Category</th>
-                <th>Subcategory</th>
-                <th>Store</th>
-                <th class="admin-only">User</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="transactionsTable"></tbody>
-          </table>
-        </div>
+        <div id="transactionsList" class="transactions-list" aria-live="polite"></div>
         <div id="transactionsPagination" class="panel transactions-pagination hidden"></div>
       </section>
     </main>
