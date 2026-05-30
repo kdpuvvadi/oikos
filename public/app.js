@@ -84,6 +84,7 @@ const routes = {
 let routeRequestId = 0;
 const authHintCookieName = 'oikos_session';
 const transactionPageSizeOptions = [10, 25, 50, 100];
+const themeStorageKey = 'oikos_theme';
 
 function qs(selector, root = document) {
   return root.querySelector(selector);
@@ -95,6 +96,47 @@ function qsa(selector, root = document) {
 
 function has(selector, root = document) {
   return Boolean(qs(selector, root));
+}
+
+function preferredSystemTheme() {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function savedTheme() {
+  const theme = window.localStorage.getItem(themeStorageKey);
+  return theme === 'dark' || theme === 'light' ? theme : '';
+}
+
+function activeTheme() {
+  return document.documentElement.dataset.theme || savedTheme() || preferredSystemTheme();
+}
+
+function syncThemeToggleLabels() {
+  const nextLabel = activeTheme() === 'dark' ? 'Light mode' : 'Dark mode';
+  qsa('[data-theme-toggle]').forEach((button) => {
+    button.textContent = nextLabel;
+    button.setAttribute('aria-label', `Switch to ${nextLabel.toLowerCase()}`);
+  });
+}
+
+function applyTheme(theme, { persist = true } = {}) {
+  const resolved = theme === 'dark' || theme === 'light' ? theme : preferredSystemTheme();
+  document.documentElement.dataset.theme = resolved;
+  if (persist) {
+    window.localStorage.setItem(themeStorageKey, resolved);
+  }
+  syncThemeToggleLabels();
+}
+
+function initializeTheme() {
+  applyTheme(savedTheme() || preferredSystemTheme(), { persist: false });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!savedTheme()) applyTheme(preferredSystemTheme(), { persist: false });
+  });
+}
+
+function toggleTheme() {
+  applyTheme(activeTheme() === 'dark' ? 'light' : 'dark');
 }
 
 function setSessionHint(enabled) {
@@ -1629,6 +1671,8 @@ function bindEvents() {
   if (has('#loginForm')) qs('#loginForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/login'));
   if (has('#registerForm')) qs('#registerForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/register'));
   if (has('#logoutButton')) qs('#logoutButton').addEventListener('click', logout);
+  if (has('#themeToggle')) qs('#themeToggle').addEventListener('click', toggleTheme);
+  if (has('#themeToggleGuest')) qs('#themeToggleGuest').addEventListener('click', toggleTheme);
   if (has('#menuToggle')) qs('#menuToggle').addEventListener('click', toggleMobileNav);
   if (has('#categoryForm')) qs('#categoryForm').addEventListener('submit', submitCategory);
   if (has('#categoryList')) qs('#categoryList').addEventListener('click', handleCategoryClick);
@@ -1724,6 +1768,7 @@ function bindEvents() {
 }
 
 async function init() {
+  initializeTheme();
   bindEvents();
   renderAuthStatus();
   showPage();

@@ -52,6 +52,7 @@ class OikosHeader extends HTMLElement {
               ${navMarkup()}
             </nav>
             <div class="user-menu hidden" id="userMenu">
+              <button type="button" class="ghost theme-toggle" id="themeToggle" data-theme-toggle aria-label="Toggle color theme">Dark mode</button>
               <a href="/me" id="userName" class="user-link"></a>
               <button type="button" id="logoutButton">Logout</button>
             </div>
@@ -69,6 +70,9 @@ class OikosAuthShell extends HTMLElement {
         <h1>Sign in</h1>
       </div>
       <div id="authForms">
+        <div class="auth-shell-actions">
+          <button type="button" class="ghost theme-toggle" id="themeToggleGuest" data-theme-toggle aria-label="Toggle color theme">Dark mode</button>
+        </div>
         <div class="auth-grid">
           <form id="loginForm" class="panel form-stack">
             <h2>Login</h2>
