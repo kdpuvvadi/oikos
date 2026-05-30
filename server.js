@@ -659,6 +659,20 @@ app.get('/api/transactions', requireAuth, requireApproved, async (req, res) => {
   }
 });
 
+app.get('/api/transactions/:id', requireAuth, requireApproved, async (req, res) => {
+  try {
+    const transaction = await req.pb.collection('oikos_transactions').getOne(req.params.id, {
+      expand: 'category,subcategory,store,payment_method,user'
+    });
+    if (!isAdmin(req.user) && transaction.user !== req.user.id) {
+      return res.status(404).json({ error: 'Transaction not found.' });
+    }
+    res.json(transaction);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.get('/api/home-totals', requireAuth, requireApproved, async (req, res) => {
   try {
     const baseFilters = isAdmin(req.user) ? [] : [`user = "${req.user.id}"`];
@@ -851,6 +865,10 @@ const pageFiles = {
   '/dashboard': 'dashboard.html',
   '/filter': 'filter.html'
 };
+
+app.get('/transactions/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'transaction-detail.html'));
+});
 
 app.get(Object.keys(pageFiles), (req, res) => {
   res.sendFile(path.join(__dirname, 'public', pageFiles[req.path]));
