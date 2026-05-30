@@ -478,6 +478,11 @@ h2 {
   gap: 16px;
 }
 
+.expense-submit-button {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
 .inline-form {
   display: flex;
   flex-wrap: wrap;

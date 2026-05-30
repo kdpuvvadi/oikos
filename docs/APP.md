@@ -321,6 +321,7 @@ Header/top bar component. Shows:
 **API Integration**: Frontend communicates with Express server via `fetch()` calls to REST endpoints.
 
 **Form Handling**: Transaction and reference data forms validate input and send POST/PUT requests.
+The main expense form keeps a consistent full-width primary submit action even when optional inline fields appear.
 
 **Responsive Design**: CSS media queries ensure usability on mobile and desktop.
 
