@@ -55,6 +55,8 @@ Create new categories, subcategories, stores, or payment methods directly in the
 - Full transaction history with easy deletion
 - Paginated transaction history with per-user page size preference
 - Filter by date range, category, subcategory, store, or payment method
+- Compact activity-style mobile transaction feed grouped by day
+- Dedicated transaction detail page for editing and deleting a single record
 - Pivot-style filtering: choose custom row/column dimensions to see how data aggregates
 
 ### Reference Data Management
@@ -69,6 +71,11 @@ Manage shared reference data:
 
 ### Privacy Controls
 Users can control email visibility in their account settings.
+
+### App Themes
+- Oikos supports both dark and light themes across the full application shell
+- A shared theme toggle in the header/auth shell switches the active theme
+- The transaction activity layout is tuned for the darker mobile-friendly visual style while remaining usable in light mode
 
 ### Authentication Enhancements
 - Email verification links resolve through Oikos instead of exposing the PocketBase host
@@ -243,10 +250,11 @@ The frontend is a single-page application built with vanilla HTML, CSS, and Java
 
 ### Main Pages
 
-Accessed via routes in `server.js`, all serve `public/index.html` (the main app shell):
+Accessed via routes in `server.js`, with each route serving its matching HTML shell from `public/`:
 
 - `/` – Dashboard (home)
 - `/transactions` – Transaction list with filtering
+- `/transactions/:id` – Transaction detail page with edit/delete actions
 - `/categories` – Manage categories and subcategories (admin only)
 - `/stores` – Manage stores (admin only)
 - `/payment-methods` – Manage payment methods (admin only)
@@ -271,6 +279,7 @@ All static files are served from the `public/` folder:
 | `me.html` | User profile template |
 | `payment-methods.html` | Payment method management template |
 | `stores.html` | Store management template |
+| `transaction-detail.html` | Single transaction detail template |
 | `transactions.html` | Transaction list template |
 | `users.html` | User management template (admin only) |
 | `sw.js` | Service Worker (offline support) |
@@ -301,6 +310,7 @@ Navigation sidebar and layout wrapper. Shows:
 Header/top bar component. Shows:
 - App title
 - User actions (profile, logout)
+- Shared dark/light theme toggle
 
 ### Frontend Features
 
@@ -311,8 +321,11 @@ Header/top bar component. Shows:
 **API Integration**: Frontend communicates with Express server via `fetch()` calls to REST endpoints.
 
 **Form Handling**: Transaction and reference data forms validate input and send POST/PUT requests.
+The main expense form keeps a consistent full-width primary submit action even when optional inline fields appear.
 
 **Responsive Design**: CSS media queries ensure usability on mobile and desktop.
+
+**Theme System**: Shared CSS tokens power the app-wide dark/light themes, and the active theme is controlled from the common shell toggle.
 
 ---
 

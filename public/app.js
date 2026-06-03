@@ -12,6 +12,7 @@ const state = {
   transactions: [],
   summaryTransactions: [],
   transactionRows: [],
+  currentTransaction: null,
   transactionPagination: {
     page: 1,
     perPage: 25,
@@ -55,6 +56,18 @@ function formatDate(dateString) {
   return `${day}-${month}-${year}`;
 }
 
+function formatLongDate(dateString) {
+  if (!dateString) return '';
+  const isoDate = String(dateString).slice(0, 10);
+  const date = new Date(`${isoDate}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return formatDate(dateString);
+  return new Intl.DateTimeFormat(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  }).format(date);
+}
+
 const routes = {
   '/': 'homePage',
   '/me': 'mePage',
@@ -63,6 +76,7 @@ const routes = {
   '/payment-methods': 'paymentMethodsPage',
   '/users': 'usersPage',
   '/transactions': 'transactionsPage',
+  '/transactions/:id': 'transactionDetailPage',
   '/dashboard': 'dashboardPage',
   '/filter': 'filterPage'
 };
@@ -70,6 +84,7 @@ const routes = {
 let routeRequestId = 0;
 const authHintCookieName = 'oikos_session';
 const transactionPageSizeOptions = [10, 25, 50, 100];
+const themeStorageKey = 'oikos_theme';
 
 function qs(selector, root = document) {
   return root.querySelector(selector);
@@ -81,6 +96,64 @@ function qsa(selector, root = document) {
 
 function has(selector, root = document) {
   return Boolean(qs(selector, root));
+}
+
+function preferredSystemTheme() {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function savedTheme() {
+  const theme = window.localStorage.getItem(themeStorageKey);
+  return theme === 'dark' || theme === 'light' ? theme : '';
+}
+
+function activeTheme() {
+  return document.documentElement.dataset.theme || savedTheme() || preferredSystemTheme();
+}
+
+function themeToggleIconMarkup() {
+  if (activeTheme() === 'dark') {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 4.75a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V5.5a.75.75 0 0 1 .75-.75Zm0 11a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Zm0 1.5a5.25 5.25 0 1 1 0-10.5 5.25 5.25 0 0 1 0 10.5Zm6.5-6a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 0 1.5h-1.5a.75.75 0 0 1-.75-.75Zm-16 0a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 0 1.5h-1.5a.75.75 0 0 1-.75-.75Zm13.096-5.846a.75.75 0 0 1 1.06 0l1.06 1.06a.75.75 0 1 1-1.06 1.061l-1.06-1.06a.75.75 0 0 1 0-1.061Zm-9.192 9.192a.75.75 0 0 1 1.06 0l1.06 1.06a.75.75 0 1 1-1.06 1.061l-1.06-1.06a.75.75 0 0 1 0-1.061Zm10.252 1.06a.75.75 0 0 1 1.06 0l1.06 1.06a.75.75 0 1 1-1.06 1.061l-1.06-1.06a.75.75 0 0 1 0-1.061Zm-10.252-10.252a.75.75 0 0 1 1.06 0l1.06 1.06A.75.75 0 0 1 7.464 8.53l-1.06-1.06a.75.75 0 0 1 0-1.061ZM12 17a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 12 17Z"/>
+      </svg>
+    `;
+  }
+
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M14.768 3.96a.75.75 0 0 1 .79.214 7.99 7.99 0 0 0 1.947 1.662 8 8 0 1 0-9.679 12.86 8.08 8.08 0 0 0 8.208-.542.75.75 0 0 1 1.125.804 9.5 9.5 0 1 1-2.39-14.762Z"/>
+    </svg>
+  `;
+}
+
+function syncThemeToggleLabels() {
+  const nextLabel = activeTheme() === 'dark' ? 'Light mode' : 'Dark mode';
+  qsa('[data-theme-toggle]').forEach((button) => {
+    button.innerHTML = themeToggleIconMarkup();
+    button.title = nextLabel;
+    button.setAttribute('aria-label', `Switch to ${nextLabel.toLowerCase()}`);
+  });
+}
+
+function applyTheme(theme, { persist = true } = {}) {
+  const resolved = theme === 'dark' || theme === 'light' ? theme : preferredSystemTheme();
+  document.documentElement.dataset.theme = resolved;
+  if (persist) {
+    window.localStorage.setItem(themeStorageKey, resolved);
+  }
+  syncThemeToggleLabels();
+}
+
+function initializeTheme() {
+  applyTheme(savedTheme() || preferredSystemTheme(), { persist: false });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!savedTheme()) applyTheme(preferredSystemTheme(), { persist: false });
+  });
+}
+
+function toggleTheme() {
+  applyTheme(activeTheme() === 'dark' ? 'light' : 'dark');
 }
 
 function setSessionHint(enabled) {
@@ -118,12 +191,19 @@ function toast(message) {
   window.setTimeout(() => node.classList.remove('show'), 3200);
 }
 
+function routeKeyForPath(pathname = window.location.pathname) {
+  if (routes[pathname]) return pathname;
+  if (pathname.startsWith('/transactions/')) return '/transactions/:id';
+  return '/';
+}
+
 function currentPath() {
-  return routes[window.location.pathname] ? window.location.pathname : '/';
+  return routeKeyForPath(window.location.pathname);
 }
 
 function showPage(path = currentPath()) {
-  qsa('[data-nav]').forEach((link) => link.classList.toggle('active', link.dataset.nav === path));
+  const navPath = path === '/transactions/:id' ? '/transactions' : path;
+  qsa('[data-nav]').forEach((link) => link.classList.toggle('active', link.dataset.nav === navPath));
   closeMobileNav();
 }
 
@@ -160,6 +240,9 @@ function setAuthView(user) {
     qs('#mobileProfileLink').title = userLabel || 'Profile';
     qs('#mobileProfileLink').classList.toggle('hidden', !user || approvalPending);
   }
+  if (has('#mobileThemeToggle')) {
+    qs('#mobileThemeToggle').classList.toggle('hidden', !user || approvalPending);
+  }
   if (approvalPending && has('#approvalPendingEmail')) qs('#approvalPendingEmail').textContent = user.email || '';
   renderAuthStatus();
 }
@@ -178,10 +261,36 @@ function option(value, label) {
   return `<option value="${value}">${label}</option>`;
 }
 
+function transactionDetailPath(id) {
+  return `/transactions/${id}`;
+}
+
+function currentTransactionId() {
+  if (currentPath() !== '/transactions/:id') return '';
+  return decodeURIComponent(window.location.pathname.slice('/transactions/'.length));
+}
+
 function transactionPageSizeOptionMarkup(selectedValue) {
   return transactionPageSizeOptions.map((value) => `
     <option value="${value}" ${String(value) === String(selectedValue) ? 'selected' : ''}>${value} per page</option>
   `).join('');
+}
+
+function transactionToneClass(transaction) {
+  const seed = String(
+    transaction.expand?.category?.name
+    || transaction.expand?.subcategory?.name
+    || transaction.title
+    || 'x'
+  ).toLowerCase();
+  const tones = ['emerald', 'indigo', 'amber', 'rose', 'violet'];
+  const index = seed.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % tones.length;
+  return `transaction-tone-${tones[index]}`;
+}
+
+function transactionAvatarLabel(transaction) {
+  const text = String(transaction.title || transaction.expand?.subcategory?.name || transaction.expand?.category?.name || 'T').trim();
+  return (text[0] || 'T').toUpperCase();
 }
 
 function verificationBadge(user) {
@@ -631,26 +740,111 @@ function renderCategories() {
 }
 
 function renderTransactions() {
-  if (!has('#transactionsTable')) return;
-  qs('#transactionsTable').innerHTML = state.transactionRows.map((transaction) => `
-    <tr>
-      <td class="transaction-cell transaction-date-cell" data-label="Date"><span class="transaction-value transaction-date">${formatDate(transaction.date)}</span></td>
-      <td class="transaction-cell transaction-title-cell" data-label="Title"><span class="transaction-value">${transaction.title || '-'}</span></td>
-      <td class="transaction-cell transaction-amount-cell" data-label="Amount"><strong class="transaction-value transaction-amount">${money.format(Number(transaction.amount))}</strong></td>
-      <td class="transaction-cell transaction-payment-cell" data-label="Payment mode"><span class="transaction-value">${transaction.expand?.payment_method?.name || 'Not set'}</span></td>
-      <td class="transaction-cell transaction-category-cell" data-label="Category"><span class="transaction-value">${transaction.expand?.category?.name || 'Uncategorized'}</span></td>
-      <td class="transaction-cell transaction-subcategory-cell" data-label="Subcategory"><span class="transaction-value">${transaction.expand?.subcategory?.name || 'None'}</span></td>
-      <td class="transaction-cell transaction-store-cell" data-label="Store"><span class="transaction-value">${displayStore(transaction)}</span></td>
-      <td class="transaction-cell transaction-user-cell admin-only" data-label="User"><span class="transaction-value">${transaction.expand?.user?.email || transaction.expand?.user?.name || ''}</span></td>
-      <td class="transaction-cell transaction-actions-cell" data-label="Actions">
-        <div class="row-actions">
-          <button class="ghost" data-edit="${transaction.id}">Edit</button>
-          <button class="danger" data-delete="${transaction.id}">Delete</button>
+  if (!has('#transactionsList')) return;
+  if (!state.transactionRows.length) {
+    qs('#transactionsList').innerHTML = '<div class="panel"><p class="panel-empty">No transactions yet.</p></div>';
+    renderTransactionPagination();
+    return;
+  }
+
+  const grouped = state.transactionRows.reduce((acc, transaction) => {
+    const key = String(transaction.date || '').slice(0, 10);
+    if (!acc[key]) {
+      acc[key] = { date: key, total: 0, items: [] };
+    }
+    acc[key].items.push(transaction);
+    acc[key].total += Number(transaction.amount || 0);
+    return acc;
+  }, {});
+
+  qs('#transactionsList').innerHTML = Object.values(grouped).map((group) => `
+    <section class="transaction-day-group">
+      <header class="transaction-day-header">
+        <div>
+          <h2>${formatLongDate(group.date)}</h2>
         </div>
-      </td>
-    </tr>
-  `).join('') || '<tr class="table-empty-row"><td colspan="9">No transactions yet.</td></tr>';
+        <strong class="transaction-day-total">${money.format(group.total)}</strong>
+      </header>
+      <div class="transaction-day-items">
+        ${group.items.map((transaction) => `
+          <a class="transaction-list-card" href="${transactionDetailPath(transaction.id)}" data-transaction-link="${transaction.id}">
+            <div class="transaction-list-avatar ${transactionToneClass(transaction)}" aria-hidden="true">${transactionAvatarLabel(transaction)}</div>
+            <div class="transaction-list-main">
+              <div class="transaction-list-topline">
+                <strong class="transaction-list-title">${transaction.title || transaction.expand?.subcategory?.name || 'Untitled transaction'}</strong>
+                ${transaction.expand?.category?.name ? `<span class="transaction-list-badge">${transaction.expand?.category?.name}</span>` : ''}
+              </div>
+              <div class="transaction-list-subline">
+                ${transaction.expand?.subcategory?.name || 'None'} • ${displayStore(transaction)} • ${transaction.expand?.payment_method?.name || 'Not set'}
+                ${isAdmin() ? ` • ${transaction.expand?.user?.email || transaction.expand?.user?.name || 'Unknown user'}` : ''}
+              </div>
+            </div>
+            <div class="transaction-list-side">
+              <strong class="transaction-list-amount">${money.format(Number(transaction.amount || 0))}</strong>
+              <span class="transaction-list-date">${formatLongDate(transaction.date)}</span>
+            </div>
+            <div class="transaction-list-chevron" aria-hidden="true">›</div>
+            <div class="transaction-list-mobile-meta">
+              <strong class="transaction-list-amount">${money.format(Number(transaction.amount || 0))}</strong>
+              <span class="transaction-list-date">${formatLongDate(transaction.date)}</span>
+            </div>
+          </a>
+        `).join('')}
+      </div>
+    </section>
+  `).join('');
   renderTransactionPagination();
+}
+
+function renderTransactionDetail() {
+  if (!has('#transactionDetailCard')) return;
+  const transaction = state.currentTransaction;
+  if (!transaction) {
+    qs('#transactionDetailCard').innerHTML = '<p class="panel-empty">Transaction not found.</p>';
+    return;
+  }
+
+  qs('#transactionDetailCard').innerHTML = `
+    <div class="transaction-detail-hero">
+      <div>
+        <p class="eyebrow">Recorded on ${formatLongDate(transaction.date)}</p>
+        <h2>${transaction.title || transaction.expand?.subcategory?.name || 'Untitled transaction'}</h2>
+      </div>
+      <strong class="transaction-detail-amount">${money.format(Number(transaction.amount || 0))}</strong>
+    </div>
+    <div class="detail-list transaction-detail-list">
+      <div class="detail-row">
+        <span class="detail-label">Category</span>
+        <strong class="detail-value">${transaction.expand?.category?.name || 'Uncategorized'}</strong>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Subcategory</span>
+        <strong class="detail-value">${transaction.expand?.subcategory?.name || 'None'}</strong>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Store</span>
+        <strong class="detail-value">${displayStore(transaction)}</strong>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Payment method</span>
+        <strong class="detail-value">${transaction.expand?.payment_method?.name || 'Not set'}</strong>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Date</span>
+        <strong class="detail-value">${formatDate(transaction.date)}</strong>
+      </div>
+      ${isAdmin() ? `
+        <div class="detail-row admin-only">
+          <span class="detail-label">User</span>
+          <strong class="detail-value">${transaction.expand?.user?.email || transaction.expand?.user?.name || 'Unknown user'}</strong>
+        </div>
+      ` : ''}
+    </div>
+    <div class="inline-actions transaction-detail-actions">
+      <button type="button" class="ghost" data-edit-transaction-detail="${transaction.id}">Edit transaction</button>
+      <button type="button" class="danger" data-delete-transaction-detail="${transaction.id}">Delete transaction</button>
+    </div>
+  `;
 }
 
 function renderTransactionFilterControls() {
@@ -663,6 +857,26 @@ function renderTransactionFilterControls() {
     ...state.categories.map((category) => option(category.id, category.name))
   ].join('');
   categorySelect.value = state.categories.some((category) => category.id === selectedCategory) ? selectedCategory : '';
+
+  if (has('#transactionFilterPaymentMethod')) {
+    const paymentMethodSelect = qs('#transactionFilterPaymentMethod');
+    const selectedPaymentMethod = paymentMethodSelect.value;
+    paymentMethodSelect.innerHTML = [
+      option('', 'All payment methods'),
+      ...state.paymentMethods.map((method) => option(method.id, method.name))
+    ].join('');
+    paymentMethodSelect.value = state.paymentMethods.some((method) => method.id === selectedPaymentMethod) ? selectedPaymentMethod : '';
+  }
+
+  if (has('#transactionFilterStore')) {
+    const storeSelect = qs('#transactionFilterStore');
+    const selectedStore = storeSelect.value;
+    storeSelect.innerHTML = [
+      option('', 'All stores'),
+      ...state.stores.map((store) => option(store.id, store.name))
+    ].join('');
+    storeSelect.value = state.stores.some((store) => store.id === selectedStore) ? selectedStore : '';
+  }
 
   if (has('#transactionFilterUser')) {
     const userSelect = qs('#transactionFilterUser');
@@ -698,7 +912,7 @@ function updateTransactionFilterSubcategories() {
 function hasActiveTransactionFilters() {
   if (!has('#transactionFilterForm')) return false;
   const data = new FormData(qs('#transactionFilterForm'));
-  return ['fromDate', 'toDate', 'category', 'subcategory', 'user'].some((key) => String(data.get(key) || '').trim());
+  return ['fromDate', 'toDate', 'category', 'subcategory', 'paymentMethod', 'store', 'user'].some((key) => String(data.get(key) || '').trim());
 }
 
 function syncTransactionFilterVisibility(forceOpen = false) {
@@ -778,6 +992,7 @@ function resetDataState() {
   state.transactions = [];
   state.summaryTransactions = [];
   state.transactionRows = [];
+  state.currentTransaction = null;
   state.transactionPagination = {
     page: 1,
     perPage: defaultPerPage,
@@ -868,6 +1083,15 @@ async function loadTransactionRows() {
   };
 }
 
+async function loadTransactionDetail() {
+  const transactionId = currentTransactionId();
+  if (!transactionId) {
+    state.currentTransaction = null;
+    return;
+  }
+  state.currentTransaction = await api(`/api/transactions/${transactionId}`);
+}
+
 async function loadHomeTotals(force = false) {
   await ensureLoaded('homeTotals', async () => {
     state.homeTotals = await api('/api/home-totals');
@@ -922,7 +1146,7 @@ async function updateTransactionPageSize(nextValue, { refreshTransactions = fals
 
   try {
     await saveProfileSettings({ transactionPageSize: pageSize }, 'Transaction page size updated.');
-    if (refreshTransactions && has('#transactionsTable')) {
+    if (refreshTransactions && has('#transactionsList')) {
       state.transactionPagination.page = 1;
       state.transactionPagination.perPage = pageSize;
       await loadTransactionRows();
@@ -1010,6 +1234,16 @@ async function loadTransactionsPage(force = false) {
   renderTransactions();
 }
 
+async function loadTransactionDetailPage(force = false) {
+  await Promise.all([
+    loadCategories(force),
+    loadPaymentMethods(force),
+    loadStores(force),
+    loadTransactionDetail()
+  ]);
+  renderTransactionDetail();
+}
+
 async function loadDashboardPage(force = false) {
   await loadSummaryTransactions(force);
   renderDashboard();
@@ -1030,6 +1264,7 @@ const pageLoaders = {
   '/payment-methods': loadPaymentMethodsPage,
   '/users': loadUsersPage,
   '/transactions': loadTransactionsPage,
+  '/transactions/:id': loadTransactionDetailPage,
   '/dashboard': loadDashboardPage,
   '/filter': loadFilterPage
 };
@@ -1147,7 +1382,9 @@ async function submitExpense(event) {
 }
 
 function openEditTransaction(id) {
-  const transaction = state.transactionRows.find((item) => item.id === id) || state.transactions.find((item) => item.id === id);
+  const transaction = state.transactionRows.find((item) => item.id === id)
+    || state.transactions.find((item) => item.id === id)
+    || (state.currentTransaction?.id === id ? state.currentTransaction : null);
   if (!transaction || !has('#editTransactionForm') || !has('#editTransactionDialog')) return;
 
   const form = qs('#editTransactionForm');
@@ -1183,7 +1420,11 @@ async function submitEditTransaction(event) {
     });
     closeEditTransaction();
     toast('Transaction updated.');
-    await refreshCurrentPage(['transactions', 'homeTotals']);
+    if (currentPath() === '/transactions/:id') {
+      await syncRoute(true);
+    } else {
+      await refreshCurrentPage(['transactions', 'homeTotals']);
+    }
   } catch (error) {
     toast(error.message);
   }
@@ -1287,12 +1528,15 @@ async function editPaymentMethod(id) {
   }
 }
 
-async function deleteTransaction(event) {
-  const button = event.target.closest('[data-delete]');
-  if (!button) return;
+async function deleteTransaction(transactionId) {
+  if (!transactionId) return;
   try {
-    await api(`/api/transactions/${button.dataset.delete}`, { method: 'DELETE' });
+    await api(`/api/transactions/${transactionId}`, { method: 'DELETE' });
     toast('Transaction deleted.');
+    if (currentPath() === '/transactions/:id') {
+      window.location.assign('/transactions');
+      return;
+    }
     await refreshCurrentPage(['transactions', 'homeTotals']);
   } catch (error) {
     toast(error.message);
@@ -1306,7 +1550,7 @@ function buildTransactionFilterQuery() {
   const params = new URLSearchParams();
   params.set('page', String(state.transactionPagination.page || 1));
   params.set('perPage', String(state.transactionPagination.perPage || state.user?.transactionPageSize || 25));
-  ['fromDate', 'toDate', 'category', 'subcategory', 'user'].forEach((key) => {
+  ['fromDate', 'toDate', 'category', 'subcategory', 'paymentMethod', 'store', 'user'].forEach((key) => {
     const value = String(data.get(key) || '').trim();
     if (value) params.set(key, value);
   });
@@ -1357,12 +1601,18 @@ async function changeTransactionPage(page) {
 }
 
 function handleTransactionClick(event) {
+  const card = event.target.closest('[data-transaction-link]');
+  if (card) {
+    window.location.assign(transactionDetailPath(card.dataset.transactionLink));
+    return;
+  }
   const editButton = event.target.closest('[data-edit]');
   if (editButton) {
     openEditTransaction(editButton.dataset.edit);
     return;
   }
-  void deleteTransaction(event);
+  const deleteButton = event.target.closest('[data-delete]');
+  if (deleteButton) void deleteTransaction(deleteButton.dataset.delete);
 }
 
 function handleCategoryClick(event) {
@@ -1440,6 +1690,9 @@ function bindEvents() {
   if (has('#loginForm')) qs('#loginForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/login'));
   if (has('#registerForm')) qs('#registerForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/register'));
   if (has('#logoutButton')) qs('#logoutButton').addEventListener('click', logout);
+  if (has('#themeToggle')) qs('#themeToggle').addEventListener('click', toggleTheme);
+  if (has('#themeToggleGuest')) qs('#themeToggleGuest').addEventListener('click', toggleTheme);
+  if (has('#mobileThemeToggle')) qs('#mobileThemeToggle').addEventListener('click', toggleTheme);
   if (has('#menuToggle')) qs('#menuToggle').addEventListener('click', toggleMobileNav);
   if (has('#categoryForm')) qs('#categoryForm').addEventListener('submit', submitCategory);
   if (has('#categoryList')) qs('#categoryList').addEventListener('click', handleCategoryClick);
@@ -1447,7 +1700,7 @@ function bindEvents() {
   if (has('#paymentMethodForm')) qs('#paymentMethodForm').addEventListener('submit', submitPaymentMethod);
   if (has('#paymentMethodList')) qs('#paymentMethodList').addEventListener('click', handlePaymentMethodClick);
   if (has('#userList')) qs('#userList').addEventListener('click', handleUserClick);
-  if (has('#transactionsTable')) qs('#transactionsTable').addEventListener('click', handleTransactionClick);
+  if (has('#transactionsList')) qs('#transactionsList').addEventListener('click', handleTransactionClick);
   if (has('#transactionFilterForm')) qs('#transactionFilterForm').addEventListener('submit', applyTransactionFilters);
   if (has('#clearTransactionFilters')) qs('#clearTransactionFilters').addEventListener('click', clearTransactionFilters);
   if (has('#transactionFilterCategory')) qs('#transactionFilterCategory').addEventListener('change', updateTransactionFilterSubcategories);
@@ -1501,6 +1754,17 @@ function bindEvents() {
   }
   if (has('#editTransactionForm')) qs('#editTransactionForm').addEventListener('submit', submitEditTransaction);
   if (has('#closeEditDialog')) qs('#closeEditDialog').addEventListener('click', closeEditTransaction);
+  if (has('#transactionDetailCard')) {
+    qs('#transactionDetailCard').addEventListener('click', (event) => {
+      const editButton = event.target.closest('[data-edit-transaction-detail]');
+      if (editButton) {
+        openEditTransaction(editButton.dataset.editTransactionDetail);
+        return;
+      }
+      const deleteButton = event.target.closest('[data-delete-transaction-detail]');
+      if (deleteButton) void deleteTransaction(deleteButton.dataset.deleteTransactionDetail);
+    });
+  }
   if (has('#editCategory')) qs('#editCategory').addEventListener('change', () => renderEditSelects());
   if (has('#oikosCategory')) qs('#oikosCategory').addEventListener('change', renderSubcategorySelect);
   if (has('#oikosSubcategory')) {
@@ -1524,6 +1788,7 @@ function bindEvents() {
 }
 
 async function init() {
+  initializeTheme();
   bindEvents();
   renderAuthStatus();
   showPage();

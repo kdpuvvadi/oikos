@@ -640,6 +640,7 @@ app.get('/api/transactions', requireAuth, requireApproved, async (req, res) => {
     if (req.query.subcategory) filters.push(`subcategory = "${req.query.subcategory}"`);
     if (req.query.user && isAdmin(req.user)) filters.push(`user = "${req.query.user}"`);
     if (req.query.store) filters.push(`store = "${req.query.store}"`);
+    if (req.query.paymentMethod) filters.push(`payment_method = "${req.query.paymentMethod}"`);
 
     const transactions = await listPageRecords(req.pb, 'oikos_transactions', page, perPage, {
       sort: '-date',
@@ -653,6 +654,20 @@ app.get('/api/transactions', requireAuth, requireApproved, async (req, res) => {
       totalItems: transactions.totalItems,
       totalPages: transactions.totalPages
     });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get('/api/transactions/:id', requireAuth, requireApproved, async (req, res) => {
+  try {
+    const transaction = await req.pb.collection('oikos_transactions').getOne(req.params.id, {
+      expand: 'category,subcategory,store,payment_method,user'
+    });
+    if (!isAdmin(req.user) && transaction.user !== req.user.id) {
+      return res.status(404).json({ error: 'Transaction not found.' });
+    }
+    res.json(transaction);
   } catch (error) {
     handleError(res, error);
   }
@@ -850,6 +865,10 @@ const pageFiles = {
   '/dashboard': 'dashboard.html',
   '/filter': 'filter.html'
 };
+
+app.get('/transactions/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'transaction-detail.html'));
+});
 
 app.get(Object.keys(pageFiles), (req, res) => {
   res.sendFile(path.join(__dirname, 'public', pageFiles[req.path]));
