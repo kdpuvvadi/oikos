@@ -240,7 +240,7 @@ function handleError(res, error) {
     return res.status(503).json({
       error: 'PocketBase is not running.',
       details: error.message,
-      hint: 'Start PocketBase service. Service not avaiable at http://127.0.0.1:8090'
+      hint: `Start PocketBase service. Service not available at ${pbUrl}`
     });
   }
   if (error.status === 400 && requestUrl.includes('oikos_transactions') && requestUrl.includes('user')) {
@@ -326,6 +326,10 @@ app.post('/api/auth/login', async (req, res) => {
         requiresVerification: true,
         email
       });
+    }
+    const authRejected = error.status === 400 || error.status === 401;
+    if (!authRejected) {
+      return handleError(res, error);
     }
     res.status(401).json({ error: 'Invalid email or password, or your email is not verified yet.' });
   }

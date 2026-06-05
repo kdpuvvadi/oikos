@@ -360,7 +360,7 @@ PB_PORT=8090
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `3000` | Express server port |
-| `PB_URL` | `http://127.0.0.1:8090` | PocketBase server URL |
+| `PB_URL` | `http://127.0.0.1:8090` locally, `http://pocketbase:8090` in Docker Compose | PocketBase server URL |
 | `PB_TOKEN` | (empty) | Optional PocketBase admin token for setup |
 | `COOKIE_SECURE` | `false` | Set to `true` in HTTPS production |
 | `APP_PUBLIC_URL` | (empty) | Public Oikos URL used in verification email links |
