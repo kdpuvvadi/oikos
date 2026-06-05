@@ -1,5 +1,6 @@
 import express from 'express';
 import PocketBase from 'pocketbase';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -10,17 +11,105 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const pbUrl = (process.env.PB_URL || 'http://127.0.0.1:8090').replace(/\/$/, '');
 const pbToken = process.env.PB_TOKEN || '';
-const pb = new PocketBase(pbUrl);
 const authCookieName = 'pb_auth';
 const authHintCookieName = 'oikos_session';
 const DEFAULT_TRANSACTION_PAGE_SIZE = 25;
 const TRANSACTION_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+const requestContext = new AsyncLocalStorage();
+let requestIdSequence = 0;
+
+function nextRequestId() {
+  requestIdSequence += 1;
+  return requestIdSequence.toString(36).padStart(6, '0');
+}
+
+function requestId() {
+  return requestContext.getStore()?.id || 'startup';
+}
+
+function logHttp(label, details) {
+  console.log(`[${label}]`, JSON.stringify({
+    requestId: requestId(),
+    ...details
+  }));
+}
+
+function requestPath(url) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.pathname}${parsed.search}`;
+  } catch {
+    return url;
+  }
+}
+
+function createPocketBaseClient() {
+  const client = new PocketBase(pbUrl);
+  client.beforeSend = (url, options) => {
+    options.__oikosStartedAt = performance.now();
+    options.__oikosUrl = url;
+    const baseFetch = options.fetch || fetch;
+    options.fetch = async (fetchUrl, fetchOptions) => {
+      try {
+        return await baseFetch(fetchUrl, fetchOptions);
+      } catch (error) {
+        const elapsedMs = Math.round((performance.now() - (options.__oikosStartedAt || performance.now())) * 100) / 100;
+        logHttp('pb', {
+          target: pbUrl,
+          method: options.method || 'GET',
+          url: requestPath(String(fetchUrl || url)),
+          status: 'network-error',
+          elapsedMs,
+          error: error?.message,
+          causeCode: error?.cause?.code
+        });
+        throw error;
+      }
+    };
+    return { url, options };
+  };
+  client.afterSend = (response, data, options) => {
+    const elapsedMs = Math.round((performance.now() - (options.__oikosStartedAt || performance.now())) * 100) / 100;
+    logHttp('pb', {
+      target: pbUrl,
+      method: options.method || 'GET',
+      url: requestPath(response.url || options.__oikosUrl),
+      status: response.status,
+      elapsedMs,
+      message: data?.message
+    });
+    return data;
+  };
+  return client;
+}
+
+const pb = createPocketBaseClient();
 
 if (pbToken) {
   pb.authStore.save(pbToken, null);
 }
 
 app.use(express.json());
+app.use((req, res, next) => {
+  const id = nextRequestId();
+  const startedAt = performance.now();
+  requestContext.run({ id }, () => {
+    res.on('finish', () => {
+      const elapsedMs = Math.round((performance.now() - startedAt) * 100) / 100;
+      logHttp('http', {
+        method: req.method,
+        url: req.originalUrl,
+        status: res.statusCode,
+        elapsedMs,
+        remoteIp: req.ip,
+        forwardedFor: req.get('x-forwarded-for') || '',
+        host: req.get('host') || '',
+        userAgent: req.get('user-agent') || ''
+      });
+    });
+    next();
+  });
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 function authCookie(client) {
@@ -45,7 +134,7 @@ function clearAuthCookies() {
 }
 
 function clientFromRequest(req) {
-  const client = new PocketBase(pbUrl);
+  const client = createPocketBaseClient();
   client.authStore.loadFromCookie(req.headers.cookie || '', authCookieName);
   return client;
 }
@@ -278,7 +367,7 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'Email and an 8 character password are required.' });
     }
 
-    const client = new PocketBase(pbUrl);
+    const client = createPocketBaseClient();
     await client.collection('users').create({
       email,
       name,
@@ -303,7 +392,7 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const email = sanitizeName(req.body.email).toLowerCase();
     const password = String(req.body.password || '');
-    const client = new PocketBase(pbUrl);
+    const client = createPocketBaseClient();
     const auth = await client.collection('users').authWithPassword(email, password);
     if (auth.record?.verified === false) {
       return res.status(403).json({
@@ -319,6 +408,14 @@ app.post('/api/auth/login', async (req, res) => {
       approvalPending: !isApproved(auth.record)
     });
   } catch (error) {
+    console.error('Login failed', {
+      pbUrl,
+      status: error?.status,
+      message: error?.message,
+      responseMessage: error?.response?.message,
+      url: error?.url || error?.originalError?.url || error?.cause?.url,
+      causeCode: error?.cause?.code || error?.originalError?.cause?.code
+    });
     const message = String(error?.response?.message || error?.message || '').toLowerCase();
     if (message.includes('verified') || message.includes('verification')) {
       return res.status(403).json({
@@ -341,7 +438,7 @@ app.post('/api/auth/request-verification', async (req, res) => {
     if (!email) {
       return res.status(400).json({ error: 'Email is required.' });
     }
-    const client = new PocketBase(pbUrl);
+    const client = createPocketBaseClient();
     await client.collection('users').requestVerification(email);
     res.json({
       ok: true,
@@ -359,7 +456,7 @@ app.post('/api/auth/verify', async (req, res) => {
     if (!token) {
       return res.status(400).json({ error: 'Verification token is required.' });
     }
-    const client = new PocketBase(pbUrl);
+    const client = createPocketBaseClient();
     await client.collection('users').confirmVerification(token);
     res.json({
       ok: true,
@@ -376,7 +473,7 @@ app.post('/api/auth/request-otp', async (req, res) => {
     if (!email) {
       return res.status(400).json({ error: 'Email is required.' });
     }
-    const client = new PocketBase(pbUrl);
+    const client = createPocketBaseClient();
     const result = await client.collection('users').requestOTP(email);
     res.json({
       ok: true,
@@ -396,7 +493,7 @@ app.post('/api/auth/login-otp', async (req, res) => {
     if (!otpId || !otp) {
       return res.status(400).json({ error: 'otpId and otp are required.' });
     }
-    const client = new PocketBase(pbUrl);
+    const client = createPocketBaseClient();
     const auth = await client.collection('users').authWithOTP(otpId, otp);
     res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
     res.json({
@@ -572,7 +669,7 @@ app.post('/api/users/:id/resend-verification', requireAuth, requireApproved, req
       return res.status(400).json({ error: 'User email is unavailable.' });
     }
 
-    const client = new PocketBase(pbUrl);
+    const client = createPocketBaseClient();
     await client.collection('users').requestVerification(email);
     res.json({
       ok: true,
