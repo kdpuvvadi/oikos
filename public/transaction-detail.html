@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script>
+      document.documentElement.classList.add('js');
+      if (document.cookie.includes('oikos_session=1')) document.documentElement.classList.add('has-session');
+    </script>
+    <link rel="stylesheet" href="/styles.css">
+    <script type="module" src="/head.js"></script>
+  </head>
+  <body>
+    <oikos-header></oikos-header>
+    <oikos-auth-shell id="authPage" class="auth-shell"></oikos-auth-shell>
+
+    <main id="appShell" class="hidden">
+      <section id="transactionDetailPage">
+        <div class="page-title-bar">
+          <div class="page-title">
+            <p class="eyebrow">Transaction</p>
+            <h1>Transaction details</h1>
+          </div>
+          <div class="transactions-toolbar">
+            <a class="ghost button-link" href="/transactions">Back to transactions</a>
+          </div>
+        </div>
+        <div id="transactionDetailCard" class="panel transaction-detail-card">
+          <p class="panel-empty">Loading transaction...</p>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="editTransactionDialog">
+      <form id="editTransactionForm" class="form-stack">
+        <div class="dialog-title">
+          <h2>Edit transaction</h2>
+          <button type="button" class="ghost" id="closeEditDialog">Close</button>
+        </div>
+        <input type="hidden" name="id">
+        <label>Date<input type="date" name="date" required></label>
+        <label>Title<input type="text" name="title" placeholder="Example: Fuel refill"></label>
+        <label>Amount spent<input type="number" name="amount" min="0.01" step="0.01" required></label>
+        <label>Payment mode<select name="paymentMethod" id="editPaymentMethod"></select></label>
+        <label>Expense category<select name="category" id="editCategory" required></select></label>
+        <label>Subcategory<select name="subcategory" id="editSubcategory" required></select></label>
+        <label>Store<select name="store" id="editStore" required></select></label>
+        <label id="editStoreTextWrap" class="hidden">Store name<input type="text" name="storeText" id="editStoreText" placeholder="Example: Corner shop"></label>
+        <button type="submit">Save changes</button>
+      </form>
+    </dialog>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

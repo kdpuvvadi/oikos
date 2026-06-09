@@ -1,7 +1,7 @@
 import { seoConfig } from './seo.config.js';
 
 const path = window.location.pathname;
-const page = seoConfig.pages[path] || {};
+const page = seoConfig.pages[path] || (path.startsWith('/transactions/') ? seoConfig.pages['/transactions'] : {}) || {};
 const title = page.title ? `${page.title} | ${seoConfig.titleSuffix}` : seoConfig.defaultTitle;
 const description = page.description || seoConfig.defaultDescription;
 const keywords = (page.keywords || seoConfig.defaultKeywords).join(', ');
