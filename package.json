@@ -14,6 +14,6 @@
   },
   "dependencies": {
     "express": "^4.22.2",
-    "pocketbase": "^0.26.8"
+    "pocketbase": "^0.26.9"
   }
 }
