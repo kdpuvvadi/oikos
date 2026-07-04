@@ -126,10 +126,21 @@ function authHintCookie() {
   return `${authHintCookieName}=1; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`;
 }
 
+function clearAuthHintCookie() {
+  return `${authHintCookieName}=; Path=/; SameSite=Lax; Max-Age=0`;
+}
+
+function authResponseCookies(client, user) {
+  return [
+    authCookie(client),
+    isApproved(user) ? authHintCookie() : clearAuthHintCookie()
+  ];
+}
+
 function clearAuthCookies() {
   return [
     `${authCookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
-    `${authHintCookieName}=; Path=/; SameSite=Lax; Max-Age=0`
+    clearAuthHintCookie()
   ];
 }
 
@@ -401,7 +412,7 @@ app.post('/api/auth/login', async (req, res) => {
         email
       });
     }
-    res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
+    res.setHeader('Set-Cookie', authResponseCookies(client, auth.record));
     res.json({
       token: client.authStore.token,
       user: publicUser(client.authStore.record),
@@ -495,7 +506,7 @@ app.post('/api/auth/login-otp', async (req, res) => {
     }
     const client = createPocketBaseClient();
     const auth = await client.collection('users').authWithOTP(otpId, otp);
-    res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
+    res.setHeader('Set-Cookie', authResponseCookies(client, auth.record || client.authStore.record));
     res.json({
       token: client.authStore.token,
       user: publicUser(auth.record || client.authStore.record),
@@ -521,7 +532,7 @@ app.get('/api/auth/me', async (req, res) => {
 
   try {
     const auth = await client.collection('users').authRefresh();
-    res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
+    res.setHeader('Set-Cookie', authResponseCookies(client, auth.record || client.authStore.record));
     res.json({
       token: client.authStore.token,
       user: publicUser(auth.record || client.authStore.record)
@@ -549,7 +560,7 @@ app.put('/api/auth/me', requireAuth, async (req, res) => {
       ...updateBody
     });
     req.pb.authStore.save(req.pb.authStore.token, updated);
-    res.setHeader('Set-Cookie', [authCookie(req.pb), authHintCookie()]);
+    res.setHeader('Set-Cookie', authResponseCookies(req.pb, updated));
     res.json({
       token: req.pb.authStore.token,
       user: publicUser(updated)

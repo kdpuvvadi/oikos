@@ -74,10 +74,6 @@ html.has-session #authPage {
   display: none !important;
 }
 
-html.has-session #appShell.hidden {
-  display: block !important;
-}
-
 .site-header {
   position: sticky;
   top: 0;
@@ -360,12 +356,16 @@ main {
 }
 
 #authStatus {
-  margin-top: 16px;
+  margin-bottom: 16px;
 }
 
 .auth-status-copy {
   margin: 0;
   color: var(--muted);
+}
+
+body.has-auth-status #authForms {
+  display: none;
 }
 
 .inline-actions {

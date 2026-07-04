@@ -219,7 +219,7 @@ function setAuthView(user) {
   state.user = user;
   state.profileEditMode = false;
   const approvalPending = Boolean(user && !isApprovedUser(user));
-  setSessionHint(Boolean(user));
+  setSessionHint(Boolean(user) && !approvalPending);
   document.body.classList.toggle('is-authenticated', Boolean(user));
   document.body.classList.toggle('is-admin', Boolean(user?.isAdmin || user?.kind === 'admin'));
   document.body.classList.toggle('approval-pending', approvalPending);
@@ -307,6 +307,7 @@ function approvalBadge(user) {
 
 function renderAuthStatus() {
   if (!has('#authStatus')) return;
+  document.body.classList.toggle('has-auth-status', Boolean(!state.user && state.pendingVerificationEmail));
   if (state.user || !state.pendingVerificationEmail) {
     qs('#authStatus').innerHTML = '';
     return;
@@ -1273,7 +1274,7 @@ async function syncRoute(force = false) {
   const path = currentPath();
   const requestId = ++routeRequestId;
   showPage(path);
-  if (!state.user) return;
+  if (!state.user || !isApprovedUser(state.user)) return;
 
   try {
     await (pageLoaders[path] || loadHomePage)(force);
@@ -1691,6 +1692,7 @@ function bindEvents() {
   if (has('#loginForm')) qs('#loginForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/login'));
   if (has('#registerForm')) qs('#registerForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/register'));
   if (has('#logoutButton')) qs('#logoutButton').addEventListener('click', logout);
+  if (has('#approvalLogoutButton')) qs('#approvalLogoutButton').addEventListener('click', logout);
   if (has('#themeToggle')) qs('#themeToggle').addEventListener('click', toggleTheme);
   if (has('#themeToggleGuest')) qs('#themeToggleGuest').addEventListener('click', toggleTheme);
   if (has('#mobileThemeToggle')) qs('#mobileThemeToggle').addEventListener('click', toggleTheme);

@@ -70,6 +70,7 @@ class OikosAuthShell extends HTMLElement {
       <div class="page-title">
         <h1>Sign in</h1>
       </div>
+      <div id="authStatus"></div>
       <div id="authForms">
         <div class="auth-shell-actions">
           <button type="button" class="ghost theme-toggle" id="themeToggleGuest" data-theme-toggle aria-label="Toggle color theme"></button>
@@ -112,9 +113,11 @@ class OikosAuthShell extends HTMLElement {
           <p>Your email is verified, but an administrator still needs to approve your account before you can use Oikos.</p>
           <p><strong id="approvalPendingEmail"></strong></p>
           <p>Please check back later or contact your administrator.</p>
+          <div class="inline-actions">
+            <button type="button" class="ghost" id="approvalLogoutButton">Logout</button>
+          </div>
         </article>
       </div>
-      <div id="authStatus"></div>
     `;
   }
 }
