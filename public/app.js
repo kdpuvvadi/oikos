@@ -11,6 +11,7 @@ const state = {
   users: [],
   transactions: [],
   summaryTransactions: [],
+  appVersion: '',
   transactionRows: [],
   currentTransaction: null,
   transactionPagination: {
@@ -31,7 +32,8 @@ const state = {
     users: false,
     transactions: false,
     summaryTransactions: false,
-    homeTotals: false
+    homeTotals: false,
+    appVersion: false
   },
   pending: {}
 };
@@ -517,6 +519,10 @@ function renderUsers() {
   `;
 }
 
+function appVersionMarkup() {
+  return state.appVersion ? `<p class="app-version">Version ${state.appVersion}</p>` : '';
+}
+
 function renderMe() {
   if (!has('#meProfile')) return;
   const user = state.user;
@@ -597,6 +603,7 @@ function renderMe() {
           </div>
         </div>
       </article>
+      ${appVersionMarkup()}
     `;
     return;
   }
@@ -662,6 +669,7 @@ function renderMe() {
         </div>
       </form>
     </article>
+    ${appVersionMarkup()}
   `;
 }
 
@@ -1129,6 +1137,19 @@ async function loadHomeTotals(force = false) {
   }, force);
 }
 
+async function loadAppVersion(force = false) {
+  await ensureLoaded('appVersion', async () => {
+    try {
+      const response = await fetch('/manifest.json', { cache: 'no-store' });
+      const manifest = response.ok ? await response.json() : {};
+      state.appVersion = String(manifest.version || '').trim();
+    } catch {
+      state.appVersion = '';
+    }
+    state.loaded.appVersion = true;
+  }, force);
+}
+
 async function loadHomePage(force = false) {
   await Promise.all([
     loadCategories(force),
@@ -1141,6 +1162,7 @@ async function loadHomePage(force = false) {
 }
 
 async function loadMePage() {
+  await loadAppVersion();
   renderMe();
 }
 
