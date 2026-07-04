@@ -971,8 +971,10 @@ app.get('/transactions/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'transaction-detail.html'));
 });
 
-app.get(Object.keys(pageFiles), (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', pageFiles[req.path]));
+Object.entries(pageFiles).forEach(([route, file]) => {
+  app.get(route, (_req, res) => {
+    res.sendFile(path.join(__dirname, 'public', file));
+  });
 });
 
 app.listen(port, () => {
