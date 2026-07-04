@@ -524,6 +524,25 @@ h2 {
   margin-top: 16px;
 }
 
+.transactions-summary {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.transactions-summary strong {
+  color: var(--ink);
+}
+
+.transactions-summary span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .pagination-summary {
   display: grid;
   gap: 4px;
