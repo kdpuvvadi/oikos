@@ -1498,12 +1498,13 @@ async function submitStore(event) {
 
 async function submitPaymentMethod(event) {
   event.preventDefault();
+  const form = event.currentTarget;
   try {
     await api('/api/payment-methods', {
       method: 'POST',
-      body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))
+      body: JSON.stringify(Object.fromEntries(new FormData(form)))
     });
-    event.currentTarget.reset();
+    form.reset();
     toast('Payment method saved.');
     await refreshCurrentPage(['paymentMethods', 'transactions']);
   } catch (error) {
