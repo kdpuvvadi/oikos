@@ -330,6 +330,13 @@ function renderAuthStatus() {
   `;
 }
 
+function setAuthMode(mode) {
+  const registerMode = mode === 'register';
+  if (has('#authTitle')) qs('#authTitle').textContent = registerMode ? 'Create account' : 'Sign in';
+  if (has('#loginForm')) qs('#loginForm').classList.toggle('hidden', registerMode);
+  if (has('#registerForm')) qs('#registerForm').classList.toggle('hidden', !registerMode);
+}
+
 function otherStoreId() {
   return state.stores.find((store) => store.name?.trim().toLowerCase() === 'other')?.id || '';
 }
@@ -1691,6 +1698,9 @@ function bindEvents() {
   if (has('#expenseForm')) qs('#expenseForm').addEventListener('submit', submitExpense);
   if (has('#loginForm')) qs('#loginForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/login'));
   if (has('#registerForm')) qs('#registerForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/register'));
+  qsa('[data-auth-mode]').forEach((button) => {
+    button.addEventListener('click', () => setAuthMode(button.dataset.authMode));
+  });
   if (has('#logoutButton')) qs('#logoutButton').addEventListener('click', logout);
   if (has('#approvalLogoutButton')) qs('#approvalLogoutButton').addEventListener('click', logout);
   if (has('#themeToggle')) qs('#themeToggle').addEventListener('click', toggleTheme);

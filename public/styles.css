@@ -345,7 +345,7 @@ main {
 
 .auth-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: minmax(260px, 1fr);
   gap: 16px;
 }
 
@@ -366,6 +366,16 @@ main {
 
 body.has-auth-status #authForms {
   display: none;
+}
+
+.auth-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--muted);
+  font-weight: 700;
 }
 
 .inline-actions {

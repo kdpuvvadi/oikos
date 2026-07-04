@@ -68,7 +68,7 @@ class OikosAuthShell extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
       <div class="page-title">
-        <h1>Sign in</h1>
+        <h1 id="authTitle">Sign in</h1>
       </div>
       <div id="authStatus"></div>
       <div id="authForms">
@@ -87,9 +87,13 @@ class OikosAuthShell extends HTMLElement {
               <input type="password" name="password" autocomplete="current-password" required>
             </label>
             <button type="submit">Login</button>
+            <div class="auth-switch">
+              <span>New to Oikos?</span>
+              <button type="button" class="ghost" data-auth-mode="register">Create account</button>
+            </div>
           </form>
 
-          <form id="registerForm" class="panel form-stack">
+          <form id="registerForm" class="panel form-stack hidden">
             <h2>Create account</h2>
             <label>
               Name
@@ -104,6 +108,10 @@ class OikosAuthShell extends HTMLElement {
               <input type="password" name="password" autocomplete="new-password" minlength="8" required>
             </label>
             <button type="submit">Create account</button>
+            <div class="auth-switch">
+              <span>Already have an account?</span>
+              <button type="button" class="ghost" data-auth-mode="login">Sign in</button>
+            </div>
           </form>
         </div>
       </div>
