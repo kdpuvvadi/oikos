@@ -13,7 +13,7 @@
     "check": "node --check server.js && node --check public/app.js && node --check public/layout.js && node --check public/head.js && node --check public/seo.config.js && node --check scripts/setup-pocketbase.mjs && node --check scripts/make-admin.mjs && node --check scripts/sync-manifest-version.mjs"
   },
   "dependencies": {
-    "express": "^4.22.2",
+    "express": "^5.2.1",
     "pocketbase": "^0.26.9"
   }
 }
