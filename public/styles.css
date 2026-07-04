@@ -74,10 +74,6 @@ html.has-session #authPage {
   display: none !important;
 }
 
-html.has-session #appShell.hidden {
-  display: block !important;
-}
-
 .site-header {
   position: sticky;
   top: 0;
@@ -349,7 +345,7 @@ main {
 
 .auth-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: minmax(260px, 1fr);
   gap: 16px;
 }
 
@@ -360,12 +356,26 @@ main {
 }
 
 #authStatus {
-  margin-top: 16px;
+  margin-bottom: 16px;
 }
 
 .auth-status-copy {
   margin: 0;
   color: var(--muted);
+}
+
+body.has-auth-status #authForms {
+  display: none;
+}
+
+.auth-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--muted);
+  font-weight: 700;
 }
 
 .inline-actions {
