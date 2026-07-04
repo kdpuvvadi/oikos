@@ -754,17 +754,27 @@ app.get('/api/transactions', requireAuth, requireApproved, async (req, res) => {
     if (req.query.store) filters.push(`store = "${req.query.store}"`);
     if (req.query.paymentMethod) filters.push(`payment_method = "${req.query.paymentMethod}"`);
 
-    const transactions = await listPageRecords(req.pb, 'oikos_transactions', page, perPage, {
-      sort: '-date',
-      expand: 'category,subcategory,store,user,payment_method',
-      filter: filters.join(' && ')
-    });
+    const filter = filters.join(' && ');
+    const [transactions, matchingTransactions] = await Promise.all([
+      listPageRecords(req.pb, 'oikos_transactions', page, perPage, {
+        sort: '-date',
+        expand: 'category,subcategory,store,user,payment_method',
+        filter,
+        requestKey: null
+      }),
+      listRecords(req.pb, 'oikos_transactions', {
+        fields: 'amount',
+        filter,
+        requestKey: null
+      })
+    ]);
     res.json({
       items: transactions.items || [],
       page: transactions.page,
       perPage: transactions.perPage,
       totalItems: transactions.totalItems,
-      totalPages: transactions.totalPages
+      totalPages: transactions.totalPages,
+      totalAmount: sumRecordAmounts(matchingTransactions)
     });
   } catch (error) {
     handleError(res, error);

@@ -17,7 +17,8 @@ const state = {
     page: 1,
     perPage: 25,
     totalItems: 0,
-    totalPages: 1
+    totalPages: 1,
+    totalAmount: 0
   },
   homeTotals: {
     thisMonth: 0,
@@ -715,6 +716,24 @@ function renderTransactionPagination() {
   `;
 }
 
+function renderTransactionsSummary() {
+  if (!has('#transactionsSummary')) return;
+
+  if (!hasActiveTransactionFilters()) {
+    qs('#transactionsSummary').classList.add('hidden');
+    qs('#transactionsSummary').innerHTML = '';
+    return;
+  }
+
+  const { totalItems, totalAmount } = state.transactionPagination;
+  qs('#transactionsSummary').classList.remove('hidden');
+  qs('#transactionsSummary').innerHTML = `
+    <span>Filtered total</span>
+    <strong>${money.format(Number(totalAmount || 0))}</strong>
+    <span>${totalItems || 0} transaction${totalItems === 1 ? '' : 's'}</span>
+  `;
+}
+
 function renderPaymentMethods() {
   if (!has('#paymentMethodList')) return;
   qs('#paymentMethodList').innerHTML = state.paymentMethods.map((paymentMethod) => `
@@ -749,6 +768,7 @@ function renderCategories() {
 
 function renderTransactions() {
   if (!has('#transactionsList')) return;
+  renderTransactionsSummary();
   if (!state.transactionRows.length) {
     qs('#transactionsList').innerHTML = '<div class="panel"><p class="panel-empty">No transactions yet.</p></div>';
     renderTransactionPagination();
@@ -1005,7 +1025,8 @@ function resetDataState() {
     page: 1,
     perPage: defaultPerPage,
     totalItems: 0,
-    totalPages: 1
+    totalPages: 1,
+    totalAmount: 0
   };
   state.homeTotals = { thisMonth: 0, lastMonth: 0 };
   Object.keys(state.loaded).forEach((key) => {
@@ -1087,7 +1108,8 @@ async function loadTransactionRows() {
     page: data.page || 1,
     perPage: data.perPage || state.transactionPagination.perPage,
     totalItems: data.totalItems || 0,
-    totalPages: data.totalPages || 1
+    totalPages: data.totalPages || 1,
+    totalAmount: Number(data.totalAmount || 0)
   };
 }
 
