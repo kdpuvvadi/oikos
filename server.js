@@ -126,10 +126,21 @@ function authHintCookie() {
   return `${authHintCookieName}=1; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`;
 }
 
+function clearAuthHintCookie() {
+  return `${authHintCookieName}=; Path=/; SameSite=Lax; Max-Age=0`;
+}
+
+function authResponseCookies(client, user) {
+  return [
+    authCookie(client),
+    isApproved(user) ? authHintCookie() : clearAuthHintCookie()
+  ];
+}
+
 function clearAuthCookies() {
   return [
     `${authCookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
-    `${authHintCookieName}=; Path=/; SameSite=Lax; Max-Age=0`
+    clearAuthHintCookie()
   ];
 }
 
@@ -401,7 +412,7 @@ app.post('/api/auth/login', async (req, res) => {
         email
       });
     }
-    res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
+    res.setHeader('Set-Cookie', authResponseCookies(client, auth.record));
     res.json({
       token: client.authStore.token,
       user: publicUser(client.authStore.record),
@@ -495,7 +506,7 @@ app.post('/api/auth/login-otp', async (req, res) => {
     }
     const client = createPocketBaseClient();
     const auth = await client.collection('users').authWithOTP(otpId, otp);
-    res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
+    res.setHeader('Set-Cookie', authResponseCookies(client, auth.record || client.authStore.record));
     res.json({
       token: client.authStore.token,
       user: publicUser(auth.record || client.authStore.record),
@@ -521,7 +532,7 @@ app.get('/api/auth/me', async (req, res) => {
 
   try {
     const auth = await client.collection('users').authRefresh();
-    res.setHeader('Set-Cookie', [authCookie(client), authHintCookie()]);
+    res.setHeader('Set-Cookie', authResponseCookies(client, auth.record || client.authStore.record));
     res.json({
       token: client.authStore.token,
       user: publicUser(auth.record || client.authStore.record)
@@ -549,7 +560,7 @@ app.put('/api/auth/me', requireAuth, async (req, res) => {
       ...updateBody
     });
     req.pb.authStore.save(req.pb.authStore.token, updated);
-    res.setHeader('Set-Cookie', [authCookie(req.pb), authHintCookie()]);
+    res.setHeader('Set-Cookie', authResponseCookies(req.pb, updated));
     res.json({
       token: req.pb.authStore.token,
       user: publicUser(updated)
@@ -743,17 +754,27 @@ app.get('/api/transactions', requireAuth, requireApproved, async (req, res) => {
     if (req.query.store) filters.push(`store = "${req.query.store}"`);
     if (req.query.paymentMethod) filters.push(`payment_method = "${req.query.paymentMethod}"`);
 
-    const transactions = await listPageRecords(req.pb, 'oikos_transactions', page, perPage, {
-      sort: '-date',
-      expand: 'category,subcategory,store,user,payment_method',
-      filter: filters.join(' && ')
-    });
+    const filter = filters.join(' && ');
+    const [transactions, matchingTransactions] = await Promise.all([
+      listPageRecords(req.pb, 'oikos_transactions', page, perPage, {
+        sort: '-date',
+        expand: 'category,subcategory,store,user,payment_method',
+        filter,
+        requestKey: null
+      }),
+      listRecords(req.pb, 'oikos_transactions', {
+        fields: 'amount',
+        filter,
+        requestKey: null
+      })
+    ]);
     res.json({
       items: transactions.items || [],
       page: transactions.page,
       perPage: transactions.perPage,
       totalItems: transactions.totalItems,
-      totalPages: transactions.totalPages
+      totalPages: transactions.totalPages,
+      totalAmount: sumRecordAmounts(matchingTransactions)
     });
   } catch (error) {
     handleError(res, error);
@@ -971,8 +992,10 @@ app.get('/transactions/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'transaction-detail.html'));
 });
 
-app.get(Object.keys(pageFiles), (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', pageFiles[req.path]));
+Object.entries(pageFiles).forEach(([route, file]) => {
+  app.get(route, (_req, res) => {
+    res.sendFile(path.join(__dirname, 'public', file));
+  });
 });
 
 app.listen(port, () => {
