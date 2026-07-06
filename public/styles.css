@@ -74,10 +74,6 @@ html.has-session #authPage {
   display: none !important;
 }
 
-html.has-session #appShell.hidden {
-  display: block !important;
-}
-
 .site-header {
   position: sticky;
   top: 0;
@@ -239,6 +235,13 @@ nav a:hover {
   font-size: 0.85rem;
 }
 
+.app-version {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -349,7 +352,7 @@ main {
 
 .auth-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: minmax(260px, 1fr);
   gap: 16px;
 }
 
@@ -360,12 +363,26 @@ main {
 }
 
 #authStatus {
-  margin-top: 16px;
+  margin-bottom: 16px;
 }
 
 .auth-status-copy {
   margin: 0;
   color: var(--muted);
+}
+
+body.has-auth-status #authForms {
+  display: none;
+}
+
+.auth-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--muted);
+  font-weight: 700;
 }
 
 .inline-actions {
@@ -512,6 +529,25 @@ h2 {
   justify-content: space-between;
   gap: 16px;
   margin-top: 16px;
+}
+
+.transactions-summary {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.transactions-summary strong {
+  color: var(--ink);
+}
+
+.transactions-summary span {
+  color: var(--muted);
+  font-weight: 700;
 }
 
 .pagination-summary {

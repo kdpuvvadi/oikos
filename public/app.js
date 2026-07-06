@@ -11,13 +11,15 @@ const state = {
   users: [],
   transactions: [],
   summaryTransactions: [],
+  appVersion: '',
   transactionRows: [],
   currentTransaction: null,
   transactionPagination: {
     page: 1,
     perPage: 25,
     totalItems: 0,
-    totalPages: 1
+    totalPages: 1,
+    totalAmount: 0
   },
   homeTotals: {
     thisMonth: 0,
@@ -30,7 +32,8 @@ const state = {
     users: false,
     transactions: false,
     summaryTransactions: false,
-    homeTotals: false
+    homeTotals: false,
+    appVersion: false
   },
   pending: {}
 };
@@ -219,7 +222,7 @@ function setAuthView(user) {
   state.user = user;
   state.profileEditMode = false;
   const approvalPending = Boolean(user && !isApprovedUser(user));
-  setSessionHint(Boolean(user));
+  setSessionHint(Boolean(user) && !approvalPending);
   document.body.classList.toggle('is-authenticated', Boolean(user));
   document.body.classList.toggle('is-admin', Boolean(user?.isAdmin || user?.kind === 'admin'));
   document.body.classList.toggle('approval-pending', approvalPending);
@@ -307,6 +310,7 @@ function approvalBadge(user) {
 
 function renderAuthStatus() {
   if (!has('#authStatus')) return;
+  document.body.classList.toggle('has-auth-status', Boolean(!state.user && state.pendingVerificationEmail));
   if (state.user || !state.pendingVerificationEmail) {
     qs('#authStatus').innerHTML = '';
     return;
@@ -327,6 +331,13 @@ function renderAuthStatus() {
       </div>
     </article>
   `;
+}
+
+function setAuthMode(mode) {
+  const registerMode = mode === 'register';
+  if (has('#authTitle')) qs('#authTitle').textContent = registerMode ? 'Create account' : 'Sign in';
+  if (has('#loginForm')) qs('#loginForm').classList.toggle('hidden', registerMode);
+  if (has('#registerForm')) qs('#registerForm').classList.toggle('hidden', !registerMode);
 }
 
 function otherStoreId() {
@@ -508,6 +519,10 @@ function renderUsers() {
   `;
 }
 
+function appVersionMarkup() {
+  return state.appVersion ? `<p class="app-version">Version ${state.appVersion}</p>` : '';
+}
+
 function renderMe() {
   if (!has('#meProfile')) return;
   const user = state.user;
@@ -588,6 +603,7 @@ function renderMe() {
           </div>
         </div>
       </article>
+      ${appVersionMarkup()}
     `;
     return;
   }
@@ -653,6 +669,7 @@ function renderMe() {
         </div>
       </form>
     </article>
+    ${appVersionMarkup()}
   `;
 }
 
@@ -707,6 +724,24 @@ function renderTransactionPagination() {
   `;
 }
 
+function renderTransactionsSummary() {
+  if (!has('#transactionsSummary')) return;
+
+  if (!hasActiveTransactionFilters()) {
+    qs('#transactionsSummary').classList.add('hidden');
+    qs('#transactionsSummary').innerHTML = '';
+    return;
+  }
+
+  const { totalItems, totalAmount } = state.transactionPagination;
+  qs('#transactionsSummary').classList.remove('hidden');
+  qs('#transactionsSummary').innerHTML = `
+    <span>Filtered total</span>
+    <strong>${money.format(Number(totalAmount || 0))}</strong>
+    <span>${totalItems || 0} transaction${totalItems === 1 ? '' : 's'}</span>
+  `;
+}
+
 function renderPaymentMethods() {
   if (!has('#paymentMethodList')) return;
   qs('#paymentMethodList').innerHTML = state.paymentMethods.map((paymentMethod) => `
@@ -741,6 +776,7 @@ function renderCategories() {
 
 function renderTransactions() {
   if (!has('#transactionsList')) return;
+  renderTransactionsSummary();
   if (!state.transactionRows.length) {
     qs('#transactionsList').innerHTML = '<div class="panel"><p class="panel-empty">No transactions yet.</p></div>';
     renderTransactionPagination();
@@ -997,7 +1033,8 @@ function resetDataState() {
     page: 1,
     perPage: defaultPerPage,
     totalItems: 0,
-    totalPages: 1
+    totalPages: 1,
+    totalAmount: 0
   };
   state.homeTotals = { thisMonth: 0, lastMonth: 0 };
   Object.keys(state.loaded).forEach((key) => {
@@ -1079,7 +1116,8 @@ async function loadTransactionRows() {
     page: data.page || 1,
     perPage: data.perPage || state.transactionPagination.perPage,
     totalItems: data.totalItems || 0,
-    totalPages: data.totalPages || 1
+    totalPages: data.totalPages || 1,
+    totalAmount: Number(data.totalAmount || 0)
   };
 }
 
@@ -1099,6 +1137,19 @@ async function loadHomeTotals(force = false) {
   }, force);
 }
 
+async function loadAppVersion(force = false) {
+  await ensureLoaded('appVersion', async () => {
+    try {
+      const response = await fetch('/manifest.json', { cache: 'no-store' });
+      const manifest = response.ok ? await response.json() : {};
+      state.appVersion = String(manifest.version || '').trim();
+    } catch {
+      state.appVersion = '';
+    }
+    state.loaded.appVersion = true;
+  }, force);
+}
+
 async function loadHomePage(force = false) {
   await Promise.all([
     loadCategories(force),
@@ -1111,6 +1162,7 @@ async function loadHomePage(force = false) {
 }
 
 async function loadMePage() {
+  await loadAppVersion();
   renderMe();
 }
 
@@ -1273,7 +1325,7 @@ async function syncRoute(force = false) {
   const path = currentPath();
   const requestId = ++routeRequestId;
   showPage(path);
-  if (!state.user) return;
+  if (!state.user || !isApprovedUser(state.user)) return;
 
   try {
     await (pageLoaders[path] || loadHomePage)(force);
@@ -1498,12 +1550,13 @@ async function submitStore(event) {
 
 async function submitPaymentMethod(event) {
   event.preventDefault();
+  const form = event.currentTarget;
   try {
     await api('/api/payment-methods', {
       method: 'POST',
-      body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))
+      body: JSON.stringify(Object.fromEntries(new FormData(form)))
     });
-    event.currentTarget.reset();
+    form.reset();
     toast('Payment method saved.');
     await refreshCurrentPage(['paymentMethods', 'transactions']);
   } catch (error) {
@@ -1689,7 +1742,11 @@ function bindEvents() {
   if (has('#expenseForm')) qs('#expenseForm').addEventListener('submit', submitExpense);
   if (has('#loginForm')) qs('#loginForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/login'));
   if (has('#registerForm')) qs('#registerForm').addEventListener('submit', (event) => submitAuth(event, '/api/auth/register'));
+  qsa('[data-auth-mode]').forEach((button) => {
+    button.addEventListener('click', () => setAuthMode(button.dataset.authMode));
+  });
   if (has('#logoutButton')) qs('#logoutButton').addEventListener('click', logout);
+  if (has('#approvalLogoutButton')) qs('#approvalLogoutButton').addEventListener('click', logout);
   if (has('#themeToggle')) qs('#themeToggle').addEventListener('click', toggleTheme);
   if (has('#themeToggleGuest')) qs('#themeToggleGuest').addEventListener('click', toggleTheme);
   if (has('#mobileThemeToggle')) qs('#mobileThemeToggle').addEventListener('click', toggleTheme);
