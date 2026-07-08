@@ -1,6 +1,6 @@
 {
   "name": "oikos",
-  "version": "0.4.1",
+  "version": "0.5.0-rc",
   "description": "Oikos, Simple Express and PocketBase expenses management system.",
   "type": "module",
   "scripts": {
