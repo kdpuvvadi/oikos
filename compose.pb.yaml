@@ -1,0 +1,35 @@
+services:
+  pocketbase:
+    image: ghcr.io/kdpuvvadi/oikos/pb:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.pocketbase
+    container_name: pocketbase
+    ports:
+      - "${PB_PORT:-8090}:8090"
+    environment:
+      APP_PUBLIC_URL: "${APP_PUBLIC_URL}"
+      ZEPTO_MAIL_API_KEY: "${ZEPTO_MAIL_API_KEY}"
+      ZEPTO_MAIL_FROM_ADDRESS: "${ZEPTO_MAIL_FROM_ADDRESS}"
+      ZEPTO_MAIL_FROM_NAME: "${ZEPTO_MAIL_FROM_NAME}"
+    volumes:
+      - ./pb_data:/usr/src/app/pb_data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8090/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  oikos:
+    image: ghcr.io/kdpuvvadi/oikos:latest
+    container_name: oikos
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    environment:
+      PORT: "3000"
+      PB_URL: "http://pocketbase:8090"
+      APP_PUBLIC_URL: "${APP_PUBLIC_URL}"
+    ports:
+      - "${APP_PORT:-3000}:3000"
