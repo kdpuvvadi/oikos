@@ -6,4 +6,3 @@ server.err
 .gitignore
 pb_data
 pb_public
-pb_hooks
