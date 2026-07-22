@@ -46,6 +46,8 @@ docker compose exec oikos npm run setup:pocketbase
 
 The script is idempotent, so you can run it whenever you update the app to make sure your database schema stays in sync.
 
+The profile page also shows the branch baked into the Oikos image. CI supplies this automatically; for a local image build, set `APP_BUILD_BRANCH` (defaults to `local`). The value is stored in the image as `APP_BUILD_BRANCH`, so it remains available after container restarts.
+
 When `APP_PUBLIC_URL` is set, the setup script also updates PocketBase so built-in verification emails point to Oikos’s `/verify-email` page.
 It also enables PocketBase email OTP for the `users` collection and updates the default verification/OTP email templates used by Oikos.
 

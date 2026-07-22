@@ -355,6 +355,7 @@ PB_TOKEN=
 COOKIE_SECURE=false
 APP_PORT=3000
 PB_PORT=8090
+APP_BUILD_BRANCH=local
 ZEPTO_MAIL_API_KEY=
 ZEPTO_MAIL_FROM_ADDRESS=
 ZEPTO_MAIL_FROM_NAME=Oikos
@@ -369,6 +370,7 @@ ZEPTO_MAIL_FROM_NAME=Oikos
 | `PB_TOKEN` | (empty) | Optional PocketBase admin token for setup |
 | `COOKIE_SECURE` | `false` | Set to `true` in HTTPS production |
 | `APP_PUBLIC_URL` | (empty) | Public Oikos URL used in verification email links |
+| `APP_BUILD_BRANCH` | `local` in Docker Compose | Branch baked into the app image and shown on the profile page |
 | `ZEPTO_MAIL_API_KEY` | (empty) | ZeptoMail API key used by PocketBase's mailer hook |
 | `ZEPTO_MAIL_FROM_ADDRESS` | (empty) | Verified ZeptoMail sender address |
 | `ZEPTO_MAIL_FROM_NAME` | `Oikos` | Sender display name |

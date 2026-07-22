@@ -1,16 +1,19 @@
 import express from 'express';
 import PocketBase from 'pocketbase';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const appVersion = JSON.parse(readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version;
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const pbUrl = (process.env.PB_URL || 'http://127.0.0.1:8090').replace(/\/$/, '');
 const pbToken = process.env.PB_TOKEN || '';
+const appBuildBranch = sanitizeName(process.env.APP_BUILD_BRANCH) || 'unknown';
 const authCookieName = 'pb_auth';
 const authHintCookieName = 'oikos_session';
 const DEFAULT_TRANSACTION_PAGE_SIZE = 25;
@@ -371,6 +374,10 @@ app.get('/api/health', async (_req, res) => {
   } catch (error) {
     handleError(res, error);
   }
+});
+
+app.get('/api/app-info', (_req, res) => {
+  res.json({ version: appVersion, branch: appBuildBranch });
 });
 
 app.post('/api/auth/register', async (req, res) => {
