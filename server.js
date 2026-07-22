@@ -153,12 +153,16 @@ function clientFromRequest(req) {
 function publicUser(record) {
   if (!record) return null;
   const email = sanitizeName(record.email) || null;
-  const name = sanitizeName(record.name) || email || 'Unnamed user';
+  const firstName = sanitizeName(record.firstName);
+  const lastName = sanitizeName(record.lastName);
+  const name = [firstName, lastName].filter(Boolean).join(' ') || sanitizeName(record.name) || email || 'Unnamed user';
   const admin = record.kind === 'admin';
   return {
     id: record.id,
     email,
     name,
+    firstName,
+    lastName,
     emailVisibility: record.emailVisibility !== false,
     verified: record.verified !== false,
     approved: admin ? true : record.approved !== false,
@@ -373,15 +377,18 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const email = sanitizeName(req.body.email).toLowerCase();
     const password = String(req.body.password || '');
-    const name = sanitizeName(req.body.name);
-    if (!email || password.length < 8) {
-      return res.status(400).json({ error: 'Email and an 8 character password are required.' });
+    const firstName = sanitizeName(req.body.firstName);
+    const lastName = sanitizeName(req.body.lastName);
+    if (!email || !firstName || !lastName || password.length < 8) {
+      return res.status(400).json({ error: 'First name, last name, email, and an 8 character password are required.' });
     }
 
     const client = createPocketBaseClient();
     await client.collection('users').create({
       email,
-      name,
+      name: `${firstName} ${lastName}`,
+      firstName,
+      lastName,
       kind: 'user',
       approved: false,
       emailVisibility: true,
@@ -549,9 +556,20 @@ app.put('/api/auth/me', requireAuth, async (req, res) => {
       emailVisibility: Boolean(req.body.emailVisibility)
     };
     const name = sanitizeName(req.body.name);
+    const firstName = sanitizeName(req.body.firstName);
+    const lastName = sanitizeName(req.body.lastName);
     const email = sanitizeName(req.body.email).toLowerCase();
 
-    if (name) updateBody.name = name;
+    if (firstName || lastName) {
+      if (!firstName || !lastName) {
+        return res.status(400).json({ error: 'Both first name and last name are required.' });
+      }
+      updateBody.firstName = firstName;
+      updateBody.lastName = lastName;
+      updateBody.name = `${firstName} ${lastName}`;
+    } else if (name) {
+      updateBody.name = name;
+    }
     if (email) updateBody.email = email;
     if (req.body.transactionPageSize !== undefined) {
       updateBody.transactionPageSize = normalizeTransactionPageSize(req.body.transactionPageSize);

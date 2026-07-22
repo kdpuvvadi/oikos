@@ -246,6 +246,8 @@ async function main() {
     updateRule: 'id = @request.auth.id || @request.auth.kind = "admin"',
     deleteRule: '@request.auth.kind = "admin"',
     fields: [
+      textField('firstName', false),
+      textField('lastName', false),
       textField('kind', false),
       boolField('approved', false),
       optionalWholeNumberField('transactionPageSize', 10, 100)
