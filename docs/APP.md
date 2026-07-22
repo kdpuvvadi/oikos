@@ -183,7 +183,9 @@ Stores user accounts. Managed by PocketBase.
 | `id` | string | Unique identifier |
 | `email` | string | Email address (unique) |
 | `password` | string | Hashed password |
-| `name` | string | User's display name |
+| `firstName` | string | User's first name |
+| `lastName` | string | User's last name |
+| `name` | string | Full display name, maintained from first and last name |
 | `kind` | string | `"user"` or `"admin"` |
 | `emailVisibility` | boolean | Whether email is visible to others |
 | `verified` | boolean | Whether email verification has completed |

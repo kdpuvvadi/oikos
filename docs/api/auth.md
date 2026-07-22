@@ -17,13 +17,15 @@ Request body:
 {
   "email": "user@example.com",
   "password": "password123",
-  "name": "Example User"
+  "firstName": "Example",
+  "lastName": "User"
 }
 ```
 
 Rules:
 
 - `email` is required
+- `firstName` and `lastName` are required
 - `password` must be at least 8 characters
 - new users are created with `kind: "user"`
 
@@ -68,6 +70,8 @@ Response:
   "user": {
     "id": "USER_ID",
     "email": "user@example.com",
+    "firstName": "Example",
+    "lastName": "User",
     "name": "Example User",
     "emailVisibility": true,
     "kind": "user",
@@ -189,6 +193,8 @@ Currently supported fields:
 
 ```json
 {
+  "firstName": "Example",
+  "lastName": "User",
   "emailVisibility": true,
   "transactionPageSize": 25
 }
@@ -202,6 +208,8 @@ Response:
   "user": {
     "id": "USER_ID",
     "email": "user@example.com",
+    "firstName": "Example",
+    "lastName": "User",
     "name": "Example User",
     "emailVisibility": true,
     "verified": true,
@@ -277,6 +285,8 @@ Response:
   "user": {
     "id": "USER_ID",
     "email": "user@example.com",
+    "firstName": "Example",
+    "lastName": "User",
     "name": "Example User",
     "emailVisibility": true,
     "verified": true,
