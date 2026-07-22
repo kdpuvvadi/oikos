@@ -121,7 +121,8 @@ html.has-session #authPage {
 
 .mobile-profile-link {
   display: none;
-  color: var(--muted);
+  color: #fff;
+  background: var(--blue);
   font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
@@ -193,11 +194,22 @@ nav a:hover {
 }
 
 .user-link {
-  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--blue);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
   text-decoration: none;
 }
 
 .user-link:hover {
+  color: #fff;
+  filter: brightness(0.94);
   text-decoration: underline;
 }
 
