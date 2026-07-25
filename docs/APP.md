@@ -183,7 +183,9 @@ Stores user accounts. Managed by PocketBase.
 | `id` | string | Unique identifier |
 | `email` | string | Email address (unique) |
 | `password` | string | Hashed password |
-| `name` | string | User's display name |
+| `firstName` | string | User's first name |
+| `lastName` | string | User's last name |
+| `name` | string | Full display name, maintained from first and last name |
 | `kind` | string | `"user"` or `"admin"` |
 | `emailVisibility` | boolean | Whether email is visible to others |
 | `verified` | boolean | Whether email verification has completed |
@@ -353,6 +355,10 @@ PB_TOKEN=
 COOKIE_SECURE=false
 APP_PORT=3000
 PB_PORT=8090
+APP_BUILD_BRANCH=local
+ZEPTO_MAIL_API_KEY=
+ZEPTO_MAIL_FROM_ADDRESS=
+ZEPTO_MAIL_FROM_NAME=Oikos
 ```
 
 **Variables**:
@@ -364,6 +370,10 @@ PB_PORT=8090
 | `PB_TOKEN` | (empty) | Optional PocketBase admin token for setup |
 | `COOKIE_SECURE` | `false` | Set to `true` in HTTPS production |
 | `APP_PUBLIC_URL` | (empty) | Public Oikos URL used in verification email links |
+| `APP_BUILD_BRANCH` | `local` in Docker Compose | Branch baked into the app image and shown on the profile page |
+| `ZEPTO_MAIL_API_KEY` | (empty) | ZeptoMail API key used by PocketBase's mailer hook |
+| `ZEPTO_MAIL_FROM_ADDRESS` | (empty) | Verified ZeptoMail sender address |
+| `ZEPTO_MAIL_FROM_NAME` | `Oikos` | Sender display name |
 | `APP_PORT` | `3000` | Docker compose app port |
 | `PB_PORT` | `8090` | Docker compose PocketBase port |
 
