@@ -12,6 +12,7 @@ const state = {
   transactions: [],
   summaryTransactions: [],
   appVersion: '',
+  appBranch: '',
   transactionRows: [],
   currentTransaction: null,
   transactionPagination: {
@@ -536,7 +537,11 @@ function renderUsers() {
 }
 
 function appVersionMarkup() {
-  return state.appVersion ? `<p class="app-version">Version ${state.appVersion}</p>` : '';
+  const details = [
+    state.appVersion ? `Version: ${state.appVersion}` : '',
+    state.appBranch ? `Branch: ${state.appBranch}` : ''
+  ].filter(Boolean);
+  return details.length ? `<p class="app-version">${details.join(' | ')}</p>` : '';
 }
 
 function renderMe() {
@@ -1163,11 +1168,17 @@ async function loadHomeTotals(force = false) {
 async function loadAppVersion(force = false) {
   await ensureLoaded('appVersion', async () => {
     try {
-      const response = await fetch('/manifest.json', { cache: 'no-store' });
-      const manifest = response.ok ? await response.json() : {};
-      state.appVersion = String(manifest.version || '').trim();
+      const [manifestResponse, appInfoResponse] = await Promise.all([
+        fetch('/manifest.json', { cache: 'no-store' }),
+        fetch('/api/app-info', { cache: 'no-store' })
+      ]);
+      const manifest = manifestResponse.ok ? await manifestResponse.json() : {};
+      const appInfo = appInfoResponse.ok ? await appInfoResponse.json() : {};
+      state.appVersion = String(appInfo.version || manifest.version || '').trim();
+      state.appBranch = String(appInfo.branch || '').trim();
     } catch {
       state.appVersion = '';
+      state.appBranch = '';
     }
     state.loaded.appVersion = true;
   }, force);

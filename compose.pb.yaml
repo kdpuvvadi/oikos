@@ -23,6 +23,10 @@ services:
 
   oikos:
     image: ghcr.io/kdpuvvadi/oikos:latest
+    build:
+      context: .
+      args:
+        APP_BUILD_BRANCH: "${APP_BUILD_BRANCH:-local}"
     container_name: oikos
     depends_on:
       pocketbase:
