@@ -33,7 +33,7 @@ class OikosHeader extends HTMLElement {
             <a class="brand" href="/">💸 Oikos</a>
             <button type="button" class="ghost mobile-theme-toggle hidden" id="mobileThemeToggle" data-theme-toggle aria-label="Toggle color theme"></button>
             <a class="mobile-profile-link hidden" id="mobileProfileLink" href="/me" aria-label="Open profile">
-              <span aria-hidden="true">👤</span>
+              <span id="mobileUserInitials" aria-hidden="true"></span>
             </a>
             <button
               type="button"
@@ -96,8 +96,12 @@ class OikosAuthShell extends HTMLElement {
           <form id="registerForm" class="panel form-stack hidden">
             <h2>Create account</h2>
             <label>
-              Name
-              <input type="text" name="name" autocomplete="name" placeholder="Optional">
+              First name
+              <input type="text" name="firstName" autocomplete="given-name" required>
+            </label>
+            <label>
+              Last name
+              <input type="text" name="lastName" autocomplete="family-name" required>
             </label>
             <label>
               Email

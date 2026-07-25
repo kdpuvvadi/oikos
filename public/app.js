@@ -12,6 +12,7 @@ const state = {
   transactions: [],
   summaryTransactions: [],
   appVersion: '',
+  appBranch: '',
   transactionRows: [],
   currentTransaction: null,
   transactionPagination: {
@@ -218,6 +219,16 @@ function isApprovedUser(user = state.user) {
   return Boolean(user?.approved || user?.isAdmin || user?.kind === 'admin');
 }
 
+function userDisplayName(user) {
+  return [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() || user?.name || user?.email || 'User';
+}
+
+function userInitials(user) {
+  const parts = [user?.firstName, user?.lastName].filter(Boolean);
+  if (parts.length) return parts.map((part) => part.trim().charAt(0)).join('').slice(0, 2).toUpperCase();
+  return userDisplayName(user).split(/\s+/).map((part) => part.charAt(0)).join('').slice(0, 2).toUpperCase();
+}
+
 function setAuthView(user) {
   state.user = user;
   state.profileEditMode = false;
@@ -237,12 +248,18 @@ function setAuthView(user) {
     qs('#menuToggle').classList.toggle('hidden', !user || approvalPending);
     qs('#menuToggle').setAttribute('aria-expanded', 'false');
   }
-  const userLabel = user ? `${user.name}${isAdmin() ? ' (admin)' : ''}` : '';
-  if (has('#userName')) qs('#userName').textContent = userLabel;
+  const displayName = user ? userDisplayName(user) : '';
+  const userLabel = displayName ? `${displayName}${isAdmin() ? ' (admin)' : ''}` : '';
+  if (has('#userName')) {
+    qs('#userName').textContent = user ? userInitials(user) : '';
+    qs('#userName').setAttribute('aria-label', userLabel || 'Profile');
+    qs('#userName').title = userLabel || 'Profile';
+  }
   if (has('#mobileProfileLink')) {
     qs('#mobileProfileLink').title = userLabel || 'Profile';
     qs('#mobileProfileLink').classList.toggle('hidden', !user || approvalPending);
   }
+  if (has('#mobileUserInitials')) qs('#mobileUserInitials').textContent = user ? userInitials(user) : '';
   if (has('#mobileThemeToggle')) {
     qs('#mobileThemeToggle').classList.toggle('hidden', !user || approvalPending);
   }
@@ -520,7 +537,11 @@ function renderUsers() {
 }
 
 function appVersionMarkup() {
-  return state.appVersion ? `<p class="app-version">Version ${state.appVersion}</p>` : '';
+  const details = [
+    state.appVersion ? `Version: ${state.appVersion}` : '',
+    state.appBranch ? `Branch: ${state.appBranch}` : ''
+  ].filter(Boolean);
+  return details.length ? `<p class="app-version">${details.join(' | ')}</p>` : '';
 }
 
 function renderMe() {
@@ -555,7 +576,7 @@ function renderMe() {
         <div class="detail-list">
           <div class="detail-row">
             <span class="detail-label">Name</span>
-            <strong class="detail-value">${user.name || '-'}</strong>
+            <strong class="detail-value">${userDisplayName(user)}</strong>
           </div>
           <div class="detail-row">
             <span class="detail-label">Email</span>
@@ -613,10 +634,16 @@ function renderMe() {
     <article class="panel">
       <form id="profileEditForm" class="detail-list" data-profile-form>
         <div class="detail-row">
-          <span class="detail-label">Name</span>
+          <span class="detail-label">First name</span>
           <label class="detail-value detail-stack">
-            <input type="text" name="name" value="${user.name || ''}" autocomplete="name" required>
-            <div class="detail-help">Update the display name shown around the app.</div>
+            <input type="text" name="firstName" value="${user.firstName || ''}" autocomplete="given-name" required>
+          </label>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Last name</span>
+          <label class="detail-value detail-stack">
+            <input type="text" name="lastName" value="${user.lastName || ''}" autocomplete="family-name" required>
+            <div class="detail-help">Your full name is shown around the app.</div>
           </label>
         </div>
         <div class="detail-row">
@@ -675,18 +702,19 @@ function renderMe() {
 
 async function submitProfileBasics(form) {
   const formData = new FormData(form);
-  const name = String(formData.get('name') || '').trim();
+  const firstName = String(formData.get('firstName') || '').trim();
+  const lastName = String(formData.get('lastName') || '').trim();
   const email = String(formData.get('email') || '').trim();
 
-  if (!name || !email) {
-    toast('Name and email are required.');
+  if (!firstName || !lastName || !email) {
+    toast('First name, last name, and email are required.');
     return;
   }
 
   try {
     const emailChanged = email.toLowerCase() !== String(state.user?.email || '').toLowerCase();
     await saveProfileSettings(
-      { name, email },
+      { firstName, lastName, email },
       emailChanged ? 'Profile updated. Verify the new email if prompted.' : 'Profile updated.'
     );
     state.profileEditMode = false;
@@ -1140,11 +1168,17 @@ async function loadHomeTotals(force = false) {
 async function loadAppVersion(force = false) {
   await ensureLoaded('appVersion', async () => {
     try {
-      const response = await fetch('/manifest.json', { cache: 'no-store' });
-      const manifest = response.ok ? await response.json() : {};
-      state.appVersion = String(manifest.version || '').trim();
+      const [manifestResponse, appInfoResponse] = await Promise.all([
+        fetch('/manifest.json', { cache: 'no-store' }),
+        fetch('/api/app-info', { cache: 'no-store' })
+      ]);
+      const manifest = manifestResponse.ok ? await manifestResponse.json() : {};
+      const appInfo = appInfoResponse.ok ? await appInfoResponse.json() : {};
+      state.appVersion = String(appInfo.version || manifest.version || '').trim();
+      state.appBranch = String(appInfo.branch || '').trim();
     } catch {
       state.appVersion = '';
+      state.appBranch = '';
     }
     state.loaded.appVersion = true;
   }, force);

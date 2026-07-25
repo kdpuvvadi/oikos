@@ -46,8 +46,24 @@ docker compose exec oikos npm run setup:pocketbase
 
 The script is idempotent, so you can run it whenever you update the app to make sure your database schema stays in sync.
 
+The profile page also shows the branch baked into the Oikos image. CI supplies this automatically; for a local image build, set `APP_BUILD_BRANCH` (defaults to `local`). The value is stored in the image as `APP_BUILD_BRANCH`, so it remains available after container restarts.
+
 When `APP_PUBLIC_URL` is set, the setup script also updates PocketBase so built-in verification emails point to Oikos’s `/verify-email` page.
 It also enables PocketBase email OTP for the `users` collection and updates the default verification/OTP email templates used by Oikos.
+
+### ZeptoMail on Railway
+
+Railway blocks outbound SMTP. PocketBase's [`pb_hooks/zeptomail.pb.js`](pb_hooks/zeptomail.pb.js) intercepts verification, OTP, reset, and other system emails and sends them to ZeptoMail's HTTPS API instead. No SMTP service or port is used.
+
+Set these variables on the **PocketBase** Railway service:
+
+```env
+ZEPTO_MAIL_API_KEY=your_zeptomail_api_key
+ZEPTO_MAIL_FROM_ADDRESS=
+ZEPTO_MAIL_FROM_NAME=Oikos
+```
+
+The included PocketBase Dockerfile copies the hook into the container. Configure Railway to build the PocketBase service with `Dockerfile.pocketbase`; then set the same three variables there. Do not configure PocketBase SMTP settings; the hook intentionally does not call `e.next()`.
 
 ### 4. Admin Privileges
 

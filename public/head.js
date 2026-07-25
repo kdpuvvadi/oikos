@@ -23,7 +23,7 @@ const headEntries = [
   { tag: 'meta', attrs: { name: 'viewport', content: 'width=device-width, initial-scale=1.0, viewport-fit=cover' } },
   { tag: 'meta', attrs: { name: 'mobile-web-app-capable', content: 'yes' } },
   { tag: 'meta', attrs: { name: 'apple-mobile-web-app-capable', content: 'yes' } },
-  { tag: 'meta', attrs: { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' } },
+  { tag: 'meta', attrs: { name: 'apple-mobile-web-app-status-bar-style', content: 'black' } },
   { tag: 'meta', attrs: { name: 'apple-mobile-web-app-title', content: 'Oikos' } },
   { tag: 'link', attrs: { rel: 'manifest', href: '/manifest.json' } },
   { tag: 'meta', attrs: { property: 'og:type', content: 'website' } },

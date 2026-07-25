@@ -78,7 +78,11 @@ html.has-session #authPage {
   position: sticky;
   top: 0;
   z-index: 5;
-  padding: 16px 28px;
+  padding:
+    calc(16px + env(safe-area-inset-top, 0px))
+    calc(28px + env(safe-area-inset-right, 0px))
+    16px
+    calc(28px + env(safe-area-inset-left, 0px));
   border-bottom: 1px solid var(--line);
   background: var(--header-bg);
   backdrop-filter: blur(14px);
@@ -117,7 +121,8 @@ html.has-session #authPage {
 
 .mobile-profile-link {
   display: none;
-  color: var(--muted);
+  color: #fff;
+  background: var(--blue);
   font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
@@ -189,11 +194,22 @@ nav a:hover {
 }
 
 .user-link {
-  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--blue);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
   text-decoration: none;
 }
 
 .user-link:hover {
+  color: #fff;
+  filter: brightness(0.94);
   text-decoration: underline;
 }
 
@@ -341,13 +357,13 @@ nav a:hover {
 main {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 34px 0 56px;
+  padding: 34px 0 calc(56px + env(safe-area-inset-bottom, 0px));
 }
 
 .auth-shell {
   width: min(880px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 34px 0 56px;
+  padding: 34px 0 calc(56px + env(safe-area-inset-bottom, 0px));
 }
 
 .auth-grid {
@@ -1201,7 +1217,11 @@ dialog::backdrop {
 
 @media (max-width: 720px) {
   .site-header {
-    padding: 14px 16px;
+    padding:
+      calc(14px + env(safe-area-inset-top, 0px))
+      calc(16px + env(safe-area-inset-right, 0px))
+      14px
+      calc(16px + env(safe-area-inset-left, 0px));
   }
 
   .header-top {
