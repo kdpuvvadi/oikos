@@ -20,6 +20,7 @@ const DEFAULT_TRANSACTION_PAGE_SIZE = 25;
 const TRANSACTION_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const requestContext = new AsyncLocalStorage();
 let requestIdSequence = 0;
+import { createProxyMiddleware } from "http-proxy-middleware";
 
 function nextRequestId() {
   requestIdSequence += 1;
@@ -91,6 +92,43 @@ const pb = createPocketBaseClient();
 if (pbToken) {
   pb.authStore.save(pbToken, null);
 }
+
+app.use(
+  "/pb",
+  createProxyMiddleware({
+    target: pbUrl,
+    changeOrigin: true,
+    ws: true,
+    xfwd: true,
+
+    pathRewrite: {
+      "^/pb": "",
+    },
+
+    on: {
+      proxyRes(proxyRes) {
+        const location = proxyRes.headers.location;
+        if (location?.startsWith("/")) {
+          proxyRes.headers.location = "/pb" + location;
+        }
+      },
+
+      error(err, req, res) {
+        logger.error(
+          `PocketBase proxy error: ${req.method} ${req.originalUrl}`,
+          err
+        );
+
+        if (!res.headersSent) {
+          res.status(502).json({
+            error: "PocketBase proxy error",
+            message: err.message,
+          });
+        }
+      },
+    },
+  })
+);
 
 app.use(express.json());
 app.use((req, res, next) => {
