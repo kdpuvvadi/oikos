@@ -261,13 +261,16 @@ function totalsByMonth(records) {
 }
 
 function summaryTransaction(record) {
+  const storeName = record.expand?.store?.name || 'Unknown';
+  const storeText = String(record.storeText || '').trim();
   return {
     id: record.id,
     date: record.date,
     amount: Number(record.amount || 0),
     category: record.expand?.category?.name || 'Uncategorized',
     subcategory: record.expand?.subcategory?.name || 'None',
-    store: record.storeText || record.expand?.store?.name || 'Unknown',
+    store: storeText || storeName,
+    storeText,
     paymentMethod: record.expand?.payment_method?.name || 'Not set'
   };
 }

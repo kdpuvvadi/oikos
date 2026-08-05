@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oikos-v2';
+const CACHE_NAME = 'oikos-v3';
 const urlsToCache = [
   '/',
   '/index.html',

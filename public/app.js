@@ -365,11 +365,19 @@ function displayStore(transaction) {
   return transaction.storeText || transaction.expand?.store?.name || 'Unknown';
 }
 
+function summaryStoreLabel(transaction) {
+  const storeText = String(transaction?.storeText || '').trim();
+  if (storeText) return storeText;
+  const store = String(transaction?.store || '').trim();
+  if (!store || store.toLowerCase() === 'other') return '';
+  return store;
+}
+
 function summaryLabelFor(transaction, field) {
   if (field === 'month') return String(transaction.date || '').slice(0, 7);
   if (field === 'category') return transaction.category || 'Uncategorized';
   if (field === 'subcategory') return transaction.subcategory || 'None';
-  if (field === 'store') return transaction.store || 'Unknown';
+  if (field === 'store') return summaryStoreLabel(transaction) || null;
   if (field === 'paymentMethod') return transaction.paymentMethod || 'Not set';
   return 'Total';
 }
@@ -1278,7 +1286,7 @@ function renderTopExpenses(transactions) {
     <a class="dash-expense-item" href="/transactions/${encodeURIComponent(transaction.id)}">
       <span class="dash-expense-rank">${index + 1}</span>
       <span class="dash-expense-body">
-        <strong>${escapeHtml(transaction.store || 'Unknown')}</strong>
+        <strong>${escapeHtml(summaryStoreLabel(transaction) || transaction.category || 'Expense')}</strong>
         <span>${escapeHtml(formatLongDate(transaction.date))} · ${escapeHtml(transaction.category || 'Uncategorized')}</span>
       </span>
       <strong class="dash-expense-amount">${money.format(transaction.amount || 0)}</strong>
@@ -1331,19 +1339,35 @@ function renderDashboard() {
   renderCategoryDonut(transactions);
   renderDailyChart(transactions);
   renderBars('#paymentChart', sumBy(transactions, (transaction) => transaction.paymentMethod || 'Not set'), { limit: 6, colors: true });
-  renderBars('#storeChart', sumBy(transactions, (transaction) => transaction.store || 'Unknown'), { limit: 6, colors: true });
+  renderBars(
+    '#storeChart',
+    sumBy(
+      transactions.filter((transaction) => summaryStoreLabel(transaction)),
+      summaryStoreLabel
+    ),
+    { limit: 6, colors: true }
+  );
   renderTopExpenses(transactions);
 }
 
 function renderPivot(row = 'month', column = 'category') {
   if (!has('#pivotTable')) return;
-  const rowLabels = [...new Set(state.summaryTransactions.map((transaction) => summaryLabelFor(transaction, row)))].sort();
-  const columnLabels = [...new Set(state.summaryTransactions.map((transaction) => summaryLabelFor(transaction, column)))].sort();
+  const rowLabels = [...new Set(
+    state.summaryTransactions
+      .map((transaction) => summaryLabelFor(transaction, row))
+      .filter((label) => label != null && label !== '')
+  )].sort();
+  const columnLabels = [...new Set(
+    state.summaryTransactions
+      .map((transaction) => summaryLabelFor(transaction, column))
+      .filter((label) => label != null && label !== '')
+  )].sort();
   const matrix = {};
 
   state.summaryTransactions.forEach((transaction) => {
     const rowKey = summaryLabelFor(transaction, row);
     const columnKey = summaryLabelFor(transaction, column);
+    if (rowKey == null || rowKey === '' || columnKey == null || columnKey === '') return;
     matrix[rowKey] = matrix[rowKey] || {};
     matrix[rowKey][columnKey] = (matrix[rowKey][columnKey] || 0) + Number(transaction.amount);
   });
