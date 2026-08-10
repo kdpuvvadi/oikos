@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const appVersion = JSON.parse(readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version;
 
 function loadDotEnv() {
   const envPath = path.join(__dirname, '.env');
