@@ -29,7 +29,9 @@ export function transactionAvatarLabel(transaction) {
 }
 
 export function isApprovedUser(user) {
-  return Boolean(user?.approved || user?.isAdmin || user?.kind === 'admin');
+  if (!user) return false;
+  if (user.isAdmin || user.kind === 'admin') return true;
+  return Boolean(user.verified && user.approved);
 }
 
 export function verificationBadge(user) {

@@ -74,7 +74,7 @@ export function publicUser(record) {
     firstName,
     lastName,
     emailVisibility: record.emailVisibility !== false,
-    verified: record.verified !== false,
+    verified: record.verified === true,
     approved: admin ? true : record.approved === true,
     kind: record.kind || 'user',
     isAdmin: admin,
@@ -200,12 +200,21 @@ export async function getCurrentUser() {
   if (!pb.authStore.isValid || !pb.authStore.record?.id) {
     throw pbError({ status: 401, message: 'Not logged in.' });
   }
+  if (pb.authStore.record.verified !== true) {
+    pb.authStore.clear();
+    throw pbError({ status: 401, message: 'Not logged in.' });
+  }
   if (!tokenNeedsRefresh(pb.authStore.token)) {
     return { user: publicUser(pb.authStore.record) };
   }
   try {
     const auth = await pb.collection('users').authRefresh();
-    return { user: publicUser(auth.record || pb.authStore.record) };
+    const record = auth.record || pb.authStore.record;
+    if (record?.verified !== true) {
+      pb.authStore.clear();
+      throw pbError({ status: 401, message: 'Not logged in.' });
+    }
+    return { user: publicUser(record) };
   } catch (error) {
     pb.authStore.clear();
     throw pbError(error, 'Not logged in.');
@@ -216,7 +225,7 @@ export async function login({ email, password }) {
   const normalizedEmail = sanitizeName(email).toLowerCase();
   try {
     const auth = await pb.collection('users').authWithPassword(normalizedEmail, String(password || ''));
-    if (auth.record?.verified === false) {
+    if (auth.record?.verified !== true) {
       pb.authStore.clear();
       const error = pbError({
         status: 403,
@@ -321,6 +330,21 @@ export async function verifyEmail(token) {
   } catch (error) {
     throw pbError(error, 'Verification failed.');
   }
+}
+
+/** Used/expired tokens look the same in PocketBase — treat as already verified for UX. */
+export function isVerificationTokenSpent(error) {
+  const message = String(error?.message || '').toLowerCase();
+  const data = error?.data?.data || error?.data || {};
+  const tokenDetail = String(data?.token?.message || data?.token?.code || '').toLowerCase();
+  return (
+    message.includes('invalid or expired')
+    || message.includes('invalid token')
+    || message.includes('expired')
+    || tokenDetail.includes('invalid')
+    || tokenDetail.includes('expired')
+    || tokenDetail.includes('validation_invalid_token')
+  );
 }
 
 export async function fetchCategories() {

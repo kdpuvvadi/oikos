@@ -32,8 +32,9 @@ export function AuthProvider({ children, onAuthCleared }) {
 
   const setUser = useCallback((nextUser) => {
     setUserState(nextUser);
-    const approvalPending = Boolean(nextUser && !isApprovedUser(nextUser));
-    setSessionHint(Boolean(nextUser) && !approvalPending);
+    const approved = isApprovedUser(nextUser);
+    const approvalPending = Boolean(nextUser?.verified && !approved);
+    setSessionHint(approved);
     document.body.classList.toggle('is-authenticated', Boolean(nextUser));
     document.body.classList.toggle('is-admin', Boolean(nextUser?.isAdmin || nextUser?.kind === 'admin'));
     document.body.classList.toggle('approval-pending', approvalPending);

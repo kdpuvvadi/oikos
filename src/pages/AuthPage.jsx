@@ -35,7 +35,7 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState('login');
   const [submitting, setSubmitting] = useState(false);
-  const approvalPending = Boolean(user && !isApproved);
+  const approvalPending = Boolean(user?.verified && !isApproved);
 
   function goToVerifyEmail(email, message) {
     const normalized = String(email || '').trim().toLowerCase();
