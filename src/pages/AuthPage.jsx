@@ -201,11 +201,17 @@ export default function AuthPage() {
               <CardContent>
                 <form id="loginForm" className="grid gap-4" onSubmit={handleLogin}>
                   <div className="grid gap-2">
-                    <Label htmlFor="login-email">Email</Label>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <Label htmlFor="login-email">Email</Label>
+                      <span className="text-xs text-muted-foreground">Account login address</span>
+                    </div>
                     <Input id="login-email" type="email" name="email" autoComplete="email" required />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="login-password">Password</Label>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <Label htmlFor="login-password">Password</Label>
+                      <span className="text-xs text-muted-foreground">Case sensitive</span>
+                    </div>
                     <Input
                       id="login-password"
                       type="password"
@@ -230,7 +236,10 @@ export default function AuthPage() {
                 <form id="registerForm" className="grid gap-4" onSubmit={handleRegister}>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="grid gap-2">
-                      <Label htmlFor="register-first">First name</Label>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <Label htmlFor="register-first" className="shrink-0">First name</Label>
+                        <span className="truncate text-xs text-muted-foreground">Shown in app</span>
+                      </div>
                       <Input
                         id="register-first"
                         type="text"
@@ -240,7 +249,10 @@ export default function AuthPage() {
                       />
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor="register-last">Last name</Label>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <Label htmlFor="register-last" className="shrink-0">Last name</Label>
+                        <span className="truncate text-xs text-muted-foreground">Shown in app</span>
+                      </div>
                       <Input
                         id="register-last"
                         type="text"
@@ -251,11 +263,17 @@ export default function AuthPage() {
                     </div>
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="register-email">Email</Label>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <Label htmlFor="register-email">Email</Label>
+                      <span className="text-xs text-muted-foreground">Needs verification</span>
+                    </div>
                     <Input id="register-email" type="email" name="email" autoComplete="email" required />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="register-password">Password</Label>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <Label htmlFor="register-password">Password</Label>
+                      <span className="text-xs text-muted-foreground">At least 8 characters</span>
+                    </div>
                     <Input
                       id="register-password"
                       type="password"
@@ -264,7 +282,6 @@ export default function AuthPage() {
                       minLength={8}
                       required
                     />
-                    <p className="text-xs text-muted-foreground">At least 8 characters</p>
                   </div>
                   <Button type="submit" size="lg" className="w-full" disabled={submitting}>
                     {submitting ? 'Creating…' : 'Create account'}

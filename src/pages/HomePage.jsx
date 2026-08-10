@@ -29,9 +29,13 @@ function todayIsoDate() {
 function Field({ label, htmlFor, children, className = '', hint }) {
   return (
     <div className={`grid min-w-0 gap-2 ${className}`.trim()}>
-      <Label htmlFor={htmlFor} className="text-muted-foreground">{label}</Label>
+      <div className="flex items-baseline justify-between gap-2">
+        <Label htmlFor={htmlFor} className="shrink-0 text-muted-foreground">{label}</Label>
+        {hint ? (
+          <span className="truncate text-xs text-muted-foreground">{hint}</span>
+        ) : null}
+      </div>
       {children}
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }
@@ -170,7 +174,7 @@ export default function HomePage() {
         <CardContent className="pt-6">
           <form id="expenseForm" className="grid min-w-0 gap-6" onSubmit={handleSubmit}>
             <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-              <Field label="Date" htmlFor="expense-date">
+              <Field label="Date" htmlFor="expense-date" hint="When you spent it">
                 <Input
                   id="expense-date"
                   type="date"
@@ -180,7 +184,7 @@ export default function HomePage() {
                   onChange={(event) => setDate(event.target.value)}
                 />
               </Field>
-              <Field label="Amount spent" htmlFor="expense-amount">
+              <Field label="Amount spent" htmlFor="expense-amount" hint="Total for this purchase">
                 <Input
                   id="expense-amount"
                   type="number"
@@ -195,7 +199,7 @@ export default function HomePage() {
                   onChange={(event) => setAmount(event.target.value)}
                 />
               </Field>
-              <Field label="Title" htmlFor="expense-title" className="sm:col-span-2">
+              <Field label="Title" htmlFor="expense-title" className="sm:col-span-2" hint="Optional short description">
                 <Input
                   id="expense-title"
                   type="text"
@@ -210,7 +214,7 @@ export default function HomePage() {
             <Separator />
 
             <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-              <Field label="Payment mode" htmlFor="expense-payment">
+              <Field label="Payment mode" htmlFor="expense-payment" hint="How you paid">
                 <NativeSelect
                   id="expense-payment"
                   name="paymentMethod"
@@ -223,7 +227,7 @@ export default function HomePage() {
                   ))}
                 </NativeSelect>
               </Field>
-              <Field label="Store" htmlFor="expense-store">
+              <Field label="Store" htmlFor="expense-store" hint="Where you bought it">
                 <NativeSelect
                   id="expense-store"
                   name="store"
@@ -242,7 +246,12 @@ export default function HomePage() {
                 </NativeSelect>
               </Field>
               {showStoreWrap ? (
-                <Field label="Store name" htmlFor="expense-store-name" className="sm:col-span-2">
+                <Field
+                  label="Store name"
+                  htmlFor="expense-store-name"
+                  className="sm:col-span-2"
+                  hint={isAdminCreatingStore ? 'Creates a reusable store' : 'One-off store label'}
+                >
                   <Input
                     id="expense-store-name"
                     type="text"
@@ -258,7 +267,7 @@ export default function HomePage() {
             <Separator />
 
             <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-              <Field label="Category" htmlFor="expense-category">
+              <Field label="Category" htmlFor="expense-category" hint="Required">
                 <NativeSelect
                   id="expense-category"
                   name="category"
@@ -279,7 +288,7 @@ export default function HomePage() {
                 </NativeSelect>
               </Field>
               {showNewCategory ? (
-                <Field label="New category" htmlFor="expense-category-name">
+                <Field label="New category" htmlFor="expense-category-name" hint="Saved for everyone">
                   <Input
                     id="expense-category-name"
                     type="text"
@@ -290,7 +299,7 @@ export default function HomePage() {
                   />
                 </Field>
               ) : null}
-              <Field label="Subcategory" htmlFor="expense-subcategory">
+              <Field label="Subcategory" htmlFor="expense-subcategory" hint="Required">
                 <NativeSelect
                   id="expense-subcategory"
                   name="subcategory"
@@ -306,7 +315,7 @@ export default function HomePage() {
                 </NativeSelect>
               </Field>
               {showNewSubcategory ? (
-                <Field label="New subcategory" htmlFor="expense-subcategory-name">
+                <Field label="New subcategory" htmlFor="expense-subcategory-name" hint="Under this category">
                   <Input
                     id="expense-subcategory-name"
                     type="text"
