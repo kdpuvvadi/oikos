@@ -1,174 +1,57 @@
-# Transactions API
+# Transactions
 
-All endpoints in this section require authentication.
+Collection: `oikos_transactions`.  
+Helpers: `fetchTransactions`, `fetchTransaction`, `createTransaction`, `updateTransaction`, `deleteTransaction`.
 
-Regular users can access only their own transactions. Admins can access all transactions.
+Non-admins are scoped to `user = <self>`. Admins see all records and may filter by `user`.
 
-## `GET /api/transactions`
+## List — `fetchTransactions(query)`
 
-Returns transactions sorted by descending date.
+| Query key | Effect |
+|-----------|--------|
+| `fromDate`, `toDate` | Inclusive calendar dates (`YYYY-MM-DD`); end uses next-day boundary |
+| `category`, `subcategory`, `store` | Relation ids |
+| `paymentMethod` | Filters `payment_method` |
+| `user` | Admin only |
+| `page` | Default `1` |
+| `perPage` | Default user’s `transactionPageSize` (normalized to 10/25/50/100) |
+| `includeTotalAmount` | If truthy and results span multiple pages, loads amounts for `totalAmount` |
 
-Supported query parameters:
+Expand: `category,subcategory,store,user,payment_method`. Sort: `-date`.
 
-- `page`
-  1-based page number. Defaults to `1`.
-- `perPage`
-  Page size. Allowed values are `10`, `25`, `50`, and `100`.
-  If omitted, Oikos uses the current user's stored `transactionPageSize`.
-- `month`
-  Month in `YYYY-MM` format. Filters to that calendar month.
-- `fromDate`
-  Inclusive lower date bound in `YYYY-MM-DD` format.
-- `toDate`
-  Inclusive upper date bound supplied as `YYYY-MM-DD`. Internally this is converted to the next day boundary so the selected day is included.
-- `category`
-  Category id.
-- `subcategory`
-  Subcategory id.
-- `store`
-  Store id.
-- `user`
-  User id. Admin only. Ignored for non-admin users.
+Returns:
 
-Example:
-
-```curl
-GET /api/transactions?fromDate=2026-04-01&toDate=2026-04-30&category=CATEGORY_ID&subcategory=SUBCATEGORY_ID
-```
-
-Response shape:
-
-```json
+```js
 {
-  "items": [
-    {
-      "id": "TRANSACTION_ID",
-      "date": "2026-04-27 00:00:00.000Z",
-      "amount": 2364.99,
-      "payment_method": "PAYMENT_METHOD_ID",
-      "category": "CATEGORY_ID",
-      "subcategory": "SUBCATEGORY_ID",
-      "store": "STORE_ID",
-      "user": "USER_ID",
-      "expand": {
-        "category": {
-          "id": "CATEGORY_ID",
-          "name": "Transport"
-        },
-        "subcategory": {
-          "id": "SUBCATEGORY_ID",
-          "name": "Fuel"
-        },
-        "store": {
-          "id": "STORE_ID",
-          "name": "Amazon"
-        },
-        "user": {
-          "id": "USER_ID",
-          "email": "user@example.com"
-        },
-        "payment_method": {
-          "id": "PAYMENT_METHOD_ID",
-          "name": "Cash"
-        }
-      }
-    }
-  ],
-  "page": 1,
-  "perPage": 25,
-  "totalItems": 42,
-  "totalPages": 2
+  items, page, perPage, totalItems, totalPages,
+  totalAmount  // page sum, or full filtered sum when includeTotalAmount
 }
 ```
 
-## `POST /api/transactions`
+## One — `fetchTransaction(id)`
 
-Creates a transaction for the currently logged-in user.
+Expands the same relations. Non-owners get a not-found style error.
 
-Request body:
+## Create — `createTransaction(body)`
 
-```json
-{
-  "date": "2026-04-27",
-  "title": "Fuel refill",
-  "amount": 2364.99,
-  "paymentMethod": "PAYMENT_METHOD_ID",
-  "category": "CATEGORY_ID",
-  "subcategory": "SUBCATEGORY_ID",
-  "store": "STORE_ID",
-  "storeText": "Local roadside pump"
-}
-```
+| Field | Required | Notes |
+|-------|----------|--------|
+| `date` | yes | `YYYY-MM-DD` |
+| `amount` | yes | number &gt; 0 |
+| `title` | no | |
+| `category`, `subcategory`, `store` | yes* | ids |
+| `paymentMethod` | no | → `payment_method` |
+| `storeText` | if store is “other” | free-text label |
+| `categoryName`, `subcategoryName`, `storeName` | admin only | create-or-reuse by name |
 
-Optional admin-only create-on-the-fly fields:
+\* Unless admin supplies `*Name` fields to create reference rows first.
 
-```json
-{
-  "categoryName": "Transport",
-  "subcategoryName": "Fuel",
-  "storeName": "Amazon"
-}
-```
+Sets `user` to the current auth user.
 
-Rules:
+## Update — `updateTransaction(id, body)`
 
-- `date` is required
-- `amount` must be positive
-- `category`, `subcategory`, and `store` are required after any admin-side creation logic runs
-- `title` is optional
-- `storeText` is required when the selected store is the seeded `Other` store
-- non-admins cannot use `categoryName`, `subcategoryName`, or `storeName`
-- `paymentMethod` may be omitted or blank
+Same core fields as create (`date`, `amount`, `title`, category/subcategory/store ids, `paymentMethod`, `storeText`). Does not create reference data on the fly.
 
-Success:
+## Delete — `deleteTransaction(id)`
 
-- `201 Created`
-
-## `PUT /api/transactions/:id`
-
-Updates an existing transaction.
-
-Permissions:
-
-- admin can update any transaction
-- regular user can update only their own transaction
-
-Request body:
-
-```json
-{
-  "date": "2026-04-27",
-  "title": "Fuel refill",
-  "amount": 2364.99,
-  "paymentMethod": "PAYMENT_METHOD_ID",
-  "category": "CATEGORY_ID",
-  "subcategory": "SUBCATEGORY_ID",
-  "store": "STORE_ID",
-  "storeText": "Local roadside pump"
-}
-```
-
-Rules:
-
-- same validation as create, except no inline category/store creation fields are supported
-
-Failure:
-
-- `404 Not Found` when the transaction does not exist or is not owned by the current non-admin user
-
-## `DELETE /api/transactions/:id`
-
-Deletes a transaction.
-
-Permissions:
-
-- admin can delete any transaction
-- regular user can delete only their own transaction
-
-Success:
-
-- `204 No Content`
-
-Failure:
-
-- `404 Not Found` when the transaction does not exist or is not owned by the current non-admin user
+Owner or admin.

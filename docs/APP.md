@@ -1,585 +1,284 @@
-# Oikos - Complete Application Documentation
+# Oikos — Application guide
 
-**Oikos** is a lightweight, self-hosted expense management system built with Express and PocketBase. It provides privacy-first transaction tracking with a clean, intuitive interface.
+**Oikos** is a lightweight, self-hosted expense tracker: a React SPA backed by PocketBase. Data stays on your server; regular users only see their own transactions.
 
 ---
 
-## Table of Contents
+## Table of contents
 
 1. [Overview](#overview)
 2. [Features](#features)
 3. [Architecture](#architecture)
-4. [Getting Started](#getting-started)
-5. [Database Schema](#database-schema)
+4. [Getting started](#getting-started)
+5. [Database schema](#database-schema)
 6. [Frontend](#frontend)
-7. [Development](#development)
-8. [Deployment](#deployment)
+7. [Hooks & email](#hooks--email)
+8. [Development](#development)
+9. [Deployment](#deployment)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Overview
 
-Oikos is designed to be a simple alternative to commercial expense tracking apps. It emphasizes:
+- **Privacy** — data on your PocketBase instance
+- **Simplicity** — log spending, review dashboards and filters
+- **Self-hosted** — one Docker image serves UI + API + hooks
+- **Roles** — users own their expenses; admins manage shared reference data and can view all transactions
 
-- **Privacy**: All data stays on your own server
-- **Simplicity**: No complex features, just expense tracking
-- **Self-hosted**: Easy deployment with Docker
-- **User-centric**: Regular users only see their own data; admins manage shared reference data
+### Tech stack
 
-### Tech Stack
+| Layer | Technology |
+|-------|------------|
+| UI | React 19, Vite 8, React Router, Tailwind CSS 4, shadcn/ui |
+| Data | PocketBase (JS SDK `pocketbase`) |
+| Auth | PocketBase auth store (browser); session hint cookie `oikos_session` |
+| Email | PocketBase mailer → optional ZeptoMail HTTPS hook |
+| Jobs | PocketBase JSVM cron (`pb_hooks/`) |
+| Deploy | Single Docker image (`Dockerfile`) + Compose |
 
-- **Backend**: Express.js (Node.js)
-- **Database**: PocketBase
-- **Frontend**: HTML5, CSS3, Vanilla JavaScript
-- **Deployment**: Docker & Docker Compose
+There is **no Express server**. The browser talks to PocketBase directly via [`src/lib/api.js`](../src/lib/api.js).
 
 ---
 
 ## Features
 
-### Smart Dashboard
-Quick overview of spending for the current month vs. the previous month, with aggregated totals and category breakdowns.
+### Expense entry & history
 
-### Flexible Transaction Entry
-Log expenses with:
-- Date of transaction
-- Amount
-- Category (with optional subcategories)
-- Store/merchant
-- Payment method
+- Date, amount, optional title, category, subcategory, store, payment method
+- Admins can create categories / subcategories / stores from the form
+- “Other” store can require a free-text `storeText` label
+- Paginated transaction list; page size saved on the user (`transactionPageSize`)
+- Transaction detail page for edit / delete
+- Mobile-friendly activity-style grouping by day
 
-### On-the-fly Creation
-Create new categories, subcategories, stores, or payment methods directly in the transaction form without leaving the page (admin users only).
+### Dashboard & filters
 
-### Transaction Management
-- Full transaction history with easy deletion
-- Paginated transaction history with per-user page size preference
-- Filter by date range, category, subcategory, store, or payment method
-- Compact activity-style mobile transaction feed grouped by day
-- Dedicated transaction detail page for editing and deleting a single record
-- Pivot-style filtering: choose custom row/column dimensions to see how data aggregates
+- Home KPIs: this month vs last month
+- Dashboard charts and category breakdowns
+- Filter page with pivot-style row/column dimensions
 
-### Reference Data Management
-Manage shared reference data:
-- Categories and subcategories
-- Stores/merchants
-- Payment methods
+### Reference data (admin)
 
-### User Roles
-- **User**: Can only view and manage their own transactions. Can see shared reference data.
-- **Admin**: Can manage all reference data and view transactions across all users. Can create reference data on-the-fly during transaction entry.
+- Categories (list + detail with subcategories)
+- Stores and payment methods
+- Delete-with-replacement when records are still used by transactions
+- Users list: approve accounts, resend verification email
 
-### Privacy Controls
-Users can control email visibility in their account settings.
+### Auth & access
 
-### App Themes
-- Oikos supports both dark and light themes across the full application shell
-- A shared theme toggle in the header/auth shell switches the active theme
-- The transaction activity layout is tuned for the darker mobile-friendly visual style while remaining usable in light mode
+1. **Register** — creates user with `approved: false`, sends verification email
+2. **Verify** — link opens `/verify-email?token=…` (spent tokens treated as already verified for UX)
+3. **Sign in** — requires `verified === true`; otherwise user is sent to verify-email
+4. **Admin approval** — verified but not approved users see an approval-pending screen; main app unlocks when `kind === 'admin'` or `approved && verified`
 
-### Authentication Enhancements
-- Email verification links resolve through Oikos instead of exposing the PocketBase host
-- Verification emails include a direct button and a raw fallback link
-- New users remain blocked until an admin approves their account
-- Optional email OTP login is available for third-party/API-driven use cases
+### Preferences (Me)
+
+- Name, email, email visibility
+- Transaction page size
+- **Weekly digest** — on by default; opt out with the switch (`weeklyDigestOptOut`)
+
+### Themes
+
+Light/dark theme toggle on auth and app shells (`data-theme` / `.dark`).
 
 ---
 
 ## Architecture
 
-### Backend Structure
-
-The Express server (`server.js`) handles:
-- Authentication (registration, login, logout)
-- User session management via cookies
-- REST API endpoints for transactions and reference data
-- Integration with PocketBase for data persistence
-
-### Authentication Flow
-
-1. User registers via `/api/auth/register`
-2. PocketBase sends a verification email
-3. User verifies through Oikos `/verify-email`
-4. Admin approves the verified account
-5. User logs in via `/api/auth/login` or the OTP flow
-6. Token is stored in an `HttpOnly` cookie (`pb_auth`)
-
-### Data Flow
-
-```
-Frontend (HTML/JS) 
-  → Express Server 
-  → PocketBase SDK 
-  → PocketBase Database
+```text
+Browser (React SPA)
+    │  PocketBase JS SDK
+    ▼
+PocketBase (:8090)
+    ├── REST / realtime / auth
+    ├── pb_public/     ← Vite build (production)
+    ├── pb_hooks/      ← ZeptoMail + weekly digest
+    └── pb_data/       ← SQLite + uploads
 ```
 
-The frontend sends requests to Express endpoints, which use the PocketBase JavaScript SDK to interact with the PocketBase database. User context is maintained via cookies.
+### Auth session
+
+- Real auth: PocketBase token in the SDK auth store
+- `oikos_session=1` cookie + `has-session` / body classes: UI chrome hints only
+- Unverified sessions are cleared on login / `getCurrentUser`
+- App shell (`showApp`) requires `user && isApprovedUser(user)`  
+  (`isApprovedUser`: admins always; others need `verified && approved`)
+
+### SPA routes
+
+| Path | Notes |
+|------|--------|
+| `/` | Home / expense entry (auth page when logged out) |
+| `/verify-email` | Token confirm or “check inbox” + resend |
+| `/me` | Profile & preferences |
+| `/transactions`, `/transactions/:id` | History & detail |
+| `/dashboard`, `/filter` | Analytics |
+| `/categories`, `/categories/:id` | Admin |
+| `/stores`, `/payment-methods`, `/users` | Admin |
+
+`/verify-email` is rendered outside the main approved-app shell (`App.jsx`).
+
+### Data flow
+
+Client helpers in `src/lib/api.js` call PocketBase collections. Aggregates such as home totals and dashboard summaries are computed in the client from filtered transaction lists (not separate Express routes).
 
 ---
 
-## Getting Started
+## Getting started
 
-### Prerequisites
-
-- Docker & Docker Compose
-- Or: Node.js 22+ and a running PocketBase instance
-
-### Quick Start (Docker)
-
-#### 1. Start the Containers
+### Docker
 
 ```bash
+cp .env.example .env
 docker compose up --build
 ```
 
-This builds the Express container and pulls the official PocketBase image.
+- App: `http://localhost:8090`
+- Admin UI: `http://localhost:8090/_/`
 
-#### 2. Access the Applications
-
-- **App**: http://localhost:3000
-- **PocketBase Admin**: http://localhost:8090/_/
-
-#### 3. Create Your Admin Account
-
-Go to the PocketBase admin UI and create your admin user account (this is a required first step).
-
-#### 4. Initialize the Database
+Create a PocketBase superuser, then from the host:
 
 ```bash
-docker compose exec oikos npm run setup:pocketbase
+PB_URL=http://127.0.0.1:8090 npm run setup:pocketbase
+PB_URL=http://127.0.0.1:8090 npm run make:admin
 ```
 
-This script creates the required collections and schema. It's idempotent, so you can run it whenever you update the app to sync your schema.
+### Local Vite + PocketBase
 
-#### 5. Make Your User an Admin
+1. Start PocketBase with data dir / hooks as needed  
+2. `npm install` && configure `.env`  
+3. `npm run setup:pocketbase`  
+4. `npm run dev` → `http://localhost:5173`
 
-```bash
-docker compose exec oikos npm run make:admin
-```
+### Environment variables
 
-This promotes your current user to admin so you can manage reference data and see all transactions.
-
-### Port Configuration
-
-If ports 3000 (app) or 8090 (PocketBase) are in use, copy `.env.example` to `.env` and adjust:
-
-```env
-APP_PORT=3001
-PB_PORT=8091
-```
+See [`.env.example`](../.env.example) and the [README](../README.md#environment).
 
 ---
 
-## Database Schema
+## Database schema
 
-### Collections (Tables)
+Managed by [`scripts/setup-pocketbase.mjs`](../scripts/setup-pocketbase.mjs) (idempotent).
 
-#### `users`
+### `users` (auth)
 
-Stores user accounts. Managed by PocketBase.
+| Field | Type | Notes |
+|-------|------|--------|
+| `email`, `password`, `verified`, `emailVisibility`, `name` | built-in | |
+| `firstName`, `lastName` | text | |
+| `kind` | text | `"user"` or `"admin"` |
+| `approved` | bool | required for non-admin app access |
+| `weeklyDigestOptOut` | bool | `false` = receive weekly digests (default) |
+| `transactionPageSize` | number | 10 / 25 / 50 / 100 |
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique identifier |
-| `email` | string | Email address (unique) |
-| `password` | string | Hashed password |
-| `firstName` | string | User's first name |
-| `lastName` | string | User's last name |
-| `name` | string | Full display name, maintained from first and last name |
-| `kind` | string | `"user"` or `"admin"` |
-| `emailVisibility` | boolean | Whether email is visible to others |
-| `verified` | boolean | Whether email verification has completed |
-| `approved` | boolean | Whether an admin has approved the account for use |
-| `transactionPageSize` | number | Preferred transactions page size (`10`, `25`, `50`, or `100`) |
+Obsolete field `weeklyDigest` is removed by setup if present.
 
-#### `oikos_categories`
+### `oikos_categories`
 
-Main expense categories.
+| Field | Type |
+|-------|------|
+| `name` | text |
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique identifier |
-| `name` | string | Category name (e.g., "Food", "Transport") |
+### `oikos_subcategories`
 
-#### `oikos_subcategories`
+| Field | Type |
+|-------|------|
+| `name` | text |
+| `category` | relation → categories |
 
-Subcategories under each category.
+### `oikos_stores` / `oikos_payment_methods`
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique identifier |
-| `name` | string | Subcategory name (e.g., "Groceries") |
-| `category` | relation | Reference to `oikos_categories` |
+| Field | Type |
+|-------|------|
+| `name` | text |
 
-#### `oikos_stores`
+### `oikos_transactions`
 
-Merchants or stores where transactions occur.
+| Field | Type | Notes |
+|-------|------|--------|
+| `date` | date | |
+| `title` | text | optional |
+| `amount` | number | |
+| `payment_method` | relation | optional |
+| `category`, `subcategory`, `store` | relation | required |
+| `storeText` | text | when store is “other” |
+| `user` | relation → users | owner |
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique identifier |
-| `name` | string | Store name (e.g., "Amazon", "Trader Joe's") |
+Indexes include `(user)`, `(date)`, `(user, date)`.
 
-#### `oikos_payment_methods`
+### Access rules (summary)
 
-Payment methods used for transactions.
+- Reference collections: authenticated + (`kind = admin` OR `approved = true`)
+- Transactions: owner if approved user; admins can access all
+- Creating categories/stores/payment methods: admin only (API helpers enforce the same)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique identifier |
-| `name` | string | Method name (e.g., "Credit Card", "Cash") |
-
-#### `oikos_transactions`
-
-Individual expense transactions.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique identifier |
-| `date` | datetime | Transaction date |
-| `amount` | number | Transaction amount |
-| `category` | relation | Reference to `oikos_categories` |
-| `subcategory` | relation | Reference to `oikos_subcategories` |
-| `store` | relation | Reference to `oikos_stores` |
-| `payment_method` | relation | Reference to `oikos_payment_methods` |
-| `user` | relation | Reference to `users` (owner of transaction) |
+Setup also seeds common categories, stores, and payment methods.
 
 ---
 
 ## Frontend
 
-The frontend is a single-page application built with vanilla HTML, CSS, and JavaScript.
+| Area | Location |
+|------|----------|
+| Pages | `src/pages/` |
+| Auth / data contexts | `src/context/` |
+| PocketBase client API | `src/lib/api.js` |
+| Charts / money helpers | `src/lib/charts.js`, `src/lib/format.js` |
+| UI primitives | `src/components/ui/` |
+| Theme | `ThemeToggle`, tokens in `src/index.css` |
 
-### Main Pages
+---
 
-Accessed via routes in `server.js`, with each route serving its matching HTML shell from `public/`:
+## Hooks & email
 
-- `/` – Dashboard (home)
-- `/transactions` – Transaction list with filtering
-- `/transactions/:id` – Transaction detail page with edit/delete actions
-- `/categories` – Manage categories and subcategories (admin only)
-- `/stores` – Manage stores (admin only)
-- `/payment-methods` – Manage payment methods (admin only)
-- `/users` – Manage users (admin only)
-- `/me` – User profile and settings
-- `/verify-email` – Verification completion page used by email links
+### ZeptoMail — `pb_hooks/zeptomail.pb.js`
 
-### Static Assets
+`onMailerSend`: if `ZEPTO_MAIL_API_KEY` and `ZEPTO_MAIL_FROM_ADDRESS` are set, POST to ZeptoMail; otherwise `e.next()` (SMTP/sendmail).
 
-All static files are served from the `public/` folder:
+### Weekly digest — `pb_hooks/weekly-digest.pb.js`
 
-| File | Purpose |
-|------|---------|
-| `index.html` | Main app shell and authentication gateway |
-| `app.js` | Core application logic and routing |
-| `layout.js` | Layout/sidebar navigation component |
-| `head.js` | Header component with user info |
-| `styles.css` | Application styles |
-| `categories.html` | Category management template |
-| `dashboard.html` | Dashboard template |
-| `filter.html` | Transaction filter template |
-| `me.html` | User profile template |
-| `payment-methods.html` | Payment method management template |
-| `stores.html` | Store management template |
-| `transaction-detail.html` | Single transaction detail template |
-| `transactions.html` | Transaction list template |
-| `users.html` | User management template (admin only) |
-| `sw.js` | Service Worker (offline support) |
-| `manifest.json` | Web app manifest (PWA metadata) |
-| `seo.config.js` | SEO configuration |
-
-### Key JavaScript Modules
-
-#### `app.js`
-
-Main application controller. Handles:
-- Route navigation
-- Page rendering
-- API communication
-- State management
-- UI event binding
-
-#### `layout.js`
-
-Navigation sidebar and layout wrapper. Shows:
-- Current user info
-- Navigation menu
-- Links to different pages
-- Admin-only sections
-
-#### `head.js`
-
-Header/top bar component. Shows:
-- App title
-- User actions (profile, logout)
-- Shared dark/light theme toggle
-
-### Frontend Features
-
-**Authentication Gate**: `index.html` checks login status on load. Redirects unauthenticated users to login/register.
-
-**Client-side Routing**: `app.js` uses URL hash or pathname to determine which page to display.
-
-**API Integration**: Frontend communicates with Express server via `fetch()` calls to REST endpoints.
-
-**Form Handling**: Transaction and reference data forms validate input and send POST/PUT requests.
-The main expense form keeps a consistent full-width primary submit action even when optional inline fields appear.
-
-**Responsive Design**: CSS media queries ensure usability on mobile and desktop.
-
-**Theme System**: Shared CSS tokens power the app-wide dark/light themes, and the active theme is controlled from the common shell toggle.
+- Cron job id: `oikos-weekly-digest`
+- Default expression: `0 8 * * 1` (override with `WEEKLY_DIGEST_CRON`)
+- Recipients: `verified = true && weeklyDigestOptOut = false && (approved = true || kind = "admin")`
+- Content: previous UTC Mon–Sun totals + top categories; skips empty weeks
+- Delivery: `$app.newMailClient().send` (goes through Zepto hook when configured)
 
 ---
 
 ## Development
 
-### Prerequisites
-
-- Node.js 22+
-- npm or yarn
-
-### Install Dependencies
-
 ```bash
-npm install
+npm run dev                 # Vite
+npm run build               # dist/
+npm run preview             # preview build
+npm run setup:pocketbase    # schema + seeds + mail templates
+npm run make:admin          # promote user to kind=admin, approved
+npm run check               # syntax-check scripts
 ```
-
-### Environment Variables
-
-Create a `.env` file (or use defaults):
-
-```env
-PORT=3000
-PB_URL=http://127.0.0.1:8090
-PB_TOKEN=
-COOKIE_SECURE=false
-APP_PORT=3000
-PB_PORT=8090
-APP_BUILD_BRANCH=local
-ZEPTO_MAIL_API_KEY=
-ZEPTO_MAIL_FROM_ADDRESS=
-ZEPTO_MAIL_FROM_NAME=Oikos
-```
-
-**Variables**:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `3000` | Express server port |
-| `PB_URL` | `http://127.0.0.1:8090` locally, `http://pocketbase:8090` in Docker Compose | PocketBase server URL |
-| `PB_TOKEN` | (empty) | Optional PocketBase admin token for setup |
-| `COOKIE_SECURE` | `false` | Set to `true` in HTTPS production |
-| `APP_PUBLIC_URL` | (empty) | Public Oikos URL used in verification email links |
-| `APP_BUILD_BRANCH` | `local` in Docker Compose | Branch baked into the app image and shown on the profile page |
-| `ZEPTO_MAIL_API_KEY` | (empty) | ZeptoMail API key used by PocketBase's mailer hook |
-| `ZEPTO_MAIL_FROM_ADDRESS` | (empty) | Verified ZeptoMail sender address |
-| `ZEPTO_MAIL_FROM_NAME` | `Oikos` | Sender display name |
-| `APP_PORT` | `3000` | Docker compose app port |
-| `PB_PORT` | `8090` | Docker compose PocketBase port |
-
-### Scripts
-
-#### Development
-
-Start the server in watch mode:
-
-```bash
-npm run dev
-```
-
-Changes to `server.js` trigger automatic restarts.
-
-#### Production
-
-Start the server normally:
-
-```bash
-npm start
-```
-
-#### Linting & Checks
-
-Validate JavaScript syntax:
-
-```bash
-npm run check
-```
-
-This checks:
-- `server.js`
-- `public/app.js`, `layout.js`, `head.js`, `seo.config.js`
-- `scripts/*.mjs`
-
-#### Database Setup
-
-Initialize PocketBase collections and schema:
-
-```bash
-npm run setup:pocketbase
-```
-
-This is idempotent and can be run multiple times safely.
-
-When `APP_PUBLIC_URL` is set, this also updates PocketBase email verification and OTP template configuration for Oikos.
-
-#### Make User an Admin
-
-Promote a user to admin:
-
-```bash
-npm run make:admin
-```
-
-This will prompt for an email address and update the user's `kind` to `"admin"`.
 
 ---
 
 ## Deployment
 
-### Docker Deployment
+1. Build/push the image from [`Dockerfile`](../Dockerfile) (Vite → `pb_public`, copy `pb_hooks`).
+2. Run with Compose or your host; mount `pb_data` for persistence.
+3. Set `APP_PUBLIC_URL` and Zepto (or SMTP) env vars.
+4. Run `setup:pocketbase` against the public/admin URL from a machine with Node.
+5. Healthcheck: `GET /api/health` on PocketBase.
 
-The app is designed to run in Docker with PocketBase.
-
-#### Prerequisites
-
-- Docker Engine
-- Docker Compose
-
-#### Dockerfile
-
-The `Dockerfile` builds a production-ready Node.js 22 Alpine image:
-
-```dockerfile
-FROM node:22-alpine
-WORKDIR /app
-ENV NODE_ENV=production
-ENV PORT=3000
-COPY package*.json ./
-RUN npm ci --omit=dev
-COPY server.js ./
-COPY public ./public
-COPY scripts ./scripts
-EXPOSE 3000
-CMD ["node", "server.js"]
-```
-
-#### Docker Compose
-
-The `compose.yml` file defines two services:
-
-- **oikos**: Express app (builds from Dockerfile)
-- **pocketbase**: Official PocketBase image
-
-**Start all services**:
-
-```bash
-docker compose up --build
-```
-
-**Stop services**:
-
-```bash
-docker compose down
-```
-
-**View logs**:
-
-```bash
-docker compose logs -f oikos
-docker compose logs -f pocketbase
-```
-
-**Run setup in Docker**:
-
-```bash
-docker compose exec oikos npm run setup:pocketbase
-docker compose exec oikos npm run make:admin
-```
-
-### Environment Configuration
-
-Set environment variables in a `.env` file or via `docker compose`:
-
-```env
-APP_PORT=3000
-PB_PORT=8090
-COOKIE_SECURE=true
-PB_URL=http://pocketbase:8090
-```
-
-### Network
-
-- **oikos** (Express): Exposed on `APP_PORT` (default 3000)
-- **pocketbase** (PocketBase): Exposed on `PB_PORT` (default 8090)
-- Internal communication: Services use `http://pocketbase:8090` (Docker internal DNS)
-
-### Data Persistence
-
-PocketBase stores data in `pb_data/` volume (persists across container restarts).
-
-### HTTPS / Reverse Proxy
-
-For production HTTPS, deploy behind a reverse proxy (e.g., Nginx, Caddy) that:
-
-1. Terminates TLS
-2. Sets `COOKIE_SECURE=true` in the environment
-3. Proxies requests to the app container
+Compose publishes `${APP_PORT:-8090}:8090` and passes `APP_PUBLIC_URL`, Zepto vars, and `WEEKLY_DIGEST_CRON`.
 
 ---
 
 ## Troubleshooting
 
-### PocketBase Connection Error
-
-**Error**: `Make sure PocketBase is running and run npm run setup:pocketbase once.`
-
-**Solution**:
-1. Ensure PocketBase container is running: `docker compose ps`
-2. Check PocketBase logs: `docker compose logs pocketbase`
-3. Reinitialize schema: `docker compose exec oikos npm run setup:pocketbase`
-
-### Authentication Issues
-
-**Problem**: User logged out unexpectedly.
-
-**Possible causes**:
-- PocketBase token expired
-- Cookies not being sent (check `SameSite` and domain settings)
-- Server restarted
-
-**Solution**:
-- Log in again
-- Check browser cookie storage
-- Review Express cookie settings in `server.js`
-
-### Port Already in Use
-
-**Error**: `Port 3000 already in use`
-
-**Solution**:
-```bash
-cp .env.example .env
-# Edit .env and change APP_PORT and PB_PORT
-docker compose up --build
-```
-
-### Database Schema Mismatch
-
-**Error**: `409 Conflict` on API requests
-
-**Solution**:
-```bash
-docker compose exec oikos npm run setup:pocketbase
-```
-
----
-
-## License
-
-See [LICENSE](../LICENSE) for license information.
-
----
-
-## Support
-
-For issues, questions, or contributions, refer to the project repository or documentation.
+| Symptom | Check |
+|---------|--------|
+| Verification links hit wrong host | `APP_PUBLIC_URL` + re-run setup |
+| No emails | Zepto env vars, or PocketBase mail settings when Zepto unset |
+| Stuck on “verify email” after confirming | Sign in; token refresh treats spent tokens as success on `/verify-email` |
+| Sees approval screen but isn’t verified | Should not happen; login clears unverified sessions. Approval UI only if `verified && !approved` |
+| No weekly digests | User opted out; not verified/approved; empty week; cron/logs; mail config |
+| Schema errors after upgrade | `npm run setup:pocketbase` |
+| Vite can’t reach PB | `VITE_PB_URL` in `.env` for local dev |

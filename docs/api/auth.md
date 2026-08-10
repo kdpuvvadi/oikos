@@ -1,300 +1,113 @@
-# Auth API
+# Auth
 
-## `POST /api/auth/register`
+Helpers: `register`, `login`, `logout`, `getCurrentUser`, `updateProfile`, `requestVerification`, `verifyEmail`, `isVerificationTokenSpent`, `publicUser`.
 
-Creates a regular user account and sends a verification email through PocketBase.
+SPA pages: auth card on `/` when logged out; `/verify-email` for confirmation and resend.
 
-New users are created with:
+## Registration — `register({ email, password, firstName, lastName })`
 
+Creates a PocketBase user with:
+
+- `kind: 'user'`
+- `approved: false`
 - `emailVisibility: true`
-- `kind: "user"`
-- `verified: false` until the email confirmation succeeds
-- `approved: false` until an admin explicitly approves the account
+- `weeklyDigestOptOut` unset → **false** (digests on by default)
 
-Request body:
+Then calls `requestVerification`. Does **not** leave the user signed in.
 
-```json
+Returns:
+
+```js
 {
-  "email": "user@example.com",
-  "password": "password123",
-  "firstName": "Example",
-  "lastName": "User"
+  requiresVerification: true,
+  email: 'user@example.com',
+  message: 'Account created. Check your email to verify…'
 }
 ```
 
-Rules:
+The SPA navigates to `/verify-email?email=…`.
 
-- `email` is required
-- `firstName` and `lastName` are required
-- `password` must be at least 8 characters
-- new users are created with `kind: "user"`
+## Login — `login({ email, password })`
 
-Success:
+Uses `authWithPassword`. If `verified !== true`, clears the auth store and throws with:
 
-- `201 Created`
+```js
+error.data = { requiresVerification: true, email }
+```
 
-Response:
+On success:
 
-```json
+```js
 {
-  "requiresVerification": true,
-  "email": "user@example.com",
-  "message": "Account created. Check your email to verify your address before signing in."
+  user: publicUser(record),
+  approvalPending: !(admin || approved)
 }
 ```
 
-## `POST /api/auth/login`
+Approval-pending users remain in the auth store so the UI can show the waiting screen; business collection rules still require approval (or admin).
 
-Authenticates an existing verified user and sets auth cookies.
+## Current user — `getCurrentUser()`
 
-If the email is verified but admin approval is still pending, the route still returns auth data so Oikos can show the approval-pending screen, but all business endpoints remain blocked until approval is granted.
+Requires a valid auth store. Clears the store and fails if `verified !== true`. May `authRefresh` when the token is near expiry.
 
-Request body:
+## Logout — `logout()`
 
-```json
+Clears the PocketBase auth store.
+
+## Verify email — `verifyEmail(token)`
+
+Calls `confirmVerification(token)`.
+
+`/verify-email`:
+
+- With `?token=` / `?verificationToken=` — confirms, toasts, redirects to `/`
+- Spent/invalid tokens that look expired are treated as already verified (`isVerificationTokenSpent`) so refresh after success still lands on sign-in
+- Without token — “check inbox” UI + resend via `requestVerification`
+
+## Resend — `requestVerification(email)`
+
+PocketBase `users.requestVerification`.
+
+Admins can also use `adminResendVerification(userId)` (see [reference-data](./reference-data.md)).
+
+## Profile — `updateProfile(updates)`
+
+Authenticated user update. Supported fields:
+
+| Input | Stored |
+|-------|--------|
+| `firstName`, `lastName` | + derived `name` |
+| `email` | may require re-verification |
+| `emailVisibility` | bool |
+| `transactionPageSize` | 10 / 25 / 50 / 100 |
+| `weeklyDigest` | UI “enabled”; stored as `weeklyDigestOptOut = !weeklyDigest` |
+
+Returns `{ user: publicUser(updated) }`.
+
+## `publicUser(record)`
+
+Normalized user for the SPA:
+
+```js
 {
-  "email": "user@example.com",
-  "password": "password123"
+  id, email, name, firstName, lastName,
+  emailVisibility,
+  verified,          // record.verified === true
+  approved,          // admins forced true
+  weeklyDigest,      // !weeklyDigestOptOut
+  kind, isAdmin,
+  transactionPageSize
 }
 ```
 
-Success:
+## OTP
 
-- `200 OK`
+Setup enables PocketBase **email OTP** on `users` for integrations. The SPA does not wrap OTP login helpers; use PocketBase’s OTP auth APIs directly if needed.
 
-Response:
+## Verification email links
 
-```json
-{
-  "token": "POCKETBASE_AUTH_TOKEN",
-  "user": {
-    "id": "USER_ID",
-    "email": "user@example.com",
-    "firstName": "Example",
-    "lastName": "User",
-    "name": "Example User",
-    "emailVisibility": true,
-    "kind": "user",
-    "isAdmin": false
-  }
-}
-```
+With `APP_PUBLIC_URL`, setup sets the collection verification `actionUrl` to:
 
-Failure:
-
-- `401 Unauthorized`
-- `403 Forbidden` when the account exists but email verification is still pending
-
-Response:
-
-```json
-{
-  "error": "Please verify your email before signing in.",
-  "requiresVerification": true,
-  "email": "user@example.com"
-}
-```
-
-## `POST /api/auth/request-verification`
-
-Resends the verification email for an address.
-
-Request body:
-
-```json
-{
-  "email": "user@example.com"
-}
-```
-
-Success:
-
-- `200 OK`
-
-Response:
-
-```json
-{
-  "ok": true,
-  "email": "user@example.com",
-  "message": "Verification email sent."
-}
-```
-
-## `POST /api/auth/verify`
-
-Confirms a verification token from the Oikos verification page.
-
-Request body:
-
-```json
-{
-  "token": "POCKETBASE_VERIFICATION_TOKEN"
-}
-```
-
-Success:
-
-- `200 OK`
-
-Response:
-
-```json
-{
-  "ok": true,
-  "message": "Email verified. Your account is now waiting for admin approval."
-}
-```
-
-## `POST /api/auth/logout`
-
-Clears the auth cookies.
-
-Success:
-
-- `204 No Content`
-
-## `GET /api/auth/me`
-
-Returns the current logged-in user.
-
-Before responding, Oikos refreshes the PocketBase auth record, so fields such as `verified` and `transactionPageSize` reflect the latest server state.
-
-Success:
-
-- `200 OK`
-
-Response:
-
-```json
-{
-  "token": "POCKETBASE_AUTH_TOKEN",
-  "user": {
-    "id": "USER_ID",
-    "email": "user@example.com",
-    "name": "Example User",
-    "emailVisibility": true,
-    "verified": true,
-    "approved": true,
-    "kind": "user",
-    "isAdmin": false,
-    "transactionPageSize": 25
-  }
-}
-```
-
-## `PUT /api/auth/me`
-
-Requires authentication.
-
-Updates the current user's profile-level auth settings.
-
-Currently supported fields:
-
-```json
-{
-  "firstName": "Example",
-  "lastName": "User",
-  "emailVisibility": true,
-  "transactionPageSize": 25
-}
-```
-
-Response:
-
-```json
-{
-  "token": "POCKETBASE_AUTH_TOKEN",
-  "user": {
-    "id": "USER_ID",
-    "email": "user@example.com",
-    "firstName": "Example",
-    "lastName": "User",
-    "name": "Example User",
-    "emailVisibility": true,
-    "verified": true,
-    "approved": true,
-    "kind": "user",
-    "isAdmin": false,
-    "transactionPageSize": 25
-  }
-}
-```
-
-Failure:
-
-- `401 Unauthorized`
-
-Response:
-
-```json
-{
-  "error": "Not logged in."
-}
-```
-
-## `POST /api/auth/request-otp`
-
-Starts an email OTP flow for third-party or API-driven usage.
-
-Request body:
-
-```json
-{
-  "email": "user@example.com"
-}
-```
-
-Success:
-
-- `200 OK`
-
-Response:
-
-```json
-{
-  "ok": true,
-  "email": "user@example.com",
-  "otpId": "OTP_REQUEST_ID",
-  "message": "OTP sent."
-}
-```
-
-## `POST /api/auth/login-otp`
-
-Completes an OTP login using the `otpId` from `/api/auth/request-otp` and the code delivered by PocketBase email.
-
-Request body:
-
-```json
-{
-  "otpId": "OTP_REQUEST_ID",
-  "otp": "123456"
-}
-```
-
-Success:
-
-- `200 OK`
-
-Response:
-
-```json
-{
-  "token": "POCKETBASE_AUTH_TOKEN",
-  "user": {
-    "id": "USER_ID",
-    "email": "user@example.com",
-    "firstName": "Example",
-    "lastName": "User",
-    "name": "Example User",
-    "emailVisibility": true,
-    "verified": true,
-    "approved": true,
-    "kind": "user",
-    "isAdmin": false,
-    "transactionPageSize": 25
-  },
-  "message": "OTP login successful."
-}
+```text
+{APP_PUBLIC_URL}/verify-email?token={TOKEN}
 ```

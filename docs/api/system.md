@@ -1,87 +1,35 @@
-# System API
+# Aggregates & app info
 
-## `GET /api/health`
+These are **client-side** helpers over PocketBase data (not legacy Express `/api/summary` routes).
 
-Checks whether the Express server can reach PocketBase.
+## Home totals — `fetchHomeTotals()`
 
-Success:
+Loads the current user’s (or all, if admin) transaction `date` + `amount` for last month start through this month end, then returns:
 
-- `200 OK`
-
-Response:
-
-```json
-{
-  "ok": true
-}
+```js
+{ thisMonth: number, lastMonth: number }
 ```
 
-Failure:
+Used on the home / expense entry page KPIs.
 
-- `503 Service Unavailable` if PocketBase is not reachable
+## Summary — `fetchSummary()`
 
-## `GET /api/summary`
+Fetches the full scoped transaction list with expansions suitable for dashboard and filter pages. Monthly / category aggregation is done in the UI (`src/lib/charts.js`, dashboard / filter pages).
 
-Requires authentication.
+## App info — `getAppInfo()`
 
-Returns a bulk transaction payload used by the frontend summary-style pages.
+Returns build metadata for the **Me** page (version from package/manifest sync, branch from `APP_BUILD_BRANCH` when baked into the image).
 
-Permissions:
+## Health
 
-- admin gets all transactions
-- regular user gets only their own transactions
+Compose healthcheck hits PocketBase:
 
-Response:
-
-```json
-{
-  "transactions": [
-    {
-      "id": "TRANSACTION_ID",
-      "amount": 2364.99
-    }
-  ]
-}
+```http
+GET /api/health
 ```
 
-## `GET /api/home-totals`
+There is no separate Oikos Express health endpoint.
 
-Requires authentication.
+## Weekly digests
 
-Returns the current-month and previous-month totals directly from the backend so the home page does not need to fetch and sum full transaction lists in the browser.
-
-Permissions:
-
-- admin gets totals across all users
-- regular user gets totals only for their own transactions
-
-Response:
-
-```json
-{
-  "thisMonth": 2364.99,
-  "lastMonth": 6516
-}
-```
-
-## `GET /api/monthly-totals`
-
-Requires authentication.
-
-Returns expense totals grouped by month, keyed as `YYYY-MM`.
-
-Permissions:
-
-- admin gets totals across all users
-- regular user gets totals only for their own transactions
-
-Response:
-
-```json
-{
-  "totals": {
-    "2026-03": 6516,
-    "2026-04": 2487.99
-  }
-}
-```
+Not a client API. See [`pb_hooks/weekly-digest.pb.js`](../../pb_hooks/weekly-digest.pb.js) and [APP.md — Hooks & email](../APP.md#hooks--email). Preference is updated via `updateProfile({ weeklyDigest })` ([auth](./auth.md)).

@@ -1,251 +1,55 @@
-# Reference Data API
+# Reference data & users
 
-All endpoints in this section require authentication.
+Shared catalogs are admin-managed for writes; approved users (and admins) can read them for expense entry.
 
 ## Categories
 
-### `GET /api/categories`
-
-Returns all categories plus their subcategories.
-
-Success:
-
-- `200 OK`
-
-Response shape:
-
-```json
-[
-  {
-    "id": "CATEGORY_ID",
-    "name": "Transport",
-    "subcategories": [
-      {
-        "id": "SUBCATEGORY_ID",
-        "name": "Fuel",
-        "category": "CATEGORY_ID"
-      }
-    ]
-  }
-]
-```
-
-### `POST /api/categories`
-
-Admin only.
-
-Creates a category if needed and optionally creates one subcategory under it.
-
-Request body:
-
-```json
-{
-  "name": "Transport",
-  "subcategoryName": "Fuel"
-}
-```
-
-Success:
-
-- `201 Created`
-
-Response shape:
-
-```json
-{
-  "category": {
-    "id": "CATEGORY_ID",
-    "name": "Transport"
-  },
-  "subcategory": {
-    "id": "SUBCATEGORY_ID",
-    "name": "Fuel",
-    "category": "CATEGORY_ID"
-  }
-}
-```
-
-### `PUT /api/categories/:id`
-
-Admin only.
-
-Request body:
-
-```json
-{
-  "name": "Transport"
-}
-```
-
-## Subcategories
-
-### `POST /api/subcategories`
-
-Admin only.
-
-Request body:
-
-```json
-{
-  "name": "Fuel",
-  "category": "CATEGORY_ID"
-}
-```
-
-### `PUT /api/subcategories/:id`
-
-Admin only.
-
-Request body:
-
-```json
-{
-  "name": "Fuel"
-}
-```
+| Helper | Notes |
+|--------|--------|
+| `fetchCategories()` | Categories with nested `subcategories` |
+| `createCategory({ name, subcategoryName })` | Admin; optional first subcategory |
+| `createSubcategory({ categoryId, name })` | Admin |
+| `updateCategory(id, { name })` | Admin |
+| `updateSubcategory(id, { name })` | Admin |
+| `deleteCategory(id, { replacementCategoryId, replacementSubcategoryId })` | Admin; reassigns then deletes |
+| `deleteSubcategory(id, { replacementId })` | Admin |
 
 ## Stores
 
-### `GET /api/stores`
-
-Returns all stores.
-
-### `POST /api/stores`
-
-Admin only.
-
-Request body:
-
-```json
-{
-  "name": "Amazon"
-}
-```
+| Helper | Notes |
+|--------|--------|
+| `fetchStores()` | |
+| `createStore({ name })` | Admin |
+| `updateStore(id, { name })` | Admin |
+| `deleteStore(id, { replacementId })` | Admin; reassigns transactions when needed |
 
 ## Payment methods
 
-### `GET /api/payment-methods`
+| Helper | Notes |
+|--------|--------|
+| `fetchPaymentMethods()` | |
+| `createPaymentMethod({ name })` | Admin |
+| `updatePaymentMethod(id, { name })` | Admin |
+| `deletePaymentMethod(id, { replacementId })` | Admin |
 
-Returns all payment methods.
+## Usage counts
 
-### `POST /api/payment-methods`
+`countTransactionsUsing(field, id)` — how many transactions reference a relation field (`store`, `payment_method`, `category`, `subcategory`, etc.). Used before delete dialogs.
 
-Admin only.
+## Users (admin)
 
-Request body:
+| Helper | Notes |
+|--------|--------|
+| `fetchUsers()` | Maps records through `publicUser` |
+| `approveUser(userId)` | Sets `approved: true` |
+| `adminResendVerification(userId)` | `requestVerification` for that user’s email |
 
-```json
-{
-  "name": "Cash"
-}
+There is **no** mark-verified admin helper in the client; verification is email (or PocketBase Admin).
+
+Promote to admin via CLI:
+
+```bash
+PB_URL=http://127.0.0.1:8090 npm run make:admin
 ```
 
-### `PUT /api/payment-methods/:id`
-
-Admin only.
-
-Request body:
-
-```json
-{
-  "name": "Cash"
-}
-```
-
-## Users
-
-### `GET /api/users`
-
-Admin only.
-
-Returns all users in a public-safe shape.
-
-If a user's PocketBase email visibility is disabled, `email` may be `null`.
-
-Response shape:
-
-```json
-[
-  {
-    "id": "USER_ID",
-    "email": "user@example.com",
-    "name": "Example User",
-    "verified": true,
-    "approved": true,
-    "kind": "user",
-    "isAdmin": false
-  }
-]
-```
-
-### `POST /api/users/:id/approve`
-
-Admin only.
-
-Marks a verified or newly created user as approved so they can use the rest of the app after login.
-
-Success:
-
-- `200 OK`
-
-Response shape:
-
-```json
-{
-  "user": {
-    "id": "USER_ID",
-    "email": "user@example.com",
-    "name": "Example User",
-    "verified": true,
-    "approved": true,
-    "kind": "user",
-    "isAdmin": false
-  }
-}
-```
-
-### `POST /api/users/:id/resend-verification`
-
-Admin only.
-
-Resends the verification email for a specific user from the Users page or admin workflows.
-
-Success:
-
-- `200 OK`
-
-Response shape:
-
-```json
-{
-  "ok": true,
-  "email": "user@example.com",
-  "message": "Verification email sent."
-}
-```
-
-### `POST /api/users/:id/mark-verified`
-
-Admin only.
-
-Marks a user as verified directly. This is intended for recovery or manual administrative workflows when email verification cannot be completed normally.
-
-Success:
-
-- `200 OK`
-
-Response shape:
-
-```json
-{
-  "user": {
-    "id": "USER_ID",
-    "email": "user@example.com",
-    "name": "Example User",
-    "verified": true,
-    "approved": false,
-    "kind": "user",
-    "isAdmin": false
-  }
-}
-```
+(`kind: 'admin'`, `approved: true`)

@@ -1,62 +1,49 @@
-# Oikos API
+# Oikos client / PocketBase API
 
-This folder documents the HTTP API exposed by the Oikos Express server in [server.js](/C:/Data/add/code/oikos/server.js).
+Oikos has **no Express HTTP API**. The React app uses the PocketBase JS SDK through helpers in [`src/lib/api.js`](../../src/lib/api.js).
+
+You can also call PocketBase’s own REST API (`/api/collections/...`, `/api/collections/users/auth-with-password`, etc.) with a valid auth token. This folder documents the **app’s client helpers** and the auth / data conventions they enforce.
 
 ## Base URL
 
-Local development default:
+| Environment | API host |
+|-------------|----------|
+| Production (Docker image) | Same origin as the SPA (empty `VITE_PB_URL`) |
+| Local Vite | `VITE_PB_URL` (default `http://127.0.0.1:8090`) |
+| Setup scripts | `PB_URL` |
 
-```text
-http://localhost:3000
-```
+PocketBase Admin and health: `{PB_URL}/_/` and `{PB_URL}/api/health`.
 
 ## Authentication
 
-Most endpoints require a logged-in user. Authentication is cookie-based.
+- Auth lives in the PocketBase auth store (SDK), not an HttpOnly `pb_auth` cookie from Express.
+- A lightweight `oikos_session=1` cookie is set only as a UI session hint.
+- Helpers throw `Error` objects with optional `.status` and `.data` (see `pbError`).
+- `401` responses can trigger the unauthorized handler (`setUnauthorizedHandler`) to clear the session.
 
-- `pb_auth`
-  PocketBase auth cookie. `HttpOnly`.
-- `oikos_session`
-  Lightweight session hint cookie used by the frontend to avoid flashing the login screen before auth verification finishes.
+### Roles
 
-After a successful login or registration, send later requests with the cookies returned by the server.
+| Role | How | Capabilities |
+|------|-----|----------------|
+| User | `kind` ≠ `admin`, `approved` + `verified` | Own transactions; read reference data |
+| Admin | `kind === 'admin'` | All of the above + CRUD reference data, list users, see all transactions |
 
-Auth responses also include the current PocketBase auth token in the JSON body.
+`isApprovedUser(user)`: admins always; others need `verified && approved`.
 
-`GET /api/auth/me` refreshes the PocketBase auth record before responding, so profile settings changed in Oikos or directly in PocketBase Admin stay in sync with the app.
+## Error shape
 
-## Roles
+Client helpers surface:
 
-- `user`
-  Can read shared reference data and manage only their own transactions.
-- `admin`
-  Can manage categories, subcategories, stores, payment methods, users, and can view/filter all transactions.
-
-## Error format
-
-Most errors use this shape:
-
-```json
-{
-  "error": "Human-readable message",
-  "details": {},
-  "hint": "Optional recovery hint"
-}
+```js
+err.message  // human-readable
+err.status   // HTTP-ish status when available
+err.data     // PocketBase / custom payload (e.g. requiresVerification)
+err.isAbort  // request aborted
 ```
 
-Common status codes:
+## Modules
 
-- `400` validation error
-- `401` not authenticated
-- `403` admin-only route or action
-- `404` missing record or inaccessible transaction
-- `409` PocketBase schema mismatch
-- `500` unexpected server error
-- `503` PocketBase unavailable
-
-## Endpoints
-
-- [Auth](./auth.md)
-- [Reference Data](./reference-data.md)
-- [Transactions](./transactions.md)
-- [Summary and Health](./system.md)
+- [Auth](./auth.md) — register, login, verify, profile
+- [Transactions](./transactions.md) — CRUD + list filters
+- [Reference data & users](./reference-data.md) — categories, stores, payment methods, approvals
+- [Aggregates & app info](./system.md) — home totals, summary, version
