@@ -22,6 +22,7 @@ const state = {
     totalPages: 1,
     totalAmount: 0
   },
+  transactionTotalFilterKey: '',
   homeTotals: {
     thisMonth: 0,
     lastMonth: 0
@@ -365,11 +366,19 @@ function displayStore(transaction) {
   return transaction.storeText || transaction.expand?.store?.name || 'Unknown';
 }
 
+function summaryStoreLabel(transaction) {
+  const storeText = String(transaction?.storeText || '').trim();
+  if (storeText) return storeText;
+  const store = String(transaction?.store || '').trim();
+  if (!store || store.toLowerCase() === 'other') return '';
+  return store;
+}
+
 function summaryLabelFor(transaction, field) {
   if (field === 'month') return String(transaction.date || '').slice(0, 7);
   if (field === 'category') return transaction.category || 'Uncategorized';
   if (field === 'subcategory') return transaction.subcategory || 'None';
-  if (field === 'store') return transaction.store || 'Unknown';
+  if (field === 'store') return summaryStoreLabel(transaction) || null;
   if (field === 'paymentMethod') return transaction.paymentMethod || 'Not set';
   return 'Total';
 }
@@ -1002,34 +1011,364 @@ function renderHomeTotals() {
   qs('#lastMonthTotal').textContent = money.format(state.homeTotals.lastMonth || 0);
 }
 
-function renderBars(selector, totals) {
+const CHART_PALETTE = [
+  '#2a6f97', '#2e7d4f', '#e1b84b', '#b0443c', '#7a6bb5',
+  '#3d8b8b', '#c47a3a', '#5a7d9a', '#8b5a6b', '#4a6b4a'
+];
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function monthKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function shiftMonthKey(key, delta) {
+  const [year, month] = key.split('-').map(Number);
+  const date = new Date(year, month - 1 + delta, 1);
+  return monthKey(date);
+}
+
+function formatMonthLabel(key) {
+  const [year, month] = String(key).split('-').map(Number);
+  if (!year || !month) return key;
+  return new Intl.DateTimeFormat(undefined, { month: 'short', year: '2-digit' })
+    .format(new Date(year, month - 1, 1));
+}
+
+function sortedTotals(totals, limit = 8) {
+  return Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, limit);
+}
+
+function renderBars(selector, totals, options = {}) {
   if (!has(selector)) return;
-  const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  const { limit = 8, colors = false } = options;
+  const entries = sortedTotals(totals, limit);
   const max = Math.max(...entries.map(([, total]) => total), 1);
-  qs(selector).innerHTML = entries.map(([name, total]) => `
-    <div class="bar-row">
-      <strong>${name}</strong>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.max((total / max) * 100, 4)}%"></div></div>
-      <span>${money.format(total)}</span>
+  const grand = entries.reduce((sum, [, total]) => sum + total, 0) || 1;
+  qs(selector).innerHTML = entries.map(([name, total], index) => {
+    const tint = colors ? CHART_PALETTE[index % CHART_PALETTE.length] : null;
+    return `
+      <div class="bar-row dash-bar-row">
+        <div class="dash-bar-meta">
+          <strong>${escapeHtml(name)}</strong>
+          <span class="dash-bar-pct">${Math.round((total / grand) * 100)}%</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.max((total / max) * 100, 4)}%${tint ? `;background:${tint}` : ''}"></div></div>
+        <span class="dash-bar-amount">${money.format(total)}</span>
+      </div>
+    `;
+  }).join('') || '<p class="dash-empty">No expense data yet.</p>';
+}
+
+function smoothPath(points) {
+  if (!points.length) return '';
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+  let path = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const current = points[i];
+    const next = points[i + 1];
+    const cx = (current.x + next.x) / 2;
+    path += ` C ${cx} ${current.y}, ${cx} ${next.y}, ${next.x} ${next.y}`;
+  }
+  return path;
+}
+
+function renderMonthTrend(transactions) {
+  if (!has('#monthTrendChart')) return;
+  const byMonth = sumBy(transactions, (transaction) => String(transaction.date || '').slice(0, 7));
+  const keys = Object.keys(byMonth).filter(Boolean).sort();
+  if (!keys.length) {
+    qs('#monthTrendChart').innerHTML = '<p class="dash-empty">No expense data yet.</p>';
+    return;
+  }
+
+  const end = keys[keys.length - 1];
+  const start = keys.length >= 12 ? shiftMonthKey(end, -(Math.min(keys.length, 12) - 1)) : keys[0];
+  const months = [];
+  let cursor = start;
+  while (cursor <= end) {
+    months.push(cursor);
+    cursor = shiftMonthKey(cursor, 1);
+  }
+  const values = months.map((key) => byMonth[key] || 0);
+  const max = Math.max(...values, 1);
+  const width = 640;
+  const height = 220;
+  const pad = { top: 24, right: 16, bottom: 36, left: 48 };
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+  const points = values.map((value, index) => ({
+    x: pad.left + (months.length === 1 ? plotW / 2 : (index / (months.length - 1)) * plotW),
+    y: pad.top + plotH - (value / max) * plotH,
+    value,
+    label: months[index]
+  }));
+  const line = smoothPath(points);
+  const area = `${line} L ${points[points.length - 1].x} ${pad.top + plotH} L ${points[0].x} ${pad.top + plotH} Z`;
+  const gridLines = [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+    const y = pad.top + plotH * (1 - ratio);
+    const label = money.format(max * ratio).replace(/\.00$/, '');
+    return `
+      <line class="chart-grid" x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}" />
+      <text class="chart-axis" x="${pad.left - 8}" y="${y + 4}" text-anchor="end">${escapeHtml(label)}</text>
+    `;
+  }).join('');
+  const labelStep = months.length > 8 ? 2 : 1;
+  const xLabels = points.map((point, index) => {
+    if (index % labelStep !== 0 && index !== points.length - 1) return '';
+    return `<text class="chart-axis" x="${point.x}" y="${height - 10}" text-anchor="middle">${escapeHtml(formatMonthLabel(point.label))}</text>`;
+  }).join('');
+  const dots = points.map((point) => `
+    <circle class="chart-dot" cx="${point.x}" cy="${point.y}" r="4">
+      <title>${escapeHtml(formatMonthLabel(point.label))}: ${escapeHtml(money.format(point.value))}</title>
+    </circle>
+  `).join('');
+
+  qs('#monthTrendChart').innerHTML = `
+    <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Monthly spending trend">
+      <defs>
+        <linearGradient id="monthAreaFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--blue)" stop-opacity="0.45" />
+          <stop offset="100%" stop-color="var(--blue)" stop-opacity="0.02" />
+        </linearGradient>
+      </defs>
+      ${gridLines}
+      <path class="chart-area" d="${area}" fill="url(#monthAreaFill)" />
+      <path class="chart-line" d="${line}" />
+      ${dots}
+      ${xLabels}
+    </svg>
+  `;
+}
+
+function donutArc(cx, cy, radius, startAngle, endAngle) {
+  const polar = (angle) => {
+    const rad = ((angle - 90) * Math.PI) / 180;
+    return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) };
+  };
+  const start = polar(startAngle);
+  const end = polar(endAngle);
+  const large = endAngle - startAngle > 180 ? 1 : 0;
+  return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${large} 1 ${end.x} ${end.y}`;
+}
+
+function renderCategoryDonut(transactions) {
+  if (!has('#categoryDonut')) return;
+  const totals = sumBy(transactions, (transaction) => transaction.category || 'Uncategorized');
+  const entries = sortedTotals(totals, 6);
+  const rest = Object.entries(totals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(6)
+    .reduce((sum, [, total]) => sum + total, 0);
+  if (rest > 0) entries.push(['Other', rest]);
+  const grand = entries.reduce((sum, [, total]) => sum + total, 0);
+  if (!grand) {
+    qs('#categoryDonut').innerHTML = '<p class="dash-empty">No expense data yet.</p>';
+    return;
+  }
+
+  const size = 220;
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = 72;
+  let angle = 0;
+  const arcs = entries.map(([name, total], index) => {
+    const sweep = (total / grand) * 360;
+    const color = CHART_PALETTE[index % CHART_PALETTE.length];
+    const title = `<title>${escapeHtml(name)}: ${escapeHtml(money.format(total))}</title>`;
+    if (sweep >= 359.9) {
+      return `
+        <circle class="donut-slice" cx="${cx}" cy="${cy}" r="${radius}" stroke="${color}" stroke-width="28" fill="none">
+          ${title}
+        </circle>
+      `;
+    }
+    const start = angle;
+    const end = angle + Math.max(sweep, 0.8);
+    angle += sweep;
+    return `
+      <path class="donut-slice" d="${donutArc(cx, cy, radius, start, end)}" stroke="${color}" stroke-width="28" fill="none">
+        ${title}
+      </path>
+    `;
+  }).join('');
+  const legend = entries.map(([name, total], index) => `
+    <li>
+      <span class="donut-swatch" style="background:${CHART_PALETTE[index % CHART_PALETTE.length]}"></span>
+      <span class="donut-legend-label">${escapeHtml(name)}</span>
+      <strong>${money.format(total)}</strong>
+    </li>
+  `).join('');
+
+  qs('#categoryDonut').innerHTML = `
+    <div class="donut-layout">
+      <svg class="chart-svg donut-svg" viewBox="0 0 ${size} ${size}" role="img" aria-label="Spending by category">
+        <circle cx="${cx}" cy="${cy}" r="${radius}" class="donut-track" />
+        ${arcs}
+        <text class="donut-center-label" x="${cx}" y="${cy - 6}" text-anchor="middle">Total</text>
+        <text class="donut-center-value" x="${cx}" y="${cy + 16}" text-anchor="middle">${escapeHtml(money.format(grand))}</text>
+      </svg>
+      <ul class="donut-legend">${legend}</ul>
     </div>
-  `).join('') || '<p>No expense data yet.</p>';
+  `;
+}
+
+function renderDailyChart(transactions) {
+  if (!has('#dailyChart')) return;
+  const current = monthKey();
+  const daysInMonth = new Date(Number(current.slice(0, 4)), Number(current.slice(5, 7)), 0).getDate();
+  const byDay = {};
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    byDay[String(day).padStart(2, '0')] = 0;
+  }
+  transactions.forEach((transaction) => {
+    const date = String(transaction.date || '');
+    if (!date.startsWith(current)) return;
+    const day = date.slice(8, 10);
+    if (byDay[day] === undefined) return;
+    byDay[day] += Number(transaction.amount || 0);
+  });
+  const entries = Object.entries(byDay);
+  const max = Math.max(...entries.map(([, total]) => total), 1);
+  const today = new Date().getDate();
+  const width = 520;
+  const height = 180;
+  const pad = { top: 12, right: 8, bottom: 28, left: 8 };
+  const gap = 2;
+  const barW = (width - pad.left - pad.right - gap * (entries.length - 1)) / entries.length;
+
+  const bars = entries.map(([day, total], index) => {
+    const h = total > 0 ? Math.max((total / max) * (height - pad.top - pad.bottom), 3) : 0;
+    const x = pad.left + index * (barW + gap);
+    const y = height - pad.bottom - h;
+    const isToday = Number(day) === today;
+    return `
+      <rect class="daily-bar${isToday ? ' is-today' : ''}${total ? '' : ' is-empty'}" x="${x}" y="${y}" width="${barW}" height="${h}" rx="2">
+        <title>Day ${Number(day)}: ${escapeHtml(money.format(total))}</title>
+      </rect>
+    `;
+  }).join('');
+  const labels = [1, Math.round(daysInMonth / 2), daysInMonth].map((day) => {
+    const index = day - 1;
+    const x = pad.left + index * (barW + gap) + barW / 2;
+    return `<text class="chart-axis" x="${x}" y="${height - 8}" text-anchor="middle">${day}</text>`;
+  }).join('');
+  const monthTotal = entries.reduce((sum, [, total]) => sum + total, 0);
+
+  qs('#dailyChart').innerHTML = `
+    <div class="daily-chart-meta">
+      <strong>${money.format(monthTotal)}</strong>
+      <span>${formatMonthLabel(current)}</span>
+    </div>
+    <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Daily spending this month">
+      ${bars}
+      ${labels}
+    </svg>
+  `;
+}
+
+function renderTopExpenses(transactions) {
+  if (!has('#topExpenses')) return;
+  const top = [...transactions]
+    .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))
+    .slice(0, 8);
+  if (!top.length) {
+    qs('#topExpenses').innerHTML = '<p class="dash-empty">No expense data yet.</p>';
+    return;
+  }
+  qs('#topExpenses').innerHTML = top.map((transaction, index) => `
+    <a class="dash-expense-item" href="/transactions/${encodeURIComponent(transaction.id)}">
+      <span class="dash-expense-rank">${index + 1}</span>
+      <span class="dash-expense-body">
+        <strong>${escapeHtml(summaryStoreLabel(transaction) || transaction.category || 'Expense')}</strong>
+        <span>${escapeHtml(formatLongDate(transaction.date))} · ${escapeHtml(transaction.category || 'Uncategorized')}</span>
+      </span>
+      <strong class="dash-expense-amount">${money.format(transaction.amount || 0)}</strong>
+    </a>
+  `).join('');
+}
+
+function renderDashKpis(transactions) {
+  if (!has('#dashKpis')) return;
+  const current = monthKey();
+  const previous = shiftMonthKey(current, -1);
+  let total = 0;
+  let thisMonth = 0;
+  let lastMonth = 0;
+  transactions.forEach((transaction) => {
+    const amount = Number(transaction.amount || 0);
+    total += amount;
+    const key = String(transaction.date || '').slice(0, 7);
+    if (key === current) thisMonth += amount;
+    if (key === previous) lastMonth += amount;
+  });
+  const count = transactions.length;
+  const average = count ? total / count : 0;
+  const delta = lastMonth === 0
+    ? (thisMonth > 0 ? 100 : 0)
+    : ((thisMonth - lastMonth) / lastMonth) * 100;
+  const deltaLabel = `${delta > 0 ? '+' : ''}${delta.toFixed(0)}% vs last month`;
+  const deltaClass = delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : '';
+
+  const cards = [
+    { label: 'This month', value: money.format(thisMonth), hint: deltaLabel, hintClass: deltaClass },
+    { label: 'Last month', value: money.format(lastMonth), hint: formatMonthLabel(previous) },
+    { label: 'All time', value: money.format(total), hint: `${count} transaction${count === 1 ? '' : 's'}` },
+    { label: 'Average expense', value: money.format(average), hint: 'Per transaction' }
+  ];
+
+  qs('#dashKpis').innerHTML = cards.map((card) => `
+    <article class="stat-card dash-kpi">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.value)}</strong>
+      <em class="dash-kpi-hint ${card.hintClass || ''}">${escapeHtml(card.hint || '')}</em>
+    </article>
+  `).join('');
 }
 
 function renderDashboard() {
-  renderBars('#monthChart', sumBy(state.summaryTransactions, (transaction) => String(transaction.date || '').slice(0, 7)));
-  renderBars('#categoryChart', sumBy(state.summaryTransactions, (transaction) => transaction.category || 'Uncategorized'));
-  renderBars('#storeChart', sumBy(state.summaryTransactions, (transaction) => transaction.store || 'Unknown'));
+  const transactions = state.summaryTransactions || [];
+  renderDashKpis(transactions);
+  renderMonthTrend(transactions);
+  renderCategoryDonut(transactions);
+  renderDailyChart(transactions);
+  renderBars('#paymentChart', sumBy(transactions, (transaction) => transaction.paymentMethod || 'Not set'), { limit: 6, colors: true });
+  renderBars(
+    '#storeChart',
+    sumBy(
+      transactions.filter((transaction) => summaryStoreLabel(transaction)),
+      summaryStoreLabel
+    ),
+    { limit: 6, colors: true }
+  );
+  renderTopExpenses(transactions);
 }
 
 function renderPivot(row = 'month', column = 'category') {
   if (!has('#pivotTable')) return;
-  const rowLabels = [...new Set(state.summaryTransactions.map((transaction) => summaryLabelFor(transaction, row)))].sort();
-  const columnLabels = [...new Set(state.summaryTransactions.map((transaction) => summaryLabelFor(transaction, column)))].sort();
+  const rowLabels = [...new Set(
+    state.summaryTransactions
+      .map((transaction) => summaryLabelFor(transaction, row))
+      .filter((label) => label != null && label !== '')
+  )].sort();
+  const columnLabels = [...new Set(
+    state.summaryTransactions
+      .map((transaction) => summaryLabelFor(transaction, column))
+      .filter((label) => label != null && label !== '')
+  )].sort();
   const matrix = {};
 
   state.summaryTransactions.forEach((transaction) => {
     const rowKey = summaryLabelFor(transaction, row);
     const columnKey = summaryLabelFor(transaction, column);
+    if (rowKey == null || rowKey === '' || columnKey == null || columnKey === '') return;
     matrix[rowKey] = matrix[rowKey] || {};
     matrix[rowKey][columnKey] = (matrix[rowKey][columnKey] || 0) + Number(transaction.amount);
   });
@@ -1064,6 +1403,7 @@ function resetDataState() {
     totalPages: 1,
     totalAmount: 0
   };
+  state.transactionTotalFilterKey = '';
   state.homeTotals = { thisMonth: 0, lastMonth: 0 };
   Object.keys(state.loaded).forEach((key) => {
     state.loaded[key] = false;
@@ -1076,6 +1416,7 @@ function invalidate(...keys) {
   keys.forEach((key) => {
     state.loaded[key] = false;
   });
+  if (keys.includes('transactions')) state.transactionTotalFilterKey = '';
 }
 
 async function ensureLoaded(key, loader, force = false) {
@@ -1134,19 +1475,26 @@ async function loadSummaryTransactions(force = false) {
 }
 
 async function loadTransactionRows() {
-  const data = await api(`/api/transactions${buildTransactionFilterQuery()}`);
+  const filterKey = transactionFilterKey();
+  const filtersActive = Boolean(filterKey);
+  const includeTotalAmount = filtersActive && state.transactionTotalFilterKey !== filterKey;
+  const data = await api(`/api/transactions${buildTransactionFilterQuery({ includeTotalAmount })}`);
   if ((data.items || []).length === 0 && (data.totalItems || 0) > 0 && (data.totalPages || 1) < (data.page || 1)) {
     state.transactionPagination.page = data.totalPages || 1;
     return loadTransactionRows();
   }
+  const previousAmount = state.transactionPagination.totalAmount || 0;
   state.transactionRows = data.items || [];
   state.transactionPagination = {
     page: data.page || 1,
     perPage: data.perPage || state.transactionPagination.perPage,
     totalItems: data.totalItems || 0,
     totalPages: data.totalPages || 1,
-    totalAmount: Number(data.totalAmount || 0)
+    totalAmount: includeTotalAmount || !filtersActive
+      ? Number(data.totalAmount || 0)
+      : previousAmount
   };
+  state.transactionTotalFilterKey = filtersActive ? filterKey : '';
 }
 
 async function loadTransactionDetail() {
@@ -1630,7 +1978,16 @@ async function deleteTransaction(transactionId) {
   }
 }
 
-function buildTransactionFilterQuery() {
+function transactionFilterKey() {
+  if (!has('#transactionFilterForm')) return '';
+  const data = new FormData(qs('#transactionFilterForm'));
+  return ['fromDate', 'toDate', 'category', 'subcategory', 'paymentMethod', 'store', 'user']
+    .map((key) => `${key}=${String(data.get(key) || '').trim()}`)
+    .filter((part) => !part.endsWith('='))
+    .join('&');
+}
+
+function buildTransactionFilterQuery({ includeTotalAmount = false } = {}) {
   if (!has('#transactionFilterForm')) return '';
 
   const data = new FormData(qs('#transactionFilterForm'));
@@ -1641,6 +1998,7 @@ function buildTransactionFilterQuery() {
     const value = String(data.get(key) || '').trim();
     if (value) params.set(key, value);
   });
+  if (includeTotalAmount) params.set('includeTotalAmount', '1');
 
   const query = params.toString();
   return query ? `?${query}` : '';

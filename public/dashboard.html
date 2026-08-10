@@ -17,23 +17,75 @@
     <main id="appShell" class="hidden">
       <section id="dashboardPage">
         <div class="page-title">
-          <p class="eyebrow">Dashboard</p>
-          <h1>Dashboard</h1>
+          <p class="eyebrow">Insights</p>
+          <h1>Spending overview</h1>
         </div>
-        <div class="dashboard-grid">
-          <section class="panel">
-            <h2>By month</h2>
-            <div id="monthChart" class="bars"></div>
+
+        <div class="dash-kpi-grid" id="dashKpis"></div>
+
+        <div class="dash-main-grid">
+          <section class="panel dash-panel dash-panel-wide">
+            <div class="dash-panel-head">
+              <div>
+                <h2>Monthly trend</h2>
+                <p class="dash-panel-sub">Spend by month</p>
+              </div>
+            </div>
+            <div id="monthTrendChart" class="chart-canvas"></div>
           </section>
-          <section class="panel">
-            <h2>By category</h2>
-            <div id="categoryChart" class="bars"></div>
-          </section>
-          <section class="panel">
-            <h2>By store</h2>
-            <div id="storeChart" class="bars"></div>
+
+          <section class="panel dash-panel">
+            <div class="dash-panel-head">
+              <div>
+                <h2>Categories</h2>
+                <p class="dash-panel-sub">Share of total spend</p>
+              </div>
+            </div>
+            <div id="categoryDonut" class="chart-canvas"></div>
           </section>
         </div>
+
+        <div class="dash-secondary-grid">
+          <section class="panel dash-panel">
+            <div class="dash-panel-head">
+              <div>
+                <h2>This month</h2>
+                <p class="dash-panel-sub">Daily spend</p>
+              </div>
+            </div>
+            <div id="dailyChart" class="chart-canvas"></div>
+          </section>
+
+          <section class="panel dash-panel">
+            <div class="dash-panel-head">
+              <div>
+                <h2>Payment methods</h2>
+                <p class="dash-panel-sub">How you pay</p>
+              </div>
+            </div>
+            <div id="paymentChart" class="bars dash-bars"></div>
+          </section>
+
+          <section class="panel dash-panel">
+            <div class="dash-panel-head">
+              <div>
+                <h2>Top stores</h2>
+                <p class="dash-panel-sub">Highest spend</p>
+              </div>
+            </div>
+            <div id="storeChart" class="bars dash-bars"></div>
+          </section>
+        </div>
+
+        <section class="panel dash-panel">
+          <div class="dash-panel-head">
+            <div>
+              <h2>Largest expenses</h2>
+              <p class="dash-panel-sub">Top individual transactions</p>
+            </div>
+          </div>
+          <div id="topExpenses" class="dash-expense-list"></div>
+        </section>
       </section>
     </main>
 
