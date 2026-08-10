@@ -1,19 +1,64 @@
 import express from 'express';
 import PocketBase from 'pocketbase';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+function loadDotEnv() {
+  const envPath = path.join(__dirname, '.env');
+  if (!existsSync(envPath)) return;
+
+  const contents = readFileSync(envPath, 'utf8');
+  for (const rawLine of contents.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+
+    const separatorIndex = line.indexOf('=');
+    if (separatorIndex <= 0) continue;
+
+    const key = line.slice(0, separatorIndex).trim();
+    if (!key || process.env[key] !== undefined) continue;
+
+    let value = line.slice(separatorIndex + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith('\'') && value.endsWith('\''))) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  }
+}
+
+function detectGitBranch() {
+  try {
+    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd: __dirname,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).trim();
+  } catch {
+    return '';
+  }
+}
+
+function resolveAppBuildBranch() {
+  const configured = String(process.env.APP_BUILD_BRANCH || '').trim();
+  if (configured) return configured;
+  return detectGitBranch() || 'unknown';
+}
+
+loadDotEnv();
+
 const appVersion = JSON.parse(readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version;
 
 const app = express();
-const port = Number(process.env.PORT || 3000);
+const port = Number(process.env.PORT || process.env.APP_PORT || 3000);
 const pbUrl = (process.env.PB_URL || 'http://127.0.0.1:8090').replace(/\/$/, '');
 const pbToken = process.env.PB_TOKEN || '';
-const appBuildBranch = sanitizeName(process.env.APP_BUILD_BRANCH) || 'unknown';
+const appBuildBranch = resolveAppBuildBranch();
 const authCookieName = 'pb_auth';
 const authHintCookieName = 'oikos_session';
 const DEFAULT_TRANSACTION_PAGE_SIZE = 25;
