@@ -6,7 +6,10 @@
     "jsx": "react-jsx",
     "allowJs": true,
     "checkJs": false,
-    "strict": false
+    "strict": false,
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": ["src", "vite.config.js"]
 }
