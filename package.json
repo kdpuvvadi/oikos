@@ -1,6 +1,6 @@
 {
   "name": "oikos",
-  "version": "0.6.0",
+  "version": "0.6.2",
   "description": "Oikos, a PocketBase-backed expenses management app.",
   "type": "module",
   "scripts": {
