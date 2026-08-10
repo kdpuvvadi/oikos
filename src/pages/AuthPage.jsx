@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { requestVerification } from '@/lib/api';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -16,6 +15,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
+function verifyEmailPath(email) {
+  const normalized = String(email || '').trim().toLowerCase();
+  return normalized
+    ? `/verify-email?email=${encodeURIComponent(normalized)}`
+    : '/verify-email';
+}
+
 export default function AuthPage() {
   const {
     user,
@@ -23,13 +29,20 @@ export default function AuthPage() {
     login,
     register,
     logout,
-    pendingVerificationEmail,
     setPendingVerificationEmail
   } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [mode, setMode] = useState('login');
   const [submitting, setSubmitting] = useState(false);
   const approvalPending = Boolean(user && !isApproved);
+
+  function goToVerifyEmail(email, message) {
+    const normalized = String(email || '').trim().toLowerCase();
+    setPendingVerificationEmail(normalized);
+    if (message) toast(message);
+    navigate(verifyEmailPath(normalized));
+  }
 
   async function handleLogin(event) {
     event.preventDefault();
@@ -40,8 +53,10 @@ export default function AuthPage() {
       const result = await login(data);
       if (result?.requiresVerification) {
         form.reset();
-        setPendingVerificationEmail(result.email || String(data.email || '').trim().toLowerCase());
-        toast(result.message || 'Check your email to verify your account.');
+        goToVerifyEmail(
+          result.email || data.email,
+          result.message || 'Check your email to verify your account.'
+        );
         return;
       }
       if (result?.approvalPending) {
@@ -52,7 +67,8 @@ export default function AuthPage() {
       toast('Logged in.');
     } catch (error) {
       if (error.data?.requiresVerification) {
-        setPendingVerificationEmail(error.data.email || String(data.email || '').trim().toLowerCase());
+        goToVerifyEmail(error.data.email || data.email, error.message);
+        return;
       }
       toast(error.message);
     } finally {
@@ -69,8 +85,10 @@ export default function AuthPage() {
       const result = await register(data);
       if (result?.requiresVerification) {
         form.reset();
-        setPendingVerificationEmail(result.email || String(data.email || '').trim().toLowerCase());
-        toast(result.message || 'Check your email to verify your account.');
+        goToVerifyEmail(
+          result.email || data.email,
+          result.message || 'Check your email to verify your account.'
+        );
         return;
       }
       if (result?.approvalPending) {
@@ -81,26 +99,12 @@ export default function AuthPage() {
       toast('Account created.');
     } catch (error) {
       if (error.data?.requiresVerification) {
-        setPendingVerificationEmail(error.data.email || String(data.email || '').trim().toLowerCase());
+        goToVerifyEmail(error.data.email || data.email, error.message);
+        return;
       }
       toast(error.message);
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function resendVerification(email = pendingVerificationEmail) {
-    const targetEmail = String(email || '').trim();
-    if (!targetEmail) {
-      toast('Email address unavailable for verification.');
-      return;
-    }
-    try {
-      const result = await requestVerification(targetEmail);
-      setPendingVerificationEmail(result.email || targetEmail);
-      toast(result.message || 'Verification email sent.');
-    } catch (error) {
-      toast(error.message);
     }
   }
 
@@ -138,32 +142,6 @@ export default function AuthPage() {
         </div>
         <ThemeToggle id="themeToggleGuest" className="size-9 shrink-0" />
       </div>
-
-      {!user && pendingVerificationEmail ? (
-        <Card className="mb-4 border-primary/20 bg-primary/5">
-          <CardHeader>
-            <CardTitle className="text-base">Verify your email</CardTitle>
-            <CardDescription>{pendingVerificationEmail}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Check your inbox for the verification link. If it didn’t arrive, resend it below.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void resendVerification(pendingVerificationEmail)}
-              >
-                Resend email
-              </Button>
-              <Button asChild variant="ghost">
-                <Link to="/verify-email">Verification page</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
 
       {approvalPending ? (
         <Card>
