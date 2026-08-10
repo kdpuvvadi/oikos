@@ -53,7 +53,11 @@ It also enables PocketBase email OTP for the `users` collection and updates the 
 
 ### ZeptoMail on Railway
 
-Railway blocks outbound SMTP. PocketBase's [`pb_hooks/zeptomail.pb.js`](pb_hooks/zeptomail.pb.js) intercepts verification, OTP, reset, and other system emails and sends them to ZeptoMail's HTTPS API instead. No SMTP service or port is used.
+Railway blocks outbound SMTP. PocketBase's [`pb_hooks/zeptomail.pb.js`](pb_hooks/zeptomail.pb.js) intercepts verification, OTP, reset, weekly digests, and other system emails and sends them to ZeptoMail's HTTPS API instead. No SMTP service or port is used.
+
+### Weekly spending digests
+
+[`pb_hooks/weekly-digest.pb.js`](pb_hooks/weekly-digest.pb.js) emails verified users a Monday summary of the previous Mon–Sun (UTC): total spent, expense count, and top categories. **On by default** — opt out under **Me → Weekly digest**. Default schedule: `0 8 * * 1` (Monday 08:00 UTC), overridable with `WEEKLY_DIGEST_CRON`. Run `npm run setup:pocketbase` after deploy so the `weeklyDigestOptOut` field exists.
 
 Set these variables on the **PocketBase** Railway service:
 
@@ -61,6 +65,8 @@ Set these variables on the **PocketBase** Railway service:
 ZEPTO_MAIL_API_KEY=your_zeptomail_api_key
 ZEPTO_MAIL_FROM_ADDRESS=
 ZEPTO_MAIL_FROM_NAME=Oikos
+# optional
+# WEEKLY_DIGEST_CRON=0 8 * * 1
 ```
 
 The included PocketBase Dockerfile copies the hook into the container. Configure Railway to build the PocketBase service with `Dockerfile.pocketbase`; then set the same three variables there. Do not configure PocketBase SMTP settings; the hook intentionally does not call `e.next()`.

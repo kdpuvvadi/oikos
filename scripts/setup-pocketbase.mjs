@@ -335,11 +335,14 @@ async function main() {
     createRule: '',
     updateRule: 'id = @request.auth.id || @request.auth.kind = "admin"',
     deleteRule: '@request.auth.kind = "admin"',
+    removeFields: ['weeklyDigest'],
     fields: [
       textField('firstName', false),
       textField('lastName', false),
       textField('kind', false),
       boolField('approved', false),
+      // false = receive digests (default); true = opted out
+      boolField('weeklyDigestOptOut', false),
       optionalWholeNumberField('transactionPageSize', 10, 100)
     ]
   });

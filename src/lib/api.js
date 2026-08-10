@@ -76,6 +76,8 @@ export function publicUser(record) {
     emailVisibility: record.emailVisibility !== false,
     verified: record.verified === true,
     approved: admin ? true : record.approved === true,
+    // Digests on by default; only off when user opted out.
+    weeklyDigest: record.weeklyDigestOptOut !== true,
     kind: record.kind || 'user',
     isAdmin: admin,
     transactionPageSize: normalizeTransactionPageSize(record.transactionPageSize)
@@ -301,6 +303,10 @@ export async function updateProfile(updates) {
   if (email) updateBody.email = email;
   if (updates.transactionPageSize !== undefined) {
     updateBody.transactionPageSize = normalizeTransactionPageSize(updates.transactionPageSize);
+  }
+  if (updates.weeklyDigest !== undefined) {
+    // UI exposes "weekly digest enabled"; store the inverse as opt-out.
+    updateBody.weeklyDigestOptOut = !Boolean(updates.weeklyDigest);
   }
 
   try {

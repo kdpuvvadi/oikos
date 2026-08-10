@@ -14,6 +14,7 @@ services:
       ZEPTO_MAIL_API_KEY: "${ZEPTO_MAIL_API_KEY:-}"
       ZEPTO_MAIL_FROM_ADDRESS: "${ZEPTO_MAIL_FROM_ADDRESS:-}"
       ZEPTO_MAIL_FROM_NAME: "${ZEPTO_MAIL_FROM_NAME:-Oikos}"
+      WEEKLY_DIGEST_CRON: "${WEEKLY_DIGEST_CRON:-0 8 * * 1}"
     volumes:
       - ./pb_data:/usr/src/app/pb_data
     healthcheck:

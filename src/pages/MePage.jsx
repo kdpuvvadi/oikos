@@ -97,6 +97,16 @@ export default function MePage() {
     }
   }
 
+  async function toggleWeeklyDigest() {
+    const nextValue = !user.weeklyDigest;
+    try {
+      await saveProfile({ weeklyDigest: nextValue });
+      toast(nextValue ? 'Weekly digest enabled.' : 'Weekly digest disabled.');
+    } catch (error) {
+      toast(error.message);
+    }
+  }
+
   async function updatePageSize(nextValue) {
     const pageSize = Number.parseInt(String(nextValue || ''), 10);
     if (!TRANSACTION_PAGE_SIZE_OPTIONS.includes(pageSize)) return;
@@ -168,6 +178,18 @@ export default function MePage() {
           {isApprovedUser(user)
             ? 'Your account is approved.'
             : 'Your account is waiting for admin approval.'}
+        </p>
+      </DetailRow>
+      <DetailRow label="Weekly digest">
+        <Switch
+          checked={Boolean(user.weeklyDigest)}
+          data-weekly-digest
+          onCheckedChange={() => void toggleWeeklyDigest()}
+        />
+        <p className="text-sm text-muted-foreground">
+          {user.weeklyDigest
+            ? 'On by default — you’ll get a Monday email with last week’s spending. Turn off to opt out.'
+            : 'Weekly spending summary emails are off.'}
         </p>
       </DetailRow>
       <DetailRow label="Email visibility">
