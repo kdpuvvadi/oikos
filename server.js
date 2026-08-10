@@ -18,6 +18,9 @@ const authCookieName = 'pb_auth';
 const authHintCookieName = 'oikos_session';
 const DEFAULT_TRANSACTION_PAGE_SIZE = 25;
 const TRANSACTION_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+const API_CACHE_TTL_MS = Number(process.env.API_CACHE_TTL_MS || 5 * 60 * 1000);
+const apiCache = new Map();
+const apiCacheInflight = new Map();
 const requestContext = new AsyncLocalStorage();
 let requestIdSequence = 0;
 
@@ -183,6 +186,77 @@ function isApproved(record) {
   return isAdmin(record) || record?.approved !== false;
 }
 
+function cacheScope(user) {
+  return isAdmin(user) ? 'admin' : `user:${user.id}`;
+}
+
+function cacheGet(key) {
+  const entry = apiCache.get(key);
+  if (!entry) return null;
+  if (entry.expires <= Date.now()) {
+    apiCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function cacheSet(key, value, ttlMs = API_CACHE_TTL_MS) {
+  apiCache.set(key, {
+    value,
+    expires: Date.now() + ttlMs
+  });
+  return value;
+}
+
+function cacheDeleteByPrefix(...prefixes) {
+  for (const key of apiCache.keys()) {
+    if (prefixes.some((prefix) => key === prefix || key.startsWith(`${prefix}:`) || key.startsWith(`${prefix}?`))) {
+      apiCache.delete(key);
+    }
+  }
+  for (const key of apiCacheInflight.keys()) {
+    if (prefixes.some((prefix) => key === prefix || key.startsWith(`${prefix}:`) || key.startsWith(`${prefix}?`))) {
+      apiCacheInflight.delete(key);
+    }
+  }
+}
+
+function invalidateReferenceCache() {
+  cacheDeleteByPrefix('categories', 'stores', 'payment-methods', 'users');
+  // Expanded transaction payloads embed reference names.
+  invalidateTransactionCache();
+}
+
+function invalidateTransactionCache() {
+  cacheDeleteByPrefix('summary', 'home-totals', 'monthly-totals', 'transactions', 'transaction');
+}
+
+async function cached(key, loader) {
+  const hit = cacheGet(key);
+  if (hit !== null) return { value: hit, cache: 'HIT' };
+  if (apiCacheInflight.has(key)) {
+    const value = await apiCacheInflight.get(key);
+    return { value, cache: 'HIT' };
+  }
+  const pending = Promise.resolve()
+    .then(loader)
+    .then((value) => {
+      cacheSet(key, value);
+      return value;
+    })
+    .finally(() => {
+      apiCacheInflight.delete(key);
+    });
+  apiCacheInflight.set(key, pending);
+  const value = await pending;
+  return { value, cache: 'MISS' };
+}
+
+function sendCached(res, payload) {
+  res.setHeader('X-Oikos-Cache', payload.cache);
+  res.json(payload.value);
+}
+
 function requireAuth(req, res, next) {
   const client = clientFromRequest(req);
   if (!client.authStore.isValid || !client.authStore.record?.id) {
@@ -260,18 +334,30 @@ function totalsByMonth(records) {
   }, {});
 }
 
-function summaryTransaction(record) {
-  const storeName = record.expand?.store?.name || 'Unknown';
+function toNameMap(records) {
+  return new Map((records || []).map((record) => [record.id, record.name]));
+}
+
+function summaryTransaction(record, maps = {}) {
+  const storeName = maps.stores?.get(record.store)
+    || record.expand?.store?.name
+    || 'Unknown';
   const storeText = String(record.storeText || '').trim();
   return {
     id: record.id,
     date: record.date,
     amount: Number(record.amount || 0),
-    category: record.expand?.category?.name || 'Uncategorized',
-    subcategory: record.expand?.subcategory?.name || 'None',
+    category: maps.categories?.get(record.category)
+      || record.expand?.category?.name
+      || 'Uncategorized',
+    subcategory: maps.subcategories?.get(record.subcategory)
+      || record.expand?.subcategory?.name
+      || 'None',
     store: storeText || storeName,
     storeText,
-    paymentMethod: record.expand?.payment_method?.name || 'Not set'
+    paymentMethod: maps.paymentMethods?.get(record.payment_method)
+      || record.expand?.payment_method?.name
+      || 'Not set'
   };
 }
 
@@ -287,6 +373,32 @@ async function listPageRecords(client, collection, page, perPage, params) {
   });
 }
 
+async function sumFilteredAmounts(client, filter) {
+  const records = await listRecords(client, 'oikos_transactions', {
+    fields: 'amount',
+    filter: filter || undefined,
+    skipTotal: true,
+    batch: 1000,
+    requestKey: null
+  });
+  return sumRecordAmounts(records);
+}
+
+async function loadRelationNameMaps(client) {
+  const [categories, subcategories, stores, paymentMethods] = await Promise.all([
+    listRecords(client, 'oikos_categories', { fields: 'id,name', skipTotal: true, batch: 200 }),
+    listRecords(client, 'oikos_subcategories', { fields: 'id,name', skipTotal: true, batch: 500 }),
+    listRecords(client, 'oikos_stores', { fields: 'id,name', skipTotal: true, batch: 200 }),
+    listRecords(client, 'oikos_payment_methods', { fields: 'id,name', skipTotal: true, batch: 100 })
+  ]);
+  return {
+    categories: toNameMap(categories),
+    subcategories: toNameMap(subcategories),
+    stores: toNameMap(stores),
+    paymentMethods: toNameMap(paymentMethods)
+  };
+}
+
 async function createRecord(client, collection, body) {
   return client.collection(collection).create(body);
 }
@@ -296,8 +408,11 @@ async function findByName(client, collection, name, extraFilter = '') {
   if (!normalized) return null;
   const escaped = normalized.replaceAll('"', '\\"');
   const filter = [`name = "${escaped}"`, extraFilter].filter(Boolean).join(' && ');
-  const matches = await listRecords(client, collection, { filter, perPage: '1' });
-  return matches[0] || null;
+  try {
+    return await client.collection(collection).getFirstListItem(filter);
+  } catch {
+    return null;
+  }
 }
 
 async function findOrCreateCategory(client, name) {
@@ -351,12 +466,6 @@ function handleError(res, error) {
       error: 'PocketBase is not running.',
       details: error.message,
       hint: `Start PocketBase service. Service not available at ${pbUrl}`
-    });
-  }
-  if (error.status === 400 && requestUrl.includes('oikos_transactions') && requestUrl.includes('user')) {
-    return res.status(409).json({
-      error: 'PocketBase needs the latest Oikos expenses schema.',
-      hint: 'Run: docker compose exec app npm run setup:pocketbase'
     });
   }
   const validation = error.response?.data || error.data?.data || error.originalError?.data?.data || {};
@@ -540,11 +649,37 @@ app.post('/api/auth/logout', (_req, res) => {
   res.status(204).end();
 });
 
+function tokenExpiresInMs(token) {
+  try {
+    const payload = String(token || '').split('.')[1];
+    if (!payload) return 0;
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
+    const json = JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
+    if (!json.exp) return 0;
+    return (Number(json.exp) * 1000) - Date.now();
+  } catch {
+    return 0;
+  }
+}
+
+function tokenNeedsRefresh(token) {
+  // PocketBase tokens are long-lived; only hit auth-refresh when close to expiry.
+  return tokenExpiresInMs(token) < (60 * 60 * 1000);
+}
+
 app.get('/api/auth/me', async (req, res) => {
   const client = clientFromRequest(req);
   if (!client.authStore.isValid || !client.authStore.record?.id) {
     res.setHeader('Set-Cookie', clearAuthCookies());
     return res.status(401).json({ error: 'Not logged in.' });
+  }
+
+  if (!tokenNeedsRefresh(client.authStore.token)) {
+    return res.json({
+      token: client.authStore.token,
+      user: publicUser(client.authStore.record)
+    });
   }
 
   try {
@@ -600,21 +735,23 @@ app.put('/api/auth/me', requireAuth, async (req, res) => {
 
 app.get('/api/categories', requireAuth, requireApproved, async (req, res) => {
   try {
-    const [categories, subcategories] = await Promise.all([
-      listRecords(req.pb, 'oikos_categories', { sort: 'name' }),
-      listRecords(req.pb, 'oikos_subcategories', { sort: 'name' })
-    ]);
-    const subcategoriesByCategory = subcategories.reduce((map, subcategory) => {
-      const key = subcategory.category;
-      map[key] = map[key] || [];
-      map[key].push(subcategory);
-      return map;
-    }, {});
+    sendCached(res, await cached('categories', async () => {
+      const [categories, subcategories] = await Promise.all([
+        listRecords(req.pb, 'oikos_categories', { sort: 'name' }),
+        listRecords(req.pb, 'oikos_subcategories', { sort: 'name' })
+      ]);
+      const subcategoriesByCategory = subcategories.reduce((map, subcategory) => {
+        const key = subcategory.category;
+        map[key] = map[key] || [];
+        map[key].push(subcategory);
+        return map;
+      }, {});
 
-    res.json(categories.map((category) => ({
-      ...category,
-      subcategories: subcategoriesByCategory[category.id] || []
-    })));
+      return categories.map((category) => ({
+        ...category,
+        subcategories: subcategoriesByCategory[category.id] || []
+      }));
+    }));
   } catch (error) {
     handleError(res, error);
   }
@@ -627,6 +764,7 @@ app.post('/api/categories', requireAuth, requireApproved, requireAdmin, async (r
 
     const category = await findOrCreateCategory(req.pb, name);
     const subcategory = await findOrCreateSubcategory(req.pb, category.id, req.body.subcategoryName);
+    invalidateReferenceCache();
     res.status(201).json({ category, subcategory });
   } catch (error) {
     handleError(res, error);
@@ -637,7 +775,9 @@ app.put('/api/categories/:id', requireAuth, requireApproved, requireAdmin, async
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Category name is required.' });
-    res.json(await req.pb.collection('oikos_categories').update(req.params.id, { name }));
+    const updated = await req.pb.collection('oikos_categories').update(req.params.id, { name });
+    invalidateReferenceCache();
+    res.json(updated);
   } catch (error) {
     handleError(res, error);
   }
@@ -649,6 +789,7 @@ app.post('/api/subcategories', requireAuth, requireApproved, requireAdmin, async
     const category = sanitizeName(req.body.category);
     if (!name || !category) return res.status(400).json({ error: 'Category and subcategory are required.' });
     const subcategory = await findOrCreateSubcategory(req.pb, category, name);
+    invalidateReferenceCache();
     res.status(201).json(subcategory);
   } catch (error) {
     handleError(res, error);
@@ -659,7 +800,9 @@ app.put('/api/subcategories/:id', requireAuth, requireApproved, requireAdmin, as
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Subcategory name is required.' });
-    res.json(await req.pb.collection('oikos_subcategories').update(req.params.id, { name }));
+    const updated = await req.pb.collection('oikos_subcategories').update(req.params.id, { name });
+    invalidateReferenceCache();
+    res.json(updated);
   } catch (error) {
     handleError(res, error);
   }
@@ -667,7 +810,7 @@ app.put('/api/subcategories/:id', requireAuth, requireApproved, requireAdmin, as
 
 app.get('/api/stores', requireAuth, requireApproved, async (req, res) => {
   try {
-    res.json(await listRecords(req.pb, 'oikos_stores', { sort: 'name' }));
+    sendCached(res, await cached('stores', () => listRecords(req.pb, 'oikos_stores', { sort: 'name' })));
   } catch (error) {
     handleError(res, error);
   }
@@ -677,7 +820,9 @@ app.post('/api/stores', requireAuth, requireApproved, requireAdmin, async (req, 
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Store name is required.' });
-    res.status(201).json(await findOrCreateStore(req.pb, name));
+    const store = await findOrCreateStore(req.pb, name);
+    invalidateReferenceCache();
+    res.status(201).json(store);
   } catch (error) {
     handleError(res, error);
   }
@@ -685,7 +830,7 @@ app.post('/api/stores', requireAuth, requireApproved, requireAdmin, async (req, 
 
 app.get('/api/payment-methods', requireAuth, requireApproved, async (req, res) => {
   try {
-    res.json(await listRecords(req.pb, 'oikos_payment_methods', { sort: 'name' }));
+    sendCached(res, await cached('payment-methods', () => listRecords(req.pb, 'oikos_payment_methods', { sort: 'name' })));
   } catch (error) {
     handleError(res, error);
   }
@@ -693,8 +838,10 @@ app.get('/api/payment-methods', requireAuth, requireApproved, async (req, res) =
 
 app.get('/api/users', requireAuth, requireApproved, requireAdmin, async (req, res) => {
   try {
-    const users = await listRecords(req.pb, 'users', { sort: 'name,email' });
-    res.json(users.map(publicUser));
+    sendCached(res, await cached('users', async () => {
+      const users = await listRecords(req.pb, 'users', { sort: 'name,email' });
+      return users.map(publicUser);
+    }));
   } catch (error) {
     handleError(res, error);
   }
@@ -724,6 +871,7 @@ app.post('/api/users/:id/mark-verified', requireAuth, requireApproved, requireAd
   try {
     const user = await req.pb.collection('users').getOne(req.params.id);
     const updated = await req.pb.collection('users').update(user.id, { verified: true });
+    cacheDeleteByPrefix('users');
     res.json({
       user: publicUser(updated)
     });
@@ -736,6 +884,7 @@ app.post('/api/users/:id/approve', requireAuth, requireApproved, requireAdmin, a
   try {
     const user = await req.pb.collection('users').getOne(req.params.id);
     const updated = await req.pb.collection('users').update(user.id, { approved: true });
+    cacheDeleteByPrefix('users');
     res.json({
       user: publicUser(updated)
     });
@@ -748,7 +897,9 @@ app.post('/api/payment-methods', requireAuth, requireApproved, requireAdmin, asy
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Payment method name is required.' });
-    res.status(201).json(await findOrCreatePaymentMethod(req.pb, name));
+    const paymentMethod = await findOrCreatePaymentMethod(req.pb, name);
+    invalidateReferenceCache();
+    res.status(201).json(paymentMethod);
   } catch (error) {
     handleError(res, error);
   }
@@ -758,7 +909,9 @@ app.put('/api/payment-methods/:id', requireAuth, requireApproved, requireAdmin, 
   try {
     const name = sanitizeName(req.body.name);
     if (!name) return res.status(400).json({ error: 'Payment method name is required.' });
-    res.json(await req.pb.collection('oikos_payment_methods').update(req.params.id, { name }));
+    const updated = await req.pb.collection('oikos_payment_methods').update(req.params.id, { name });
+    invalidateReferenceCache();
+    res.json(updated);
   } catch (error) {
     handleError(res, error);
   }
@@ -766,44 +919,51 @@ app.put('/api/payment-methods/:id', requireAuth, requireApproved, requireAdmin, 
 
 app.get('/api/transactions', requireAuth, requireApproved, async (req, res) => {
   try {
-    const filters = isAdmin(req.user) ? [] : [`user = "${req.user.id}"`];
-    const page = parsePositiveInt(req.query.page, 1);
-    const perPage = normalizeTransactionPageSize(req.query.perPage || req.user.transactionPageSize);
-    if (req.query.month) {
-      const [year, month] = String(req.query.month).split('-').map(Number);
-      filters.push(`date >= "${monthBoundary(year, month - 1)}"`);
-      filters.push(`date < "${monthBoundary(year, month)}"`);
-    }
-    if (req.query.fromDate) filters.push(`date >= "${pbDate(req.query.fromDate)}"`);
-    if (req.query.toDate) filters.push(`date < "${nextDayBoundary(req.query.toDate)}"`);
-    if (req.query.category) filters.push(`category = "${req.query.category}"`);
-    if (req.query.subcategory) filters.push(`subcategory = "${req.query.subcategory}"`);
-    if (req.query.user && isAdmin(req.user)) filters.push(`user = "${req.query.user}"`);
-    if (req.query.store) filters.push(`store = "${req.query.store}"`);
-    if (req.query.paymentMethod) filters.push(`payment_method = "${req.query.paymentMethod}"`);
+    const scope = cacheScope(req.user);
+    const cacheKey = `transactions:${scope}?${new URLSearchParams(req.query).toString()}`;
+    sendCached(res, await cached(cacheKey, async () => {
+      const filters = isAdmin(req.user) ? [] : [`user = "${req.user.id}"`];
+      const page = parsePositiveInt(req.query.page, 1);
+      const perPage = normalizeTransactionPageSize(req.query.perPage || req.user.transactionPageSize);
+      if (req.query.month) {
+        const [year, month] = String(req.query.month).split('-').map(Number);
+        filters.push(`date >= "${monthBoundary(year, month - 1)}"`);
+        filters.push(`date < "${monthBoundary(year, month)}"`);
+      }
+      if (req.query.fromDate) filters.push(`date >= "${pbDate(req.query.fromDate)}"`);
+      if (req.query.toDate) filters.push(`date < "${nextDayBoundary(req.query.toDate)}"`);
+      if (req.query.category) filters.push(`category = "${req.query.category}"`);
+      if (req.query.subcategory) filters.push(`subcategory = "${req.query.subcategory}"`);
+      if (req.query.user && isAdmin(req.user)) filters.push(`user = "${req.query.user}"`);
+      if (req.query.store) filters.push(`store = "${req.query.store}"`);
+      if (req.query.paymentMethod) filters.push(`payment_method = "${req.query.paymentMethod}"`);
 
-    const filter = filters.join(' && ');
-    const [transactions, matchingTransactions] = await Promise.all([
-      listPageRecords(req.pb, 'oikos_transactions', page, perPage, {
+      const filter = filters.join(' && ');
+      const includeTotalAmount = ['1', 'true', 'yes'].includes(String(req.query.includeTotalAmount || '').toLowerCase());
+      const transactions = await listPageRecords(req.pb, 'oikos_transactions', page, perPage, {
         sort: '-date',
         expand: 'category,subcategory,store,user,payment_method',
         filter,
         requestKey: null
-      }),
-      listRecords(req.pb, 'oikos_transactions', {
-        fields: 'amount',
-        filter,
-        requestKey: null
-      })
-    ]);
-    res.json({
-      items: transactions.items || [],
-      page: transactions.page,
-      perPage: transactions.perPage,
-      totalItems: transactions.totalItems,
-      totalPages: transactions.totalPages,
-      totalAmount: sumRecordAmounts(matchingTransactions)
-    });
+      });
+
+      const pageItems = transactions.items || [];
+      let totalAmount = 0;
+      if (transactions.totalItems <= pageItems.length) {
+        totalAmount = sumRecordAmounts(pageItems);
+      } else if (includeTotalAmount) {
+        totalAmount = await sumFilteredAmounts(req.pb, filter);
+      }
+
+      return {
+        items: pageItems,
+        page: transactions.page,
+        perPage: transactions.perPage,
+        totalItems: transactions.totalItems,
+        totalPages: transactions.totalPages,
+        totalAmount
+      };
+    }));
   } catch (error) {
     handleError(res, error);
   }
@@ -811,13 +971,19 @@ app.get('/api/transactions', requireAuth, requireApproved, async (req, res) => {
 
 app.get('/api/transactions/:id', requireAuth, requireApproved, async (req, res) => {
   try {
-    const transaction = await req.pb.collection('oikos_transactions').getOne(req.params.id, {
-      expand: 'category,subcategory,store,payment_method,user'
-    });
-    if (!isAdmin(req.user) && transaction.user !== req.user.id) {
-      return res.status(404).json({ error: 'Transaction not found.' });
-    }
-    res.json(transaction);
+    const scope = cacheScope(req.user);
+    const cacheKey = `transaction:${scope}:${req.params.id}`;
+    sendCached(res, await cached(cacheKey, async () => {
+      const transaction = await req.pb.collection('oikos_transactions').getOne(req.params.id, {
+        expand: 'category,subcategory,store,payment_method,user'
+      });
+      if (!isAdmin(req.user) && transaction.user !== req.user.id) {
+        const error = new Error('Transaction not found.');
+        error.status = 404;
+        throw error;
+      }
+      return transaction;
+    }));
   } catch (error) {
     handleError(res, error);
   }
@@ -825,21 +991,39 @@ app.get('/api/transactions/:id', requireAuth, requireApproved, async (req, res) 
 
 app.get('/api/home-totals', requireAuth, requireApproved, async (req, res) => {
   try {
-    const baseFilters = isAdmin(req.user) ? [] : [`user = "${req.user.id}"`];
-    const thisMonth = currentMonthRange(0);
-    const lastMonth = currentMonthRange(-1);
+    const scope = cacheScope(req.user);
+    sendCached(res, await cached(`home-totals:${scope}`, async () => {
+      const baseFilters = isAdmin(req.user) ? [] : [`user = "${req.user.id}"`];
+      const thisMonth = currentMonthRange(0);
+      const lastMonth = currentMonthRange(-1);
+      const rangeFilter = [
+        ...baseFilters,
+        `date >= "${lastMonth.start}"`,
+        `date < "${thisMonth.end}"`
+      ].join(' && ');
 
-    const thisMonthRecords = await listRecords(req.pb, 'oikos_transactions', {
-      filter: [...baseFilters, `date >= "${thisMonth.start}"`, `date < "${thisMonth.end}"`].join(' && ')
-    });
-    const lastMonthRecords = await listRecords(req.pb, 'oikos_transactions', {
-      filter: [...baseFilters, `date >= "${lastMonth.start}"`, `date < "${lastMonth.end}"`].join(' && ')
-    });
+      const records = await listRecords(req.pb, 'oikos_transactions', {
+        fields: 'date,amount',
+        filter: rangeFilter,
+        skipTotal: true,
+        batch: 1000,
+        requestKey: null
+      });
 
-    res.json({
-      thisMonth: sumRecordAmounts(thisMonthRecords),
-      lastMonth: sumRecordAmounts(lastMonthRecords)
-    });
+      let thisMonthTotal = 0;
+      let lastMonthTotal = 0;
+      records.forEach((record) => {
+        const amount = Number(record.amount || 0);
+        const date = String(record.date || '');
+        if (date >= thisMonth.start && date < thisMonth.end) thisMonthTotal += amount;
+        else if (date >= lastMonth.start && date < lastMonth.end) lastMonthTotal += amount;
+      });
+
+      return {
+        thisMonth: thisMonthTotal,
+        lastMonth: lastMonthTotal
+      };
+    }));
   } catch (error) {
     handleError(res, error);
   }
@@ -847,15 +1031,21 @@ app.get('/api/home-totals', requireAuth, requireApproved, async (req, res) => {
 
 app.get('/api/monthly-totals', requireAuth, requireApproved, async (req, res) => {
   try {
-    const filter = isAdmin(req.user) ? '' : `user = "${req.user.id}"`;
-    const transactions = await listRecords(req.pb, 'oikos_transactions', {
-      sort: 'date',
-      filter
-    });
+    const scope = cacheScope(req.user);
+    sendCached(res, await cached(`monthly-totals:${scope}`, async () => {
+      const filter = isAdmin(req.user) ? '' : `user = "${req.user.id}"`;
+      const transactions = await listRecords(req.pb, 'oikos_transactions', {
+        fields: 'date,amount',
+        sort: 'date',
+        filter: filter || undefined,
+        skipTotal: true,
+        batch: 1000
+      });
 
-    res.json({
-      totals: totalsByMonth(transactions)
-    });
+      return {
+        totals: totalsByMonth(transactions)
+      };
+    }));
   } catch (error) {
     handleError(res, error);
   }
@@ -918,6 +1108,11 @@ app.post('/api/transactions', requireAuth, requireApproved, async (req, res) => 
       storeText,
       user: req.user.id
     });
+    if (req.body.categoryName || req.body.subcategoryName || req.body.storeName) {
+      invalidateReferenceCache();
+    } else {
+      invalidateTransactionCache();
+    }
     res.status(201).json(transaction);
   } catch (error) {
     handleError(res, error);
@@ -968,6 +1163,7 @@ app.put('/api/transactions/:id', requireAuth, requireApproved, async (req, res) 
       storeText,
       user: transaction.user || req.user.id
     });
+    invalidateTransactionCache();
     res.json(updated);
   } catch (error) {
     handleError(res, error);
@@ -981,6 +1177,7 @@ app.delete('/api/transactions/:id', requireAuth, requireApproved, async (req, re
       return res.status(404).json({ error: 'Transaction not found.' });
     }
     await req.pb.collection('oikos_transactions').delete(req.params.id);
+    invalidateTransactionCache();
     res.status(204).end();
   } catch (error) {
     handleError(res, error);
@@ -989,15 +1186,23 @@ app.delete('/api/transactions/:id', requireAuth, requireApproved, async (req, re
 
 app.get('/api/summary', requireAuth, requireApproved, async (req, res) => {
   try {
-    const filter = isAdmin(req.user) ? '' : `user = "${req.user.id}"`;
-    const transactions = await listRecords(req.pb, 'oikos_transactions', {
-      sort: '-date',
-      expand: 'category,subcategory,store,payment_method',
-      filter
-    });
-    res.json({
-      transactions: transactions.map(summaryTransaction)
-    });
+    const scope = cacheScope(req.user);
+    sendCached(res, await cached(`summary:${scope}`, async () => {
+      const filter = isAdmin(req.user) ? '' : `user = "${req.user.id}"`;
+      const [transactions, maps] = await Promise.all([
+        listRecords(req.pb, 'oikos_transactions', {
+          fields: 'id,date,amount,category,subcategory,store,storeText,payment_method',
+          sort: '-date',
+          filter: filter || undefined,
+          skipTotal: true,
+          batch: 1000
+        }),
+        loadRelationNameMaps(req.pb)
+      ]);
+      return {
+        transactions: transactions.map((transaction) => summaryTransaction(transaction, maps))
+      };
+    }));
   } catch (error) {
     handleError(res, error);
   }

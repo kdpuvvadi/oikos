@@ -40,20 +40,23 @@ async function auth() {
   }
 
   const rl = readline.createInterface({ input, output });
-  const identity = await rl.question('PocketBase admin email: ');
-  const password = await rl.question('PocketBase admin password: ');
-  rl.close();
+  try {
+    const identity = await rl.question('PocketBase admin email: ');
+    const password = await rl.question('PocketBase admin password: ');
 
-  for (const collection of ['_superusers', '_admins']) {
-    try {
-      await pb.collection(collection).authWithPassword(identity, password);
-      return;
-    } catch {
-      // Try the next PocketBase auth route for newer/older versions.
+    for (const collection of ['_superusers', '_admins']) {
+      try {
+        await pb.collection(collection).authWithPassword(identity, password);
+        return;
+      } catch {
+        // Try the next PocketBase auth route for newer/older versions.
+      }
     }
-  }
 
-  throw new Error('Could not authenticate. Check your PocketBase admin credentials.');
+    throw new Error('Could not authenticate. Check your PocketBase admin credentials.');
+  } finally {
+    rl.close();
+  }
 }
 
 async function collectionByName(name) {
@@ -100,6 +103,37 @@ async function createCollection(payload) {
       console.log(`Removed obsolete fields from collection: ${payload.name}`);
     }
 
+    const desiredIndexes = [...(payload.indexes || [])].sort();
+    const currentIndexes = [...(current.indexes || [])].sort();
+    const indexesChanged = desiredIndexes.length > 0
+      && (desiredIndexes.length !== currentIndexes.length
+        || desiredIndexes.some((index, i) => index !== currentIndexes[i]));
+
+    if (indexesChanged) {
+      try {
+        current = await pb.collections.update(current.id, {
+          indexes: payload.indexes
+        });
+        console.log(`Updated indexes for collection: ${payload.name}`);
+      } catch (error) {
+        const details = error?.response || error?.data || error?.originalError?.data || {};
+        const indexErrors = details?.data?.indexes || {};
+        const alreadyExists = Object.values(indexErrors).every((item) => (
+          String(item?.message || '').includes('already exists')
+        ));
+        if (alreadyExists && Object.keys(indexErrors).length) {
+          // Indexes exist in SQLite but metadata was empty; mark as aligned.
+          current = await pb.collections.getOne(current.id);
+          console.log(`Indexes already present for collection: ${payload.name}`);
+        } else {
+          console.warn(`Skipping index update for ${payload.name}:`, error?.message || error);
+          if (details && Object.keys(details).length) {
+            console.warn(JSON.stringify(details, null, 2));
+          }
+        }
+      }
+    }
+
     const changedRules = Object.fromEntries(
       ruleKeys
         .filter((key) => current[key] !== payload[key])
@@ -113,7 +147,7 @@ async function createCollection(payload) {
     }
 
     console.log(`Collection already exists: ${payload.name}`);
-    return existing;
+    return current;
   }
   const created = await pb.collections.create(payload);
   console.log(`Created collection: ${payload.name}`);
@@ -126,18 +160,36 @@ async function ensureAppSettings() {
     return;
   }
 
-  const settings = await pb.settings.getAll();
-  const meta = settings.meta || {};
-  const nextMeta = {
-    ...meta,
-    appName: meta.appName || 'Oikos',
-    appUrl: appPublicUrl,
-    appURL: appPublicUrl
-  };
+  try {
+    const settings = await pb.settings.getAll();
+    const meta = settings.meta || {};
+    const currentUrl = meta.appURL || meta.appUrl || '';
+    const nextMeta = {
+      appName: meta.appName || 'Oikos',
+      appURL: appPublicUrl,
+      senderName: meta.senderName || 'Oikos',
+      senderAddress: meta.senderAddress || 'noreply@localhost',
+      hideControls: Boolean(meta.hideControls)
+    };
+    if (typeof meta.accentColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(meta.accentColor)) {
+      nextMeta.accentColor = meta.accentColor;
+    }
 
-  if (meta.appUrl !== appPublicUrl || meta.appURL !== appPublicUrl || meta.appName !== nextMeta.appName) {
-    await pb.settings.update({ meta: nextMeta });
-    console.log(`Updated PocketBase app URL to: ${appPublicUrl}`);
+    if (
+      currentUrl !== appPublicUrl
+      || meta.appName !== nextMeta.appName
+      || meta.senderName !== nextMeta.senderName
+      || meta.senderAddress !== nextMeta.senderAddress
+    ) {
+      await pb.settings.update({ meta: nextMeta });
+      console.log(`Updated PocketBase app URL to: ${appPublicUrl}`);
+    }
+  } catch (error) {
+    const details = error?.response || error?.data || error?.originalError?.data || {};
+    console.warn('Skipping PocketBase settings update:', error?.message || error);
+    if (details && Object.keys(details).length) {
+      console.warn(JSON.stringify(details, null, 2));
+    }
   }
 }
 
@@ -335,6 +387,13 @@ async function main() {
       relationField('store', stores.id),
       textField('storeText', false),
       relationField('user', users.id, false, false)
+    ],
+    indexes: [
+      'CREATE INDEX `idx_oikos_transactions_user` ON `oikos_transactions` (`user`)',
+      'CREATE INDEX `idx_oikos_transactions_date` ON `oikos_transactions` (`date`)',
+      'CREATE INDEX `idx_oikos_transactions_user_date` ON `oikos_transactions` (`user`, `date`)',
+      'CREATE INDEX `idx_oikos_transactions_category` ON `oikos_transactions` (`category`)',
+      'CREATE INDEX `idx_oikos_transactions_store` ON `oikos_transactions` (`store`)'
     ]
   });
 
@@ -374,6 +433,9 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error.message);
-  process.exit(1);
+  console.error(error?.message || error);
+  const details = error?.response || error?.data || error?.originalError?.data;
+  if (details) console.error(JSON.stringify(details, null, 2));
+  // Give Windows time to close readline/network handles before exiting.
+  setTimeout(() => process.exit(1), 100);
 });

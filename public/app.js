@@ -22,6 +22,7 @@ const state = {
     totalPages: 1,
     totalAmount: 0
   },
+  transactionTotalFilterKey: '',
   homeTotals: {
     thisMonth: 0,
     lastMonth: 0
@@ -1402,6 +1403,7 @@ function resetDataState() {
     totalPages: 1,
     totalAmount: 0
   };
+  state.transactionTotalFilterKey = '';
   state.homeTotals = { thisMonth: 0, lastMonth: 0 };
   Object.keys(state.loaded).forEach((key) => {
     state.loaded[key] = false;
@@ -1414,6 +1416,7 @@ function invalidate(...keys) {
   keys.forEach((key) => {
     state.loaded[key] = false;
   });
+  if (keys.includes('transactions')) state.transactionTotalFilterKey = '';
 }
 
 async function ensureLoaded(key, loader, force = false) {
@@ -1472,19 +1475,26 @@ async function loadSummaryTransactions(force = false) {
 }
 
 async function loadTransactionRows() {
-  const data = await api(`/api/transactions${buildTransactionFilterQuery()}`);
+  const filterKey = transactionFilterKey();
+  const filtersActive = Boolean(filterKey);
+  const includeTotalAmount = filtersActive && state.transactionTotalFilterKey !== filterKey;
+  const data = await api(`/api/transactions${buildTransactionFilterQuery({ includeTotalAmount })}`);
   if ((data.items || []).length === 0 && (data.totalItems || 0) > 0 && (data.totalPages || 1) < (data.page || 1)) {
     state.transactionPagination.page = data.totalPages || 1;
     return loadTransactionRows();
   }
+  const previousAmount = state.transactionPagination.totalAmount || 0;
   state.transactionRows = data.items || [];
   state.transactionPagination = {
     page: data.page || 1,
     perPage: data.perPage || state.transactionPagination.perPage,
     totalItems: data.totalItems || 0,
     totalPages: data.totalPages || 1,
-    totalAmount: Number(data.totalAmount || 0)
+    totalAmount: includeTotalAmount || !filtersActive
+      ? Number(data.totalAmount || 0)
+      : previousAmount
   };
+  state.transactionTotalFilterKey = filtersActive ? filterKey : '';
 }
 
 async function loadTransactionDetail() {
@@ -1968,7 +1978,16 @@ async function deleteTransaction(transactionId) {
   }
 }
 
-function buildTransactionFilterQuery() {
+function transactionFilterKey() {
+  if (!has('#transactionFilterForm')) return '';
+  const data = new FormData(qs('#transactionFilterForm'));
+  return ['fromDate', 'toDate', 'category', 'subcategory', 'paymentMethod', 'store', 'user']
+    .map((key) => `${key}=${String(data.get(key) || '').trim()}`)
+    .filter((part) => !part.endsWith('='))
+    .join('&');
+}
+
+function buildTransactionFilterQuery({ includeTotalAmount = false } = {}) {
   if (!has('#transactionFilterForm')) return '';
 
   const data = new FormData(qs('#transactionFilterForm'));
@@ -1979,6 +1998,7 @@ function buildTransactionFilterQuery() {
     const value = String(data.get(key) || '').trim();
     if (value) params.set(key, value);
   });
+  if (includeTotalAmount) params.set('includeTotalAmount', '1');
 
   const query = params.toString();
   return query ? `?${query}` : '';
