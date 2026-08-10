@@ -15,7 +15,9 @@ export function activeTheme() {
 
 export function applyTheme(theme, { persist = true } = {}) {
   const resolved = theme === 'dark' || theme === 'light' ? theme : preferredSystemTheme();
-  document.documentElement.dataset.theme = resolved;
+  const root = document.documentElement;
+  root.dataset.theme = resolved;
+  root.classList.toggle('dark', resolved === 'dark');
   if (persist) {
     window.localStorage.setItem(themeStorageKey, resolved);
   }

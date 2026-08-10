@@ -1,7 +1,12 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function detectGitBranch() {
   try {
@@ -14,7 +19,12 @@ function detectGitBranch() {
 const packageJson = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src')
+    }
+  },
   define: {
     __OIKOS_VERSION__: JSON.stringify(packageJson.version || ''),
     __OIKOS_BRANCH__: JSON.stringify(process.env.APP_BUILD_BRANCH || detectGitBranch())

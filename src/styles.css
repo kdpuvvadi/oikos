@@ -1284,7 +1284,7 @@ label {
 
 input,
 select,
-button {
+button:not([data-slot="button"]) {
   min-height: 42px;
   border-radius: 8px;
   font: inherit;
@@ -1303,7 +1303,7 @@ input::placeholder {
   color: var(--muted);
 }
 
-button {
+button:not([data-slot="button"]) {
   border: 0;
   background: var(--green);
   color: #fff;
@@ -1312,16 +1312,16 @@ button {
   padding: 10px 14px;
 }
 
-button:hover {
+button:not([data-slot="button"]):hover {
   background: #246640;
 }
 
-button,
+button:not([data-slot="button"]),
 input,
 select,
 .panel,
 .stat-card,
-.list-item,
+.ref-item,
 .transaction-list-card {
   transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
@@ -1336,14 +1336,14 @@ select,
   gap: 14px;
 }
 
-.list-item {
+.ref-item {
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--panel);
   padding: 16px;
 }
 
-.list-item strong {
+.ref-item strong {
   display: block;
 }
 
@@ -1357,6 +1357,17 @@ select,
 
 .ref-card .list-heading {
   margin-bottom: 0;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 8px;
+}
+
+.ref-card .list-heading > strong {
+  display: inline;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .ref-card .pill-list {
@@ -1367,7 +1378,36 @@ select,
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  align-items: center;
+  flex: 0 1 auto;
+}
+
+.category-list-link {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.category-list-link:hover {
+  border-color: var(--line-strong);
+  background: var(--hover);
+}
+
+.category-list-meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.category-detail-actions {
+  flex-shrink: 0;
+}
+
+.page-title .ghost-link {
+  color: inherit;
 }
 
 .dialog-actions {
@@ -1391,8 +1431,19 @@ select,
   color: var(--red) !important;
 }
 
-.danger-text:hover {
+button.ghost.danger-text,
+button.pill-button.danger-text {
+  border-color: color-mix(in srgb, var(--red) 35%, var(--line));
+  background: transparent;
+  color: var(--red);
+  font-weight: 700;
+}
+
+button.ghost.danger-text:hover,
+button.pill-button.danger-text:hover {
+  border-color: color-mix(in srgb, var(--red) 55%, var(--line));
   background: var(--danger-soft) !important;
+  color: var(--red);
 }
 
 .pill-list {
@@ -1408,21 +1459,28 @@ select,
   border-radius: 8px;
   background: var(--panel-soft);
   color: var(--muted);
-  padding: 5px 8px;
+  padding: 4px 8px;
   font-size: 0.85rem;
 }
 
-.small-button,
-.pill-button {
-  min-height: 28px;
-  padding: 4px 7px;
-  font-size: 0.78rem;
+button.small-button,
+button.pill-button {
+  min-height: 26px;
+  height: auto;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
-.pill-button {
+button.pill-button {
   border: 1px solid var(--line-strong);
   background: var(--panel);
   color: var(--ink);
+}
+
+button.pill-button:hover {
+  background: var(--hover);
 }
 
 .table-wrap {
@@ -1626,17 +1684,20 @@ tr:last-child td {
   background: var(--red);
 }
 
-.ghost {
+.ghost,
+button.ghost {
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--ink);
+  font-weight: 700;
 }
 
-.ghost:hover {
+.ghost:hover,
+button.ghost:hover {
   background: var(--hover);
 }
 
-button:disabled {
+button:not([data-slot="button"]):disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -1846,7 +1907,7 @@ dialog::backdrop {
 
   .panel,
   .stat-card,
-  .list-item {
+  .ref-item {
     padding: 16px;
   }
 

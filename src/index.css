@@ -1,0 +1,126 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: "Geist Variable", "Segoe UI", sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Light — aligned with Oikos html[data-theme="light"] */
+:root {
+  --background: #f8faf8;
+  --foreground: #17201c;
+  --card: #ffffff;
+  --card-foreground: #17201c;
+  --popover: #ffffff;
+  --popover-foreground: #17201c;
+  --primary: #2a6f97;
+  --primary-foreground: #f5f7fb;
+  --secondary: #f1f6f2;
+  --secondary-foreground: #17201c;
+  --muted: #f1f6f2;
+  --muted-foreground: #617069;
+  --accent: #e6efea;
+  --accent-foreground: #17201c;
+  --destructive: #b0443c;
+  --border: #d9e1dd;
+  --input: #d9e1dd;
+  --ring: #2a6f97;
+  --chart-1: #2a6f97;
+  --chart-2: #2e7d4f;
+  --chart-3: #e1b84b;
+  --chart-4: #617069;
+  --chart-5: #17201c;
+  --radius: 0.625rem;
+  --sidebar: #fcfdfc;
+  --sidebar-foreground: #17201c;
+  --sidebar-primary: #2a6f97;
+  --sidebar-primary-foreground: #f5f7fb;
+  --sidebar-accent: #f1f6f2;
+  --sidebar-accent-foreground: #17201c;
+  --sidebar-border: #d9e1dd;
+  --sidebar-ring: #2a6f97;
+}
+
+/* Dark — aligned with Oikos default :root tokens */
+.dark {
+  --background: #07090d;
+  --foreground: #f5f7fb;
+  --card: #12161d;
+  --card-foreground: #f5f7fb;
+  --popover: #12161d;
+  --popover-foreground: #f5f7fb;
+  --primary: #2a6f97;
+  --primary-foreground: #f5f7fb;
+  --secondary: #1d2430;
+  --secondary-foreground: #f5f7fb;
+  --muted: #1d2430;
+  --muted-foreground: #9dacbb;
+  --accent: #1d2630;
+  --accent-foreground: #f5f7fb;
+  --destructive: #b0443c;
+  --border: #273443;
+  --input: #334457;
+  --ring: #2a6f97;
+  --chart-1: #2a6f97;
+  --chart-2: #2e7d4f;
+  --chart-3: #e1b84b;
+  --chart-4: #9dacbb;
+  --chart-5: #f5f7fb;
+  --sidebar: #0f1319;
+  --sidebar-foreground: #f5f7fb;
+  --sidebar-primary: #2a6f97;
+  --sidebar-primary-foreground: #f5f7fb;
+  --sidebar-accent: #1d2430;
+  --sidebar-accent-foreground: #f5f7fb;
+  --sidebar-border: #273443;
+  --sidebar-ring: #2a6f97;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+}

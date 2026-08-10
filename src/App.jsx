@@ -7,6 +7,7 @@ import AuthPage from './pages/AuthPage';
 import HomePage from './pages/HomePage';
 import MePage from './pages/MePage';
 import CategoriesPage from './pages/CategoriesPage';
+import CategoryDetailPage from './pages/CategoryDetailPage';
 import StoresPage from './pages/StoresPage';
 import PaymentMethodsPage from './pages/PaymentMethodsPage';
 import UsersPage from './pages/UsersPage';
@@ -28,6 +29,7 @@ function AppRoutes() {
       <Route path="/" element={<HomePage />} />
       <Route path="/me" element={<MePage />} />
       <Route path="/categories" element={<AdminRoute><CategoriesPage /></AdminRoute>} />
+      <Route path="/categories/:id" element={<AdminRoute><CategoryDetailPage /></AdminRoute>} />
       <Route path="/stores" element={<AdminRoute><StoresPage /></AdminRoute>} />
       <Route path="/payment-methods" element={<AdminRoute><PaymentMethodsPage /></AdminRoute>} />
       <Route path="/users" element={<AdminRoute><UsersPage /></AdminRoute>} />

@@ -6,6 +6,7 @@ import { AuthProvider } from './context/AuthContext';
 import { DataProvider, useData } from './context/DataContext';
 import { ToastProvider } from './context/ToastContext';
 import { initializeTheme } from './lib/theme';
+import './index.css';
 import './styles.css';
 
 initializeTheme();

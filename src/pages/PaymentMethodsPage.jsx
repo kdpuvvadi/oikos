@@ -117,7 +117,7 @@ export default function PaymentMethodsPage() {
 
       <div id="paymentMethodList" className="list-grid compact">
         {paymentMethods.length ? paymentMethods.map((paymentMethod) => (
-          <article key={paymentMethod.id} className="list-item ref-card">
+          <article key={paymentMethod.id} className="ref-item ref-card">
             <div className="list-heading">
               <strong>{paymentMethod.name}</strong>
               {isAdmin ? (

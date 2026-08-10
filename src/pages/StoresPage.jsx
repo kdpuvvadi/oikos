@@ -117,7 +117,7 @@ export default function StoresPage() {
 
       <div id="storeList" className="list-grid compact">
         {stores.length ? stores.map((store) => (
-          <article key={store.id} className="list-item ref-card">
+          <article key={store.id} className="ref-item ref-card">
             <div className="list-heading">
               <strong>{store.name}</strong>
               {isAdmin ? (
