@@ -51,3 +51,12 @@ export const seoConfig = {
     }
   }
 };
+
+export function resolveSeo(pathname) {
+  const page = seoConfig.pages[pathname]
+    || (pathname.startsWith('/transactions/') ? seoConfig.pages['/transactions'] : {})
+    || {};
+  const title = page.title ? `${page.title} | ${seoConfig.titleSuffix}` : seoConfig.defaultTitle;
+  const description = page.description || seoConfig.defaultDescription;
+  return { title, description, page };
+}

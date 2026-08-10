@@ -86,9 +86,9 @@ async function createCollection(payload) {
 
     let current = existing;
     if (missingFields.length || hasChangedFields) {
-      current = await pb.collections.update(existing.id, {
+      current = await updateCollectionWithRetry(existing.id, {
         fields: [...mergedFields, ...missingFields]
-      });
+      }, `Field update for ${payload.name}`);
       console.log(`Updated fields for collection: ${payload.name}`);
     }
 
@@ -97,9 +97,9 @@ async function createCollection(payload) {
     const removableFields = currentFields.filter((field) => removeFields.includes(field.name));
 
     if (removableFields.length) {
-      current = await pb.collections.update(current.id, {
+      current = await updateCollectionWithRetry(current.id, {
         fields: currentFields.filter((field) => !removeFields.includes(field.name))
-      });
+      }, `Field removal for ${payload.name}`);
       console.log(`Removed obsolete fields from collection: ${payload.name}`);
     }
 
@@ -111,9 +111,9 @@ async function createCollection(payload) {
 
     if (indexesChanged) {
       try {
-        current = await pb.collections.update(current.id, {
+        current = await updateCollectionWithRetry(current.id, {
           indexes: payload.indexes
-        });
+        }, `Index update for ${payload.name}`);
         console.log(`Updated indexes for collection: ${payload.name}`);
       } catch (error) {
         const details = error?.response || error?.data || error?.originalError?.data || {};
@@ -141,9 +141,18 @@ async function createCollection(payload) {
     );
 
     if (Object.keys(changedRules).length) {
-      const updated = await pb.collections.update(current.id, changedRules);
-      console.log(`Updated collection: ${payload.name}`);
-      return updated;
+      try {
+        const updated = await updateCollectionWithRetry(current.id, changedRules, `Rule update for ${payload.name}`);
+        console.log(`Updated collection: ${payload.name}`);
+        return updated;
+      } catch (error) {
+        const details = error?.response || error?.data || error?.originalError?.data || {};
+        console.warn(`Skipping rule update for ${payload.name}:`, error?.message || error);
+        if (details && Object.keys(details).length) {
+          console.warn(JSON.stringify(details, null, 2));
+        }
+        return current;
+      }
     }
 
     console.log(`Collection already exists: ${payload.name}`);
@@ -165,6 +174,7 @@ async function ensureAppSettings() {
     const meta = settings.meta || {};
     const currentUrl = meta.appURL || meta.appUrl || '';
     const nextMeta = {
+      ...meta,
       appName: meta.appName || 'Oikos',
       appURL: appPublicUrl,
       senderName: meta.senderName || 'Oikos',
@@ -173,6 +183,8 @@ async function ensureAppSettings() {
     };
     if (typeof meta.accentColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(meta.accentColor)) {
       nextMeta.accentColor = meta.accentColor;
+    } else {
+      delete nextMeta.accentColor;
     }
 
     if (
@@ -181,7 +193,11 @@ async function ensureAppSettings() {
       || meta.senderName !== nextMeta.senderName
       || meta.senderAddress !== nextMeta.senderAddress
     ) {
-      await pb.settings.update({ meta: nextMeta });
+      // PocketBase validates the full settings payload; send current settings with meta merged.
+      await pb.settings.update({
+        ...settings,
+        meta: nextMeta
+      });
       console.log(`Updated PocketBase app URL to: ${appPublicUrl}`);
     }
   } catch (error) {
@@ -190,7 +206,29 @@ async function ensureAppSettings() {
     if (details && Object.keys(details).length) {
       console.warn(JSON.stringify(details, null, 2));
     }
+    console.warn('You can set APP_PUBLIC_URL later in the PocketBase Admin → Settings → Mail/App URL.');
   }
+}
+
+async function updateCollectionWithRetry(collectionId, body, label) {
+  const maxAttempts = 3;
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await pb.collections.update(collectionId, body);
+    } catch (error) {
+      lastError = error;
+      const message = String(error?.message || error);
+      const retryable = message.includes('unable to open database file')
+        || message.includes('(14)')
+        || message.includes('database is locked');
+      if (!retryable || attempt === maxAttempts) break;
+      const delayMs = attempt * 750;
+      console.warn(`${label} failed (${message}). Retrying in ${delayMs}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError;
 }
 
 async function ensureVerificationTemplate(collection) {
@@ -311,10 +349,10 @@ async function main() {
   await ensureVerificationTemplate(users);
   await ensureOtpConfig(users);
 
-  const authRule = '@request.auth.id != ""';
+  const authRule = '@request.auth.id != "" && (@request.auth.kind = "admin" || @request.auth.approved = true)';
   const adminRule = '@request.auth.kind = "admin"';
-  const ownOrAdminTransactionRule = '@request.auth.kind = "admin" || user = @request.auth.id';
-  const ownCreateTransactionRule = '@request.auth.id != "" && user = @request.auth.id';
+  const ownOrAdminTransactionRule = '@request.auth.kind = "admin" || (@request.auth.approved = true && user = @request.auth.id)';
+  const ownCreateTransactionRule = '@request.auth.kind = "admin" || (@request.auth.approved = true && user = @request.auth.id)';
 
   const categories = await createCollection({
     name: 'oikos_categories',

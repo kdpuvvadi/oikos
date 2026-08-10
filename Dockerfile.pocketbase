@@ -1,3 +1,0 @@
-FROM ghcr.io/kdpuvvadi/pocketbase:latest
-
-COPY pb_hooks /usr/src/app/pb_hooks

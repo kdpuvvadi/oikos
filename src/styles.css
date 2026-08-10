@@ -56,9 +56,8 @@ html[data-theme="light"] {
   box-sizing: border-box;
 }
 
-oikos-header,
-oikos-auth-shell {
-  display: block;
+#root {
+  min-height: 100vh;
 }
 
 body {
@@ -68,10 +67,6 @@ body {
   font-family: "Segoe UI", "Inter", Arial, Helvetica, sans-serif;
   line-height: 1.5;
   overflow-x: hidden;
-}
-
-html.has-session #authPage {
-  display: none !important;
 }
 
 .site-header {
@@ -182,6 +177,72 @@ nav a:hover {
   color: var(--ink);
 }
 
+.admin-nav {
+  position: relative;
+}
+
+.admin-nav-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  padding: 8px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.admin-nav-trigger.active,
+.admin-nav-trigger:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.admin-nav-caret {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  opacity: 0.75;
+}
+
+.admin-nav-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 8;
+  display: none;
+  min-width: 200px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.admin-nav-menu.is-open {
+  display: grid;
+  gap: 2px;
+}
+
+.admin-nav-menu a {
+  display: block;
+  border-radius: 8px;
+  color: var(--muted);
+  padding: 10px 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.admin-nav-menu a.active,
+.admin-nav-menu a:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
 .user-menu {
   display: flex;
   align-items: center;
@@ -261,10 +322,12 @@ nav a:hover {
 .status-pill {
   display: inline-flex;
   align-items: center;
+  max-width: 100%;
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 5px 12px;
   font-size: 0.78rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .status-pill.success {
@@ -1292,6 +1355,46 @@ select,
   margin-bottom: 8px;
 }
 
+.ref-card .list-heading {
+  margin-bottom: 0;
+}
+
+.ref-card .pill-list {
+  margin-top: 12px;
+}
+
+.ref-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.dialog-actions button {
+  min-width: 110px;
+}
+
+.dialog-copy {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.danger-text {
+  color: var(--red) !important;
+}
+
+.danger-text:hover {
+  background: var(--danger-soft) !important;
+}
+
 .pill-list {
   display: flex;
   flex-wrap: wrap;
@@ -1385,6 +1488,20 @@ tr:last-child td {
 
 .users-table {
   min-width: 0;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.users-table th,
+.users-table td {
+  padding: 14px 16px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--line);
+}
+
+.users-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .users-table th:first-child {
@@ -1417,9 +1534,39 @@ tr:last-child td {
   white-space: normal;
 }
 
+.users-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .users-table-empty {
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.role-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  background: var(--panel-soft);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.role-pill.is-admin {
+  background: var(--brand-soft);
+  border-color: transparent;
+  color: var(--ink);
+}
+
+.users-table-wrap {
+  overflow: visible;
 }
 
 .row-menu {
@@ -1653,6 +1800,23 @@ dialog::backdrop {
     padding: 10px 12px;
   }
 
+  .admin-nav {
+    width: 100%;
+  }
+
+  .admin-nav-trigger {
+    width: 100%;
+    justify-content: space-between;
+    padding: 10px 12px;
+  }
+
+  .admin-nav-menu {
+    position: static;
+    min-width: 0;
+    margin-top: 4px;
+    box-shadow: none;
+  }
+
   .user-menu {
     justify-content: space-between;
     margin-left: 0;
@@ -1871,19 +2035,14 @@ dialog::backdrop {
     background: var(--panel-ghost);
   }
 
-  .users-table .row-menu {
+  .users-table-actions {
     width: 100%;
+    justify-content: stretch;
   }
 
-  .users-table .row-menu-trigger {
-    width: 100%;
-  }
-
-  .users-table .row-menu-panel {
-    position: static;
-    min-width: 0;
-    margin-top: 10px;
-    box-shadow: none;
+  .users-table-actions .small-button,
+  .users-table-actions .ghost {
+    flex: 1 1 auto;
   }
 
   .transaction-table-wrap {

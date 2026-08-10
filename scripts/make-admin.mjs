@@ -39,7 +39,7 @@ try {
     throw new Error(`No user found with email ${email}.`);
   }
 
-  await pb.collection('users').update(users.items[0].id, { kind: 'admin' });
+  await pb.collection('users').update(users.items[0].id, { kind: 'admin', approved: true });
   console.log(`${email} is now an admin.`);
 } catch (error) {
   console.error(error.message);

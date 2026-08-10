@@ -1,30 +1,38 @@
-const CACHE_NAME = 'oikos-v6';
+const CACHE_NAME = 'oikos-v10';
 const urlsToCache = [
   '/',
-  '/index.html',
-  '/verify-email',
-  '/verify-email.html',
-  '/me.html',
-  '/categories.html',
-  '/stores.html',
-  '/payment-methods.html',
-  '/users.html',
-  '/transactions.html',
-  '/dashboard.html',
-  '/filter.html',
-  '/styles.css',
-  '/app.js',
-  '/layout.js',
-  '/head.js',
   '/manifest.json',
-  '/seo.config.js'
+  '/img/favicon.ico',
+  '/img/android-chrome-192x192.png',
+  '/img/android-chrome-512x512.png'
 ];
+
+function shouldBypass(urlString) {
+  try {
+    const { pathname } = new URL(urlString);
+    return (
+      pathname === '/api'
+      || pathname.startsWith('/api/')
+      || pathname === '/_/'
+      || pathname.startsWith('/_/')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function offlineResponse() {
+  return new Response('Offline', {
+    status: 503,
+    statusText: 'Service Unavailable',
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+  });
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(urlsToCache).catch(() => {
-        // Cache might fail if offline - that's okay
         console.log('Some resources failed to cache');
       });
     })
@@ -49,58 +57,38 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-
-  // Skip API calls - always fetch from network
-  if (event.request.url.includes('/api/')) {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        return new Response(
-          JSON.stringify({ error: 'Network unavailable' }),
-          { status: 503, headers: { 'Content-Type': 'application/json' } }
-        );
-      })
-    );
-    return;
-  }
+  if (shouldBypass(event.request.url)) return;
 
   if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).then((response) => {
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
+    event.respondWith((async () => {
+      try {
+        const response = await fetch(event.request);
+        if (response.ok) {
+          const cache = await caches.open(CACHE_NAME);
+          cache.put(event.request, response.clone());
+        }
         return response;
-      }).catch(async () => {
-        return caches.match(event.request) || caches.match('/index.html');
-      })
-    );
+      } catch {
+        return (await caches.match(event.request))
+          || (await caches.match('/'))
+          || offlineResponse();
+      }
+    })());
     return;
   }
 
-  // For static assets, try cache first, then network
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      if (response) {
-        return response;
+  event.respondWith((async () => {
+    const cached = await caches.match(event.request);
+    if (cached) return cached;
+    try {
+      const response = await fetch(event.request);
+      if (response && response.status === 200 && response.type !== 'opaque') {
+        const cache = await caches.open(CACHE_NAME);
+        cache.put(event.request, response.clone());
       }
-
-      return fetch(event.request).then((response) => {
-        // Don't cache non-successful responses
-        if (!response || response.status !== 200 || response.type === 'error') {
-          return response;
-        }
-
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-
-        return response;
-      }).catch(() => {
-        // Return offline page if available
-        return caches.match('/index.html');
-      });
-    })
-  );
+      return response;
+    } catch {
+      return offlineResponse();
+    }
+  })());
 });
