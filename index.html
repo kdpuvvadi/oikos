@@ -2,15 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
     <script>
       document.documentElement.classList.add('js');
       if (document.cookie.includes('oikos_session=1')) document.documentElement.classList.add('has-session');
       try {
         var theme = localStorage.getItem('oikos_theme');
-        if (theme === 'dark' || theme === 'light') document.documentElement.dataset.theme = theme;
-        else if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
-        else document.documentElement.dataset.theme = 'light';
+        var resolved = (theme === 'dark' || theme === 'light')
+          ? theme
+          : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.dataset.theme = resolved;
+        document.documentElement.classList.toggle('dark', resolved === 'dark');
       } catch (e) {}
     </script>
     <link rel="icon" type="image/x-icon" href="/img/favicon.ico">

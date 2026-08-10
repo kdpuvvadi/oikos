@@ -7,12 +7,24 @@ import {
   deleteSubcategory,
   updateCategory,
   updateSubcategory
-} from '../lib/api';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
-import { useData } from '../context/DataContext';
-import { EditNameDialog } from '../components/EditNameDialog';
-import { DeleteReferenceDialog } from '../components/DeleteReferenceDialog';
+} from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import { useData } from '@/context/DataContext';
+import { EditNameDialog } from '@/components/EditNameDialog';
+import { DeleteReferenceDialog } from '@/components/DeleteReferenceDialog';
+import { PageHeader } from '@/components/PageHeader';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
 
 export default function CategoryDetailPage() {
   const { id } = useParams();
@@ -153,23 +165,29 @@ export default function CategoryDetailPage() {
 
   if (!loaded) {
     return (
-      <section id="categoryDetailPage">
-        <p className="panel-empty">Loading…</p>
+      <section id="categoryDetailPage" className="space-y-6">
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </section>
     );
   }
 
   if (!category) {
     return (
-      <section id="categoryDetailPage">
-        <div className="page-title-bar">
-          <div className="page-title">
-            <p className="eyebrow">Categories</p>
-            <h1>Category not found</h1>
-          </div>
-          <Link className="ghost button-link" to="/categories">Back to categories</Link>
-        </div>
-        <p className="panel-empty">This category does not exist or was deleted.</p>
+      <section id="categoryDetailPage" className="space-y-6">
+        <PageHeader
+          eyebrow="Categories"
+          title="Category not found"
+          actions={
+            <Button asChild variant="outline">
+              <Link to="/categories">Back to categories</Link>
+            </Button>
+          }
+        />
+        <Card size="sm">
+          <CardContent className="py-8 text-center text-muted-foreground">
+            This category does not exist or was deleted.
+          </CardContent>
+        </Card>
       </section>
     );
   }
@@ -177,59 +195,78 @@ export default function CategoryDetailPage() {
   const subcategories = category.subcategories || [];
 
   return (
-    <section id="categoryDetailPage">
-      <div className="page-title-bar">
-        <div className="page-title">
-          <p className="eyebrow">
-            <Link to="/categories" className="ghost-link">Categories</Link>
-          </p>
-          <h1>{category.name}</h1>
-        </div>
-        {isAdmin ? (
-          <div className="ref-card-actions category-detail-actions">
-            <button
-              type="button"
-              className="ghost small-button"
-              onClick={() => setEditTarget({
-                kind: 'category',
-                id: category.id,
-                name: category.name
-              })}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              className="ghost small-button danger-text"
-              onClick={() => setDeleteTarget({
-                kind: 'category',
-                id: category.id,
-                name: category.name
-              })}
-            >
-              Delete
-            </button>
-          </div>
-        ) : null}
-      </div>
+    <section id="categoryDetailPage" className="space-y-6">
+      <PageHeader
+        eyebrow={
+          <Link to="/categories" className="text-primary hover:underline">
+            Categories
+          </Link>
+        }
+        title={category.name}
+        actions={
+          isAdmin ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setEditTarget({
+                  kind: 'category',
+                  id: category.id,
+                  name: category.name
+                })}
+              >
+                Edit
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => setDeleteTarget({
+                  kind: 'category',
+                  id: category.id,
+                  name: category.name
+                })}
+              >
+                Delete
+              </Button>
+            </>
+          ) : null
+        }
+      />
 
       {isAdmin ? (
-        <form className="panel inline-form" onSubmit={handleAddSubcategory}>
-          <input type="text" name="name" placeholder="Subcategory name" required />
-          <button type="submit">Add subcategory</button>
-        </form>
+        <Card>
+          <CardHeader className="border-b">
+            <CardTitle>Add subcategory</CardTitle>
+            <CardDescription>Create a subcategory under {category.name}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="flex flex-col gap-3 sm:flex-row sm:items-center" onSubmit={handleAddSubcategory}>
+              <Input
+                type="text"
+                name="name"
+                placeholder="Subcategory name"
+                required
+                className="sm:flex-1"
+              />
+              <Button type="submit" className="sm:shrink-0">Add subcategory</Button>
+            </form>
+          </CardContent>
+        </Card>
       ) : null}
 
-      <div className="list-grid compact">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {subcategories.length ? subcategories.map((subcategory) => (
-          <article key={subcategory.id} className="ref-item ref-card">
-            <div className="list-heading">
-              <strong>{subcategory.name}</strong>
+          <Card key={subcategory.id}>
+            <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+              <CardTitle className="text-base">{subcategory.name}</CardTitle>
               {isAdmin ? (
-                <div className="ref-card-actions">
-                  <button
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button
                     type="button"
-                    className="ghost small-button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => setEditTarget({
                       kind: 'subcategory',
                       id: subcategory.id,
@@ -237,10 +274,11 @@ export default function CategoryDetailPage() {
                     })}
                   >
                     Edit
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="ghost small-button danger-text"
+                    variant="destructive"
+                    size="sm"
                     onClick={() => setDeleteTarget({
                       kind: 'subcategory',
                       id: subcategory.id,
@@ -248,13 +286,17 @@ export default function CategoryDetailPage() {
                     })}
                   >
                     Delete
-                  </button>
+                  </Button>
                 </div>
               ) : null}
-            </div>
-          </article>
+            </CardHeader>
+          </Card>
         )) : (
-          <p className="panel-empty">No subcategories yet.</p>
+          <Card size="sm" className="sm:col-span-2 lg:col-span-3">
+            <CardContent className="py-8 text-center text-muted-foreground">
+              No subcategories yet.
+            </CardContent>
+          </Card>
         )}
       </div>
 
@@ -288,9 +330,10 @@ export default function CategoryDetailPage() {
             const selected = categories.find((item) => item.id === replacementId);
             const options = selected?.subcategories || [];
             return (
-              <label>
-                Replacement subcategory
-                <select
+              <div className="grid gap-1.5">
+                <Label htmlFor="replacement-subcategory">Replacement subcategory</Label>
+                <NativeSelect
+                  id="replacement-subcategory"
                   required
                   disabled={saving || !replacementId || !options.length}
                   value={values.replacementSubcategoryId || ''}
@@ -311,8 +354,8 @@ export default function CategoryDetailPage() {
                       {subcategory.name}
                     </option>
                   ))}
-                </select>
-              </label>
+                </NativeSelect>
+              </div>
             );
           }
           : null}

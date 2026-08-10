@@ -1,8 +1,8 @@
 import { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { money, formatLongDate } from '../lib/format';
-import { useToast } from '../context/ToastContext';
-import { useData } from '../context/DataContext';
+import { money, formatLongDate } from '@/lib/format';
+import { useToast } from '@/context/ToastContext';
+import { useData } from '@/context/DataContext';
 import {
   CHART_PALETTE,
   sumBy,
@@ -12,7 +12,16 @@ import {
   formatMonthLabel,
   smoothPath,
   donutArc
-} from '../lib/charts';
+} from '@/lib/charts';
+import { PageHeader } from '@/components/PageHeader';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 function DashKpis({ transactions }) {
   const current = monthKey();
@@ -33,23 +42,33 @@ function DashKpis({ transactions }) {
     ? (thisMonth > 0 ? 100 : 0)
     : ((thisMonth - lastMonth) / lastMonth) * 100;
   const deltaLabel = `${delta > 0 ? '+' : ''}${delta.toFixed(0)}% vs last month`;
-  const deltaClass = delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : '';
 
   const cards = [
-    { label: 'This month', value: money.format(thisMonth), hint: deltaLabel, hintClass: deltaClass },
+    {
+      label: 'This month',
+      value: money.format(thisMonth),
+      hint: deltaLabel,
+      hintClass: delta > 0 ? 'text-[var(--chart-3)]' : delta < 0 ? 'text-[var(--chart-2)]' : ''
+    },
     { label: 'Last month', value: money.format(lastMonth), hint: formatMonthLabel(previous) },
     { label: 'All time', value: money.format(total), hint: `${count} transaction${count === 1 ? '' : 's'}` },
     { label: 'Average expense', value: money.format(average), hint: 'Per transaction' }
   ];
 
   return (
-    <div className="dash-kpi-grid" id="dashKpis">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4" id="dashKpis">
       {cards.map((card) => (
-        <article key={card.label} className="stat-card dash-kpi">
-          <span>{card.label}</span>
-          <strong>{card.value}</strong>
-          <em className={`dash-kpi-hint ${card.hintClass || ''}`}>{card.hint || ''}</em>
-        </article>
+        <Card key={card.label} size="sm" className="min-w-0">
+          <CardHeader className="gap-1">
+            <CardDescription className="truncate text-xs sm:text-sm">{card.label}</CardDescription>
+            <CardTitle className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
+              {card.value}
+            </CardTitle>
+            <p className={cn('truncate text-xs text-muted-foreground', card.hintClass)}>
+              {card.hint || ''}
+            </p>
+          </CardHeader>
+        </Card>
       ))}
     </div>
   );
@@ -60,7 +79,7 @@ function MonthTrendChart({ transactions }) {
   const keys = Object.keys(byMonth).filter(Boolean).sort();
 
   if (!keys.length) {
-    return <div id="monthTrendChart" className="chart-canvas"><p className="dash-empty">No expense data yet.</p></div>;
+    return <p className="py-8 text-center text-sm text-muted-foreground">No expense data yet.</p>;
   }
 
   const end = keys[keys.length - 1];
@@ -138,7 +157,7 @@ function CategoryDonut({ transactions }) {
   const grand = entries.reduce((sum, [, total]) => sum + total, 0);
 
   if (!grand) {
-    return <div id="categoryDonut" className="chart-canvas"><p className="dash-empty">No expense data yet.</p></div>;
+    return <p className="py-8 text-center text-sm text-muted-foreground">No expense data yet.</p>;
   }
 
   const size = 220;
@@ -175,18 +194,21 @@ function CategoryDonut({ transactions }) {
 
   return (
     <div id="categoryDonut" className="chart-canvas">
-      <div className="donut-layout">
-        <svg className="chart-svg donut-svg" viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Spending by category">
+      <div className="grid items-center gap-4 md:grid-cols-[minmax(140px,200px)_minmax(0,1fr)]">
+        <svg className="chart-svg mx-auto max-w-[220px]" viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Spending by category">
           <circle cx={cx} cy={cy} r={radius} className="donut-track" />
           {arcs}
           <text className="donut-center-label" x={cx} y={cy - 6} textAnchor="middle">Total</text>
           <text className="donut-center-value" x={cx} y={cy + 16} textAnchor="middle">{money.format(grand)}</text>
         </svg>
-        <ul className="donut-legend">
+        <ul className="m-0 grid list-none gap-2 p-0">
           {entries.map(([name, total], index) => (
-            <li key={name}>
-              <span className="donut-swatch" style={{ background: CHART_PALETTE[index % CHART_PALETTE.length] }} />
-              <span className="donut-legend-label">{name}</span>
+            <li key={name} className="grid grid-cols-[12px_minmax(0,1fr)_auto] items-center gap-2 text-sm">
+              <span
+                className="size-3 rounded-full"
+                style={{ background: CHART_PALETTE[index % CHART_PALETTE.length] }}
+              />
+              <span className="truncate text-muted-foreground">{name}</span>
               <strong>{money.format(total)}</strong>
             </li>
           ))}
@@ -221,10 +243,10 @@ function DailyChart({ transactions }) {
   const monthTotal = entries.reduce((sum, [, total]) => sum + total, 0);
 
   return (
-    <div id="dailyChart" className="chart-canvas">
-      <div className="daily-chart-meta">
+    <div id="dailyChart" className="chart-canvas space-y-3">
+      <div className="flex items-baseline justify-between gap-3">
         <strong>{money.format(monthTotal)}</strong>
-        <span>{formatMonthLabel(current)}</span>
+        <span className="text-sm text-muted-foreground">{formatMonthLabel(current)}</span>
       </div>
       <svg className="chart-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Daily spending this month">
         {entries.map(([day, total], index) => {
@@ -264,29 +286,29 @@ function BarChart({ id, totals, limit = 6, colors = false }) {
   const grand = entries.reduce((sum, [, total]) => sum + total, 0) || 1;
 
   if (!entries.length) {
-    return <div id={id} className="bars dash-bars"><p className="dash-empty">No expense data yet.</p></div>;
+    return <p id={id} className="py-8 text-center text-sm text-muted-foreground">No expense data yet.</p>;
   }
 
   return (
-    <div id={id} className="bars dash-bars">
+    <div id={id} className="grid gap-3">
       {entries.map(([name, total], index) => {
         const tint = colors ? CHART_PALETTE[index % CHART_PALETTE.length] : null;
         return (
-          <div key={name} className="bar-row dash-bar-row">
-            <div className="dash-bar-meta">
-              <strong>{name}</strong>
-              <span className="dash-bar-pct">{Math.round((total / grand) * 100)}%</span>
+          <div key={name} className="grid gap-1.5">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <strong className="truncate">{name}</strong>
+              <span className="shrink-0 text-muted-foreground">{Math.round((total / grand) * 100)}%</span>
             </div>
-            <div className="bar-track">
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
               <div
-                className="bar-fill"
+                className="h-full rounded-full bg-primary"
                 style={{
                   width: `${Math.max((total / max) * 100, 4)}%`,
                   ...(tint ? { background: tint } : {})
                 }}
               />
             </div>
-            <span className="dash-bar-amount">{money.format(total)}</span>
+            <span className="text-xs text-muted-foreground">{money.format(total)}</span>
           </div>
         );
       })}
@@ -303,26 +325,44 @@ function TopExpenses({ transactions, summaryStoreLabel }) {
   );
 
   if (!top.length) {
-    return <div id="topExpenses" className="dash-expense-list"><p className="dash-empty">No expense data yet.</p></div>;
+    return <p className="py-8 text-center text-sm text-muted-foreground">No expense data yet.</p>;
   }
 
   return (
-    <div id="topExpenses" className="dash-expense-list">
+    <div id="topExpenses" className="grid gap-2">
       {top.map((transaction, index) => (
         <Link
           key={transaction.id}
-          className="dash-expense-item"
+          className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-inherit no-underline transition-colors hover:bg-muted/40"
           to={`/transactions/${encodeURIComponent(transaction.id)}`}
         >
-          <span className="dash-expense-rank">{index + 1}</span>
-          <span className="dash-expense-body">
-            <strong>{summaryStoreLabel(transaction) || transaction.category || 'Expense'}</strong>
-            <span>{formatLongDate(transaction.date)} · {transaction.category || 'Uncategorized'}</span>
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
+            {index + 1}
           </span>
-          <strong className="dash-expense-amount">{money.format(transaction.amount || 0)}</strong>
+          <span className="min-w-0 flex-1">
+            <strong className="block truncate text-sm">
+              {summaryStoreLabel(transaction) || transaction.category || 'Expense'}
+            </strong>
+            <span className="block truncate text-xs text-muted-foreground">
+              {formatLongDate(transaction.date)} · {transaction.category || 'Uncategorized'}
+            </span>
+          </span>
+          <strong className="shrink-0 text-sm">{money.format(transaction.amount || 0)}</strong>
         </Link>
       ))}
     </div>
+  );
+}
+
+function Panel({ title, description, children, className }) {
+  return (
+    <Card className={className}>
+      <CardHeader className="border-b">
+        <CardTitle>{title}</CardTitle>
+        {description ? <CardDescription>{description}</CardDescription> : null}
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   );
 }
 
@@ -346,77 +386,35 @@ export default function DashboardPage() {
   );
 
   return (
-    <section id="dashboardPage">
-      <div className="page-title">
-        <p className="eyebrow">Insights</p>
-        <h1>Spending overview</h1>
-      </div>
+    <section id="dashboardPage" className="space-y-6">
+      <PageHeader eyebrow="Insights" title="Spending overview" />
 
       <DashKpis transactions={transactions} />
 
-      <div className="dash-main-grid">
-        <section className="panel dash-panel dash-panel-wide">
-          <div className="dash-panel-head">
-            <div>
-              <h2>Monthly trend</h2>
-              <p className="dash-panel-sub">Spend by month</p>
-            </div>
-          </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <Panel title="Monthly trend" description="Spend by month">
           <MonthTrendChart transactions={transactions} />
-        </section>
-
-        <section className="panel dash-panel">
-          <div className="dash-panel-head">
-            <div>
-              <h2>Categories</h2>
-              <p className="dash-panel-sub">Share of total spend</p>
-            </div>
-          </div>
+        </Panel>
+        <Panel title="Categories" description="Share of total spend">
           <CategoryDonut transactions={transactions} />
-        </section>
+        </Panel>
       </div>
 
-      <div className="dash-secondary-grid">
-        <section className="panel dash-panel">
-          <div className="dash-panel-head">
-            <div>
-              <h2>This month</h2>
-              <p className="dash-panel-sub">Daily spend</p>
-            </div>
-          </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Panel title="This month" description="Daily spend">
           <DailyChart transactions={transactions} />
-        </section>
-
-        <section className="panel dash-panel">
-          <div className="dash-panel-head">
-            <div>
-              <h2>Payment methods</h2>
-              <p className="dash-panel-sub">How you pay</p>
-            </div>
-          </div>
+        </Panel>
+        <Panel title="Payment methods" description="How you pay">
           <BarChart id="paymentChart" totals={paymentTotals} limit={6} colors />
-        </section>
-
-        <section className="panel dash-panel">
-          <div className="dash-panel-head">
-            <div>
-              <h2>Top stores</h2>
-              <p className="dash-panel-sub">Highest spend</p>
-            </div>
-          </div>
+        </Panel>
+        <Panel title="Top stores" description="Highest spend">
           <BarChart id="storeChart" totals={storeTotals} limit={6} colors />
-        </section>
+        </Panel>
       </div>
 
-      <section className="panel dash-panel">
-        <div className="dash-panel-head">
-          <div>
-            <h2>Largest expenses</h2>
-            <p className="dash-panel-sub">Top individual transactions</p>
-          </div>
-        </div>
+      <Panel title="Largest expenses" description="Top individual transactions">
         <TopExpenses transactions={transactions} summaryStoreLabel={summaryStoreLabel} />
-      </section>
+      </Panel>
     </section>
   );
 }

@@ -4,12 +4,22 @@ import {
   createPaymentMethod,
   deletePaymentMethod,
   updatePaymentMethod
-} from '../lib/api';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
-import { useData } from '../context/DataContext';
-import { EditNameDialog } from '../components/EditNameDialog';
-import { DeleteReferenceDialog } from '../components/DeleteReferenceDialog';
+} from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import { useData } from '@/context/DataContext';
+import { EditNameDialog } from '@/components/EditNameDialog';
+import { DeleteReferenceDialog } from '@/components/DeleteReferenceDialog';
+import { PageHeader } from '@/components/PageHeader';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 
 export default function PaymentMethodsPage() {
   const { isAdmin } = useAuth();
@@ -102,46 +112,67 @@ export default function PaymentMethodsPage() {
   }
 
   return (
-    <section id="paymentMethodsPage">
-      <div className="page-title">
-        <p className="eyebrow">Payment methods</p>
-        <h1>Payment methods</h1>
-      </div>
+    <section id="paymentMethodsPage" className="space-y-6">
+      <PageHeader eyebrow="Payment methods" title="Payment methods" />
 
       {isAdmin ? (
-        <form id="paymentMethodForm" className="panel inline-form" onSubmit={handleSubmit}>
-          <input type="text" name="name" placeholder="Payment method name" required />
-          <button type="submit">Add payment method</button>
-        </form>
+        <Card>
+          <CardHeader className="border-b">
+            <CardTitle>Add payment method</CardTitle>
+            <CardDescription>Create a payment mode for expenses</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form
+              id="paymentMethodForm"
+              className="flex flex-col gap-3 sm:flex-row sm:items-center"
+              onSubmit={handleSubmit}
+            >
+              <Input
+                type="text"
+                name="name"
+                placeholder="Payment method name"
+                required
+                className="sm:flex-1"
+              />
+              <Button type="submit" className="sm:shrink-0">Add payment method</Button>
+            </form>
+          </CardContent>
+        </Card>
       ) : null}
 
-      <div id="paymentMethodList" className="list-grid compact">
+      <div id="paymentMethodList" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {paymentMethods.length ? paymentMethods.map((paymentMethod) => (
-          <article key={paymentMethod.id} className="ref-item ref-card">
-            <div className="list-heading">
-              <strong>{paymentMethod.name}</strong>
+          <Card key={paymentMethod.id}>
+            <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+              <CardTitle className="text-base">{paymentMethod.name}</CardTitle>
               {isAdmin ? (
-                <div className="ref-card-actions">
-                  <button
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button
                     type="button"
-                    className="ghost small-button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => setEditMethod(paymentMethod)}
                   >
                     Edit
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="ghost small-button danger-text"
+                    variant="destructive"
+                    size="sm"
                     onClick={() => setDeleteTarget(paymentMethod)}
                   >
                     Delete
-                  </button>
+                  </Button>
                 </div>
               ) : null}
-            </div>
-          </article>
+            </CardHeader>
+          </Card>
         )) : (
-          <p className="panel-empty">No payment methods yet.</p>
+          <Card size="sm" className="sm:col-span-2 lg:col-span-3">
+            <CardContent className="py-8 text-center text-muted-foreground">
+              No payment methods yet.
+            </CardContent>
+          </Card>
         )}
       </div>
 

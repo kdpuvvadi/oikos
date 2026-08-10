@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { verifyEmail } from '../lib/api';
-import { useAuth } from '../context/AuthContext';
+import { verifyEmail } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
@@ -48,16 +57,26 @@ export default function VerifyEmailPage() {
   }, [searchParams, setPendingVerificationEmail]);
 
   return (
-    <section className="auth-shell">
-      <div id="verificationStatus">
-        <article className={`verification-card ${status.type || ''}`}>
-          <h1>Email verification</h1>
-          <p>{status.message}</p>
-          <div className="inline-actions">
-            <Link className="ghost-link" to="/">Go to sign in</Link>
-          </div>
-        </article>
-      </div>
+    <section className="mx-auto w-full max-w-[880px] px-4 py-8 sm:px-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Email verification</CardTitle>
+          <CardDescription
+            className={cn(
+              status.type === 'success' && 'text-[var(--chart-2)]',
+              status.type === 'error' && 'text-destructive',
+              status.type === 'warning' && 'text-[var(--chart-3)]'
+            )}
+          >
+            {status.message}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="outline">
+            <Link to="/">Go to sign in</Link>
+          </Button>
+        </CardContent>
+      </Card>
     </section>
   );
 }

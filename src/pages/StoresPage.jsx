@@ -4,12 +4,22 @@ import {
   createStore,
   deleteStore,
   updateStore
-} from '../lib/api';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
-import { useData } from '../context/DataContext';
-import { EditNameDialog } from '../components/EditNameDialog';
-import { DeleteReferenceDialog } from '../components/DeleteReferenceDialog';
+} from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import { useData } from '@/context/DataContext';
+import { EditNameDialog } from '@/components/EditNameDialog';
+import { DeleteReferenceDialog } from '@/components/DeleteReferenceDialog';
+import { PageHeader } from '@/components/PageHeader';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 
 export default function StoresPage() {
   const { isAdmin } = useAuth();
@@ -102,46 +112,63 @@ export default function StoresPage() {
   }
 
   return (
-    <section id="storesPage">
-      <div className="page-title">
-        <p className="eyebrow">Stores</p>
-        <h1>Stores</h1>
-      </div>
+    <section id="storesPage" className="space-y-6">
+      <PageHeader eyebrow="Stores" title="Stores" />
 
       {isAdmin ? (
-        <form id="storeForm" className="panel inline-form" onSubmit={handleSubmit}>
-          <input type="text" name="name" placeholder="Store name" required />
-          <button type="submit">Add store</button>
-        </form>
+        <Card>
+          <CardHeader className="border-b">
+            <CardTitle>Add store</CardTitle>
+            <CardDescription>Create a store used on expenses</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form id="storeForm" className="flex flex-col gap-3 sm:flex-row sm:items-center" onSubmit={handleSubmit}>
+              <Input
+                type="text"
+                name="name"
+                placeholder="Store name"
+                required
+                className="sm:flex-1"
+              />
+              <Button type="submit" className="sm:shrink-0">Add store</Button>
+            </form>
+          </CardContent>
+        </Card>
       ) : null}
 
-      <div id="storeList" className="list-grid compact">
+      <div id="storeList" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {stores.length ? stores.map((store) => (
-          <article key={store.id} className="ref-item ref-card">
-            <div className="list-heading">
-              <strong>{store.name}</strong>
+          <Card key={store.id}>
+            <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+              <CardTitle className="text-base">{store.name}</CardTitle>
               {isAdmin ? (
-                <div className="ref-card-actions">
-                  <button
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button
                     type="button"
-                    className="ghost small-button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => setEditStore(store)}
                   >
                     Edit
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="ghost small-button danger-text"
+                    variant="destructive"
+                    size="sm"
                     onClick={() => setDeleteStoreTarget(store)}
                   >
                     Delete
-                  </button>
+                  </Button>
                 </div>
               ) : null}
-            </div>
-          </article>
+            </CardHeader>
+          </Card>
         )) : (
-          <p className="panel-empty">No stores yet.</p>
+          <Card size="sm" className="sm:col-span-2 lg:col-span-3">
+            <CardContent className="py-8 text-center text-muted-foreground">
+              No stores yet.
+            </CardContent>
+          </Card>
         )}
       </div>
 

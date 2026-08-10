@@ -1,12 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchTransactions } from '../lib/api';
-import { money, formatLongDate, TRANSACTION_PAGE_SIZE_OPTIONS } from '../lib/format';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
-import { useData } from '../context/DataContext';
-import { transactionToneClass, transactionAvatarLabel } from '../lib/transactions';
-import { EditTransactionDialog } from '../components/EditTransactionDialog';
+import { fetchTransactions } from '@/lib/api';
+import { money, formatLongDate, TRANSACTION_PAGE_SIZE_OPTIONS } from '@/lib/format';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import { useData } from '@/context/DataContext';
+import { transactionToneClass, transactionAvatarLabel } from '@/lib/transactions';
+import { EditTransactionDialog } from '@/components/EditTransactionDialog';
+import { PageHeader } from '@/components/PageHeader';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
+import { cn } from '@/lib/utils';
 
 const FILTER_KEYS = ['fromDate', 'toDate', 'category', 'subcategory', 'paymentMethod', 'store', 'user'];
 
@@ -160,6 +174,7 @@ export default function TransactionsPage() {
   }, [rows]);
 
   const filtersActive = hasActiveFilters(filters);
+  const showFilters = filtersOpen || filtersActive;
   const safePage = Math.max(page || 1, 1);
   const safeTotalPages = Math.max(totalPages || 1, 1);
   const startItem = totalItems ? ((safePage - 1) * perPage) + 1 : 0;
@@ -181,7 +196,6 @@ export default function TransactionsPage() {
     setFiltersOpen(false);
     if (page !== 1) {
       setPage(1);
-      // page effect will reload with stale filters; force immediate reload with cleared filters
       await loadRows(cleared, 1, perPage);
     } else {
       await loadRows(cleared, 1, perPage);
@@ -208,194 +222,213 @@ export default function TransactionsPage() {
   }
 
   return (
-    <section id="transactionsPage">
-      <div className="page-title-bar">
-        <div className="page-title transaction-page-title">
-          <p className="eyebrow">Transactions</p>
-          <h1>Transactions</h1>
-          <p className="page-subtitle">All your transactions</p>
-        </div>
-        <div className="transactions-toolbar">
-          <button
+    <section id="transactionsPage" className="space-y-6">
+      <PageHeader
+        eyebrow="Transactions"
+        title="Transactions"
+        description="All your transactions"
+        actions={
+          <Button
             type="button"
-            className="ghost transactions-filter-button"
-            id="toggleTransactionFilters"
-            aria-expanded={filtersOpen || filtersActive}
+            variant={showFilters ? 'secondary' : 'outline'}
+            aria-expanded={showFilters}
             aria-controls="transactionFiltersPanel"
             onClick={() => setFiltersOpen((open) => !open)}
           >
             Filter
-          </button>
-        </div>
-      </div>
+          </Button>
+        }
+      />
 
-      <div id="transactionFiltersPanel" className={filtersOpen || filtersActive ? '' : 'hidden'}>
-        <form
-          id="transactionFilterForm"
-          className="panel inline-form transaction-filter-form"
-          onSubmit={(event) => void applyFilters(event)}
-        >
-          <label>
-            From
-            <input
-              type="date"
-              name="fromDate"
-              value={filters.fromDate}
-              onChange={(event) => setFilters((current) => ({ ...current, fromDate: event.target.value }))}
-            />
-          </label>
-          <label>
-            To
-            <input
-              type="date"
-              name="toDate"
-              value={filters.toDate}
-              onChange={(event) => setFilters((current) => ({ ...current, toDate: event.target.value }))}
-            />
-          </label>
-          <label>
-            Category
-            <select
-              name="category"
-              id="transactionFilterCategory"
-              value={filters.category}
-              onChange={(event) => setFilters((current) => ({
-                ...current,
-                category: event.target.value,
-                subcategory: ''
-              }))}
+      {showFilters ? (
+        <Card id="transactionFiltersPanel">
+          <CardHeader className="border-b">
+            <CardTitle>Filters</CardTitle>
+            <CardDescription>Narrow the transaction list</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form
+              id="transactionFilterForm"
+              className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+              onSubmit={(event) => void applyFilters(event)}
             >
-              <option value="">All categories</option>
-              {categories.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Subcategory
-            <select
-              name="subcategory"
-              id="transactionFilterSubcategory"
-              value={filters.subcategory}
-              disabled={!filters.category}
-              onChange={(event) => setFilters((current) => ({ ...current, subcategory: event.target.value }))}
-            >
-              <option value="">All subcategories</option>
-              {filterSubcategories.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Payment Method
-            <select
-              name="paymentMethod"
-              id="transactionFilterPaymentMethod"
-              value={filters.paymentMethod}
-              onChange={(event) => setFilters((current) => ({ ...current, paymentMethod: event.target.value }))}
-            >
-              <option value="">All payment methods</option>
-              {paymentMethods.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Store
-            <select
-              name="store"
-              id="transactionFilterStore"
-              value={filters.store}
-              onChange={(event) => setFilters((current) => ({ ...current, store: event.target.value }))}
-            >
-              <option value="">All stores</option>
-              {stores.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </select>
-          </label>
-          <label className="admin-only">
-            User
-            <select
-              name="user"
-              id="transactionFilterUser"
-              value={filters.user}
-              onChange={(event) => setFilters((current) => ({ ...current, user: event.target.value }))}
-            >
-              <option value="">All users</option>
-              {users.map((item) => (
-                <option key={item.id} value={item.id}>{item.name || item.email}</option>
-              ))}
-            </select>
-          </label>
-          <button type="submit">Apply filters</button>
-          <button type="button" className="ghost" id="clearTransactionFilters" onClick={() => void clearFilters()}>
-            Clear
-          </button>
-        </form>
-      </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="tx-from">From</Label>
+                <Input
+                  id="tx-from"
+                  type="date"
+                  name="fromDate"
+                  value={filters.fromDate}
+                  onChange={(event) => setFilters((current) => ({ ...current, fromDate: event.target.value }))}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="tx-to">To</Label>
+                <Input
+                  id="tx-to"
+                  type="date"
+                  name="toDate"
+                  value={filters.toDate}
+                  onChange={(event) => setFilters((current) => ({ ...current, toDate: event.target.value }))}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="tx-category">Category</Label>
+                <NativeSelect
+                  id="tx-category"
+                  name="category"
+                  value={filters.category}
+                  onChange={(event) => setFilters((current) => ({
+                    ...current,
+                    category: event.target.value,
+                    subcategory: ''
+                  }))}
+                >
+                  <option value="">All categories</option>
+                  {categories.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </NativeSelect>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="tx-subcategory">Subcategory</Label>
+                <NativeSelect
+                  id="tx-subcategory"
+                  name="subcategory"
+                  value={filters.subcategory}
+                  disabled={!filters.category}
+                  onChange={(event) => setFilters((current) => ({ ...current, subcategory: event.target.value }))}
+                >
+                  <option value="">All subcategories</option>
+                  {filterSubcategories.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </NativeSelect>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="tx-payment">Payment Method</Label>
+                <NativeSelect
+                  id="tx-payment"
+                  name="paymentMethod"
+                  value={filters.paymentMethod}
+                  onChange={(event) => setFilters((current) => ({ ...current, paymentMethod: event.target.value }))}
+                >
+                  <option value="">All payment methods</option>
+                  {paymentMethods.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </NativeSelect>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="tx-store">Store</Label>
+                <NativeSelect
+                  id="tx-store"
+                  name="store"
+                  value={filters.store}
+                  onChange={(event) => setFilters((current) => ({ ...current, store: event.target.value }))}
+                >
+                  <option value="">All stores</option>
+                  {stores.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </NativeSelect>
+              </div>
+              {isAdmin ? (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="tx-user">User</Label>
+                  <NativeSelect
+                    id="tx-user"
+                    name="user"
+                    value={filters.user}
+                    onChange={(event) => setFilters((current) => ({ ...current, user: event.target.value }))}
+                  >
+                    <option value="">All users</option>
+                    {users.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name || item.email}</option>
+                    ))}
+                  </NativeSelect>
+                </div>
+              ) : null}
+              <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-3">
+                <Button type="submit">Apply filters</Button>
+                <Button type="button" variant="outline" onClick={() => void clearFilters()}>
+                  Clear
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
 
-      <div
-        id="transactionsSummary"
-        className={`transactions-summary${filtersActive ? '' : ' hidden'}`}
-      >
-        {filtersActive ? (
-          <>
-            <span>Filtered total</span>
-            <strong>{money.format(Number(totalAmount || 0))}</strong>
-            <span>{totalItems || 0} transaction{totalItems === 1 ? '' : 's'}</span>
-          </>
-        ) : null}
-      </div>
+      {filtersActive ? (
+        <Card size="sm">
+          <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-1 py-4">
+            <span className="text-sm text-muted-foreground">Filtered total</span>
+            <strong className="text-lg">{money.format(Number(totalAmount || 0))}</strong>
+            <span className="text-sm text-muted-foreground">
+              {totalItems || 0} transaction{totalItems === 1 ? '' : 's'}
+            </span>
+          </CardContent>
+        </Card>
+      ) : null}
 
-      <div id="transactionsList" className="transactions-list" aria-live="polite">
+      <div id="transactionsList" className="space-y-6" aria-live="polite">
         {!rows.length ? (
-          <div className="panel">
-            <p className="panel-empty">{loading ? 'Loading transactions...' : 'No transactions yet.'}</p>
-          </div>
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              {loading ? 'Loading transactions...' : 'No transactions yet.'}
+            </CardContent>
+          </Card>
         ) : (
           grouped.map((group) => (
-            <section key={group.date} className="transaction-day-group">
-              <header className="transaction-day-header">
-                <div>
-                  <h2>{formatLongDate(group.date)}</h2>
-                </div>
-                <strong className="transaction-day-total">{money.format(group.total)}</strong>
+            <section key={group.date} className="space-y-3">
+              <header className="flex items-end justify-between gap-3">
+                <h2 className="text-base font-semibold">{formatLongDate(group.date)}</h2>
+                <strong className="text-sm text-muted-foreground">{money.format(group.total)}</strong>
               </header>
-              <div className="transaction-day-items">
+              <div className="grid gap-2">
                 {group.items.map((transaction) => (
                   <Link
                     key={transaction.id}
-                    className="transaction-list-card"
                     to={`/transactions/${transaction.id}`}
                     data-transaction-link={transaction.id}
+                    className={cn(
+                      'grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border bg-card p-3 text-card-foreground no-underline transition-colors',
+                      'hover:bg-muted/40 sm:grid-cols-[auto_minmax(0,1fr)_auto_14px]'
+                    )}
                   >
-                    <div className={`transaction-list-avatar ${transactionToneClass(transaction)}`} aria-hidden="true">
+                    <div
+                      className={cn(
+                        'flex size-12 shrink-0 items-center justify-center rounded-2xl text-sm font-bold',
+                        transactionToneClass(transaction)
+                      )}
+                      aria-hidden="true"
+                    >
                       {transactionAvatarLabel(transaction)}
                     </div>
-                    <div className="transaction-list-main">
-                      <div className="transaction-list-topline">
-                        <strong className="transaction-list-title">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <strong className="truncate text-sm">
                           {transaction.title || transaction.expand?.subcategory?.name || 'Untitled transaction'}
                         </strong>
                         {transaction.expand?.category?.name ? (
-                          <span className="transaction-list-badge">{transaction.expand.category.name}</span>
+                          <Badge variant="secondary">{transaction.expand.category.name}</Badge>
                         ) : null}
                       </div>
-                      <div className="transaction-list-subline">
+                      <p className="truncate text-xs text-muted-foreground">
                         {transaction.expand?.subcategory?.name || 'None'} • {displayStore(transaction)} • {transaction.expand?.payment_method?.name || 'Not set'}
                         {isAdmin ? ` • ${transaction.expand?.user?.email || transaction.expand?.user?.name || 'Unknown user'}` : ''}
+                      </p>
+                      <div className="flex items-center justify-between gap-3 sm:hidden">
+                        <strong className="text-sm">{money.format(Number(transaction.amount || 0))}</strong>
+                        <span className="text-xs text-muted-foreground">{formatLongDate(transaction.date)}</span>
                       </div>
                     </div>
-                    <div className="transaction-list-side">
-                      <strong className="transaction-list-amount">{money.format(Number(transaction.amount || 0))}</strong>
-                      <span className="transaction-list-date">{formatLongDate(transaction.date)}</span>
+                    <div className="hidden text-right sm:block">
+                      <strong className="block text-sm">{money.format(Number(transaction.amount || 0))}</strong>
+                      <span className="text-xs text-muted-foreground">{formatLongDate(transaction.date)}</span>
                     </div>
-                    <div className="transaction-list-chevron" aria-hidden="true">›</div>
-                    <div className="transaction-list-mobile-meta">
-                      <strong className="transaction-list-amount">{money.format(Number(transaction.amount || 0))}</strong>
-                      <span className="transaction-list-date">{formatLongDate(transaction.date)}</span>
-                    </div>
+                    <div className="hidden text-muted-foreground sm:block" aria-hidden="true">›</div>
                   </Link>
                 ))}
               </div>
@@ -404,44 +437,45 @@ export default function TransactionsPage() {
         )}
       </div>
 
-      <div id="transactionsPagination" className="panel transactions-pagination">
-        <div className="pagination-summary">
-          <strong>{startItem}-{endItem} of {totalItems}</strong>
-          <span>Page {safePage} of {safeTotalPages}</span>
-        </div>
-        <div className="pagination-actions">
-          <label className="pagination-page-size">
-            <span>Rows</span>
-            <select
-              data-transaction-page-size
-              value={perPage}
-              onChange={(event) => void updatePageSize(event.target.value)}
+      <Card>
+        <CardContent className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-0.5">
+            <strong className="text-sm">{startItem}-{endItem} of {totalItems}</strong>
+            <p className="text-xs text-muted-foreground">Page {safePage} of {safeTotalPages}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="tx-page-size" className="text-muted-foreground">Rows</Label>
+              <NativeSelect
+                id="tx-page-size"
+                className="w-auto"
+                value={perPage}
+                onChange={(event) => void updatePageSize(event.target.value)}
+              >
+                {TRANSACTION_PAGE_SIZE_OPTIONS.map((value) => (
+                  <option key={value} value={value}>{value} per page</option>
+                ))}
+              </NativeSelect>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={safePage <= 1}
+              onClick={() => changePage(safePage - 1)}
             >
-              {TRANSACTION_PAGE_SIZE_OPTIONS.map((value) => (
-                <option key={value} value={value}>{value} per page</option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className="ghost"
-            data-page-action="prev"
-            disabled={safePage <= 1}
-            onClick={() => changePage(safePage - 1)}
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            className="ghost"
-            data-page-action="next"
-            disabled={safePage >= safeTotalPages}
-            onClick={() => changePage(safePage + 1)}
-          >
-            Next
-          </button>
-        </div>
-      </div>
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={safePage >= safeTotalPages}
+              onClick={() => changePage(safePage + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <EditTransactionDialog
         open={Boolean(editTransaction)}

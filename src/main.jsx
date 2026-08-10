@@ -7,7 +7,7 @@ import { DataProvider, useData } from './context/DataContext';
 import { ToastProvider } from './context/ToastContext';
 import { initializeTheme } from './lib/theme';
 import './index.css';
-import './styles.css';
+import './charts.css';
 
 initializeTheme();
 document.documentElement.classList.add('js');

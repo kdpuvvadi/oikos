@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { approveUser, adminResendVerification } from '@/lib/api';
 import { useToast } from '@/context/ToastContext';
 import { useData } from '@/context/DataContext';
+import { PageHeader } from '@/components/PageHeader';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -150,17 +151,17 @@ export default function UsersPage() {
 
   return (
     <section id="usersPage" className="space-y-6">
-      <div className="page-title space-y-1">
-        <p className="eyebrow">Admin</p>
-        <h1>Users</h1>
-        <p className="text-sm text-muted-foreground">
-          {pendingUsers.length
+      <PageHeader
+        eyebrow="Admin"
+        title="Users"
+        description={
+          pendingUsers.length
             ? `${pendingUsers.length} user${pendingUsers.length === 1 ? '' : 's'} need attention`
             : users.length
               ? 'Everyone is verified and approved'
-              : 'No users yet'}
-        </p>
-      </div>
+              : 'No users yet'
+        }
+      />
 
       {!users.length ? (
         <Card size="sm">

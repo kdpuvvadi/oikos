@@ -50,6 +50,7 @@
 
 /* Light — aligned with Oikos html[data-theme="light"] */
 :root {
+  color-scheme: light;
   --background: #f8faf8;
   --foreground: #17201c;
   --card: #ffffff;
@@ -86,6 +87,7 @@
 
 /* Dark — aligned with Oikos default :root tokens */
 .dark {
+  color-scheme: dark;
   --background: #07090d;
   --foreground: #f5f7fb;
   --card: #12161d;
@@ -122,5 +124,70 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    overflow-x: clip;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    max-width: 100%;
+    overflow-x: clip;
+    background: var(--background);
+    color: var(--foreground);
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  #root {
+    min-height: 100vh;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  h1,
+  h2 {
+    margin: 0;
+    line-height: 1.15;
+  }
+
+  a {
+    color: inherit;
+  }
+
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="time"] {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  select,
+  select option,
+  select optgroup {
+    color-scheme: inherit;
+  }
+
+  .dark select,
+  html[data-theme="dark"] select {
+    color-scheme: dark;
+  }
+
+  select option,
+  select optgroup {
+    background-color: var(--popover);
+    color: var(--popover-foreground);
+  }
+
+  .dark select option,
+  .dark select optgroup,
+  html[data-theme="dark"] select option,
+  html[data-theme="dark"] select optgroup {
+    background-color: #12161d;
+    color: #f5f7fb;
   }
 }

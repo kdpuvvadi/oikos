@@ -1,9 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createTransaction } from '../lib/api';
-import { money } from '../lib/format';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
-import { useData } from '../context/DataContext';
+import { createTransaction } from '@/lib/api';
+import { money } from '@/lib/format';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import { useData } from '@/context/DataContext';
+import { PageHeader } from '@/components/PageHeader';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
+import { Separator } from '@/components/ui/separator';
 
 function todayIsoDate() {
   const now = new Date();
@@ -11,6 +24,16 @@ function todayIsoDate() {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function Field({ label, htmlFor, children, className = '', hint }) {
+  return (
+    <div className={`grid min-w-0 gap-2 ${className}`.trim()}>
+      <Label htmlFor={htmlFor} className="text-muted-foreground">{label}</Label>
+      {children}
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+    </div>
+  );
 }
 
 export default function HomePage() {
@@ -117,161 +140,196 @@ export default function HomePage() {
   }
 
   return (
-    <section id="homePage">
-      <div className="page-title">
-        <p className="eyebrow">This month</p>
-        <h1>Expense entry</h1>
+    <section id="homePage" className="min-w-0 space-y-6">
+      <PageHeader eyebrow="This month" title="Expense entry" />
+
+      <div className="grid grid-cols-2 gap-3">
+        <Card size="sm" className="min-w-0">
+          <CardHeader className="gap-1">
+            <CardDescription className="text-[0.7rem] sm:text-sm">This month</CardDescription>
+            <CardTitle className="truncate text-lg font-semibold tracking-tight sm:text-2xl">
+              {money.format(homeTotals?.thisMonth || 0)}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+        <Card size="sm" className="min-w-0">
+          <CardHeader className="gap-1">
+            <CardDescription className="text-[0.7rem] sm:text-sm">Last month</CardDescription>
+            <CardTitle className="truncate text-lg font-semibold tracking-tight sm:text-2xl">
+              {money.format(homeTotals?.lastMonth || 0)}
+            </CardTitle>
+          </CardHeader>
+        </Card>
       </div>
 
-      <div className="stats-grid">
-        <article className="stat-card">
-          <span>This month so far</span>
-          <strong id="thisMonthTotal">{money.format(homeTotals?.thisMonth || 0)}</strong>
-        </article>
-        <article className="stat-card">
-          <span>Last month total</span>
-          <strong id="lastMonthTotal">{money.format(homeTotals?.lastMonth || 0)}</strong>
-        </article>
-      </div>
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b bg-muted/30">
+          <CardTitle>New expense</CardTitle>
+          <CardDescription>Capture the basics, then classify where the money went</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <form id="expenseForm" className="grid min-w-0 gap-6" onSubmit={handleSubmit}>
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+              <Field label="Date" htmlFor="expense-date">
+                <Input
+                  id="expense-date"
+                  type="date"
+                  name="date"
+                  required
+                  value={date}
+                  onChange={(event) => setDate(event.target.value)}
+                />
+              </Field>
+              <Field label="Amount spent" htmlFor="expense-amount">
+                <Input
+                  id="expense-amount"
+                  type="number"
+                  name="amount"
+                  min="0.01"
+                  step="0.01"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  required
+                  className="font-semibold tabular-nums"
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                />
+              </Field>
+              <Field label="Title" htmlFor="expense-title" className="sm:col-span-2">
+                <Input
+                  id="expense-title"
+                  type="text"
+                  name="title"
+                  placeholder="Example: Fuel refill"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                />
+              </Field>
+            </div>
 
-      <form id="expenseForm" className="panel form-grid" onSubmit={handleSubmit}>
-        <label>
-          Date
-          <input
-            type="date"
-            name="date"
-            required
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
-          />
-        </label>
-        <label>
-          Title
-          <input
-            type="text"
-            name="title"
-            placeholder="Example: Fuel refill"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-          />
-        </label>
-        <label>
-          Amount spent
-          <input
-            type="number"
-            name="amount"
-            min="0.01"
-            step="0.01"
-            placeholder="0.00"
-            required
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-          />
-        </label>
-        <label>
-          Payment mode
-          <select
-            name="paymentMethod"
-            id="oikosPaymentMethod"
-            value={paymentMethod}
-            onChange={(event) => setPaymentMethod(event.target.value)}
-          >
-            <option value="">Select payment mode</option>
-            {paymentMethods.map((item) => (
-              <option key={item.id} value={item.id}>{item.name}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Expense category
-          <select
-            name="category"
-            id="oikosCategory"
-            required
-            value={category}
-            onChange={(event) => {
-              const next = event.target.value;
-              setCategory(next);
-              if (next === '__new__' && isAdmin) setSubcategory('__new__');
-              else setSubcategory('');
-            }}
-          >
-            <option value="">Select category</option>
-            {categories.map((item) => (
-              <option key={item.id} value={item.id}>{item.name}</option>
-            ))}
-            {isAdmin ? <option value="__new__">Add new category</option> : null}
-          </select>
-        </label>
-        <label id="newCategoryWrap" className={showNewCategory ? '' : 'hidden'}>
-          New category
-          <input
-            type="text"
-            name="categoryName"
-            placeholder="Example: Travel"
-            value={categoryName}
-            onChange={(event) => setCategoryName(event.target.value)}
-          />
-        </label>
-        <label>
-          Subcategory
-          <select
-            name="subcategory"
-            id="oikosSubcategory"
-            required
-            value={subcategory}
-            onChange={(event) => setSubcategory(event.target.value)}
-          >
-            <option value="">{category === '__new__' ? 'Create subcategory' : 'Select subcategory'}</option>
-            {subcategories.map((item) => (
-              <option key={item.id} value={item.id}>{item.name}</option>
-            ))}
-            {isAdmin ? <option value="__new__">Add new subcategory</option> : null}
-          </select>
-        </label>
-        <label id="newSubcategoryWrap" className={showNewSubcategory ? '' : 'hidden'}>
-          New subcategory
-          <input
-            type="text"
-            name="subcategoryName"
-            placeholder="Example: Train tickets"
-            value={subcategoryName}
-            onChange={(event) => setSubcategoryName(event.target.value)}
-          />
-        </label>
-        <label>
-          Store
-          <select
-            name="store"
-            id="oikosStore"
-            required
-            value={store}
-            onChange={(event) => {
-              setStore(event.target.value);
-              setStoreFieldValue('');
-            }}
-          >
-            <option value="">Select store</option>
-            {stores.map((item) => (
-              <option key={item.id} value={item.id}>{item.name}</option>
-            ))}
-            {isAdmin ? <option value="__new__">Add new store</option> : null}
-          </select>
-        </label>
-        <label id="newStoreWrap" className={showStoreWrap ? '' : 'hidden'}>
-          Store name
-          <input
-            type="text"
-            name={isAdminCreatingStore ? 'storeName' : 'storeText'}
-            placeholder="Example: Corner shop"
-            value={storeFieldValue}
-            onChange={(event) => setStoreFieldValue(event.target.value)}
-          />
-        </label>
-        <button type="submit" className="expense-submit-button" disabled={submitting}>
-          Submit expense
-        </button>
-      </form>
+            <Separator />
+
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+              <Field label="Payment mode" htmlFor="expense-payment">
+                <NativeSelect
+                  id="expense-payment"
+                  name="paymentMethod"
+                  value={paymentMethod}
+                  onChange={(event) => setPaymentMethod(event.target.value)}
+                >
+                  <option value="">Select payment mode</option>
+                  {paymentMethods.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </NativeSelect>
+              </Field>
+              <Field label="Store" htmlFor="expense-store">
+                <NativeSelect
+                  id="expense-store"
+                  name="store"
+                  required
+                  value={store}
+                  onChange={(event) => {
+                    setStore(event.target.value);
+                    setStoreFieldValue('');
+                  }}
+                >
+                  <option value="">Select store</option>
+                  {stores.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                  {isAdmin ? <option value="__new__">Add new store</option> : null}
+                </NativeSelect>
+              </Field>
+              {showStoreWrap ? (
+                <Field label="Store name" htmlFor="expense-store-name" className="sm:col-span-2">
+                  <Input
+                    id="expense-store-name"
+                    type="text"
+                    name={isAdminCreatingStore ? 'storeName' : 'storeText'}
+                    placeholder="Example: Corner shop"
+                    value={storeFieldValue}
+                    onChange={(event) => setStoreFieldValue(event.target.value)}
+                  />
+                </Field>
+              ) : null}
+            </div>
+
+            <Separator />
+
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+              <Field label="Category" htmlFor="expense-category">
+                <NativeSelect
+                  id="expense-category"
+                  name="category"
+                  required
+                  value={category}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setCategory(next);
+                    if (next === '__new__' && isAdmin) setSubcategory('__new__');
+                    else setSubcategory('');
+                  }}
+                >
+                  <option value="">Select category</option>
+                  {categories.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                  {isAdmin ? <option value="__new__">Add new category</option> : null}
+                </NativeSelect>
+              </Field>
+              {showNewCategory ? (
+                <Field label="New category" htmlFor="expense-category-name">
+                  <Input
+                    id="expense-category-name"
+                    type="text"
+                    name="categoryName"
+                    placeholder="Example: Travel"
+                    value={categoryName}
+                    onChange={(event) => setCategoryName(event.target.value)}
+                  />
+                </Field>
+              ) : null}
+              <Field label="Subcategory" htmlFor="expense-subcategory">
+                <NativeSelect
+                  id="expense-subcategory"
+                  name="subcategory"
+                  required
+                  value={subcategory}
+                  onChange={(event) => setSubcategory(event.target.value)}
+                >
+                  <option value="">{category === '__new__' ? 'Create subcategory' : 'Select subcategory'}</option>
+                  {subcategories.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                  {isAdmin ? <option value="__new__">Add new subcategory</option> : null}
+                </NativeSelect>
+              </Field>
+              {showNewSubcategory ? (
+                <Field label="New subcategory" htmlFor="expense-subcategory-name">
+                  <Input
+                    id="expense-subcategory-name"
+                    type="text"
+                    name="subcategoryName"
+                    placeholder="Example: Train tickets"
+                    value={subcategoryName}
+                    onChange={(event) => setSubcategoryName(event.target.value)}
+                  />
+                </Field>
+              ) : null}
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                Amount, category, subcategory, and store are required.
+              </p>
+              <Button type="submit" size="lg" className="w-full sm:w-auto" disabled={submitting}>
+                {submitting ? 'Saving…' : 'Submit expense'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </section>
   );
 }

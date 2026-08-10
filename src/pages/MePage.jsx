@@ -1,15 +1,37 @@
 import { useEffect, useState } from 'react';
-import { requestVerification } from '../lib/api';
-import { TRANSACTION_PAGE_SIZE_OPTIONS } from '../lib/format';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
-import { useData } from '../context/DataContext';
+import { requestVerification } from '@/lib/api';
+import { TRANSACTION_PAGE_SIZE_OPTIONS } from '@/lib/format';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import { useData } from '@/context/DataContext';
 import {
   userDisplayName,
   verificationBadge,
   approvalBadge,
   isApprovedUser
-} from '../lib/transactions';
+} from '@/lib/transactions';
+import { PageHeader } from '@/components/PageHeader';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
+import { Switch } from '@/components/ui/switch';
+
+function DetailRow({ label, children }) {
+  return (
+    <div className="grid gap-1.5 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start sm:gap-4">
+      <span className="text-sm font-medium text-muted-foreground">{label}</span>
+      <div className="min-w-0 space-y-2">{children}</div>
+    </div>
+  );
+}
 
 export default function MePage() {
   const {
@@ -38,9 +60,9 @@ export default function MePage() {
 
   if (!user) {
     return (
-      <section id="mePage">
+      <section id="mePage" className="space-y-6">
         <div id="meProfile">
-          <p>Please sign in to view your profile.</p>
+          <p className="text-sm text-muted-foreground">Please sign in to view your profile.</p>
         </div>
       </section>
     );
@@ -106,104 +128,112 @@ export default function MePage() {
     appBranch ? `Branch: ${appBranch}` : ''
   ].filter(Boolean);
 
-  const pageSizeSelect = (
-    <label>
-      <select
-        data-transaction-page-size
-        value={user.transactionPageSize || 25}
-        onChange={(event) => void updatePageSize(event.target.value)}
-      >
-        {TRANSACTION_PAGE_SIZE_OPTIONS.map((value) => (
-          <option key={value} value={value}>{value} per page</option>
-        ))}
-      </select>
-    </label>
-  );
-
   const sharedRows = (
     <>
-      <div className="detail-row">
-        <span className="detail-label">Transaction page size</span>
-        <div className="detail-value detail-stack">
-          {pageSizeSelect}
-          <div className="detail-help">Choose how many transactions load on each page by default.</div>
+      <DetailRow label="Transaction page size">
+        <NativeSelect
+          data-transaction-page-size
+          value={user.transactionPageSize || 25}
+          onChange={(event) => void updatePageSize(event.target.value)}
+        >
+          {TRANSACTION_PAGE_SIZE_OPTIONS.map((value) => (
+            <option key={value} value={value}>{value} per page</option>
+          ))}
+        </NativeSelect>
+        <p className="text-sm text-muted-foreground">
+          Choose how many transactions load on each page by default.
+        </p>
+      </DetailRow>
+      <DetailRow label="Email verification">
+        <p className="text-sm">
+          {user.verified ? 'Your email is verified.' : 'Your email still needs verification.'}
+        </p>
+        {!user.verified ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-resend-verification
+            onClick={() => void resendVerification()}
+          >
+            Resend verification email
+          </Button>
+        ) : null}
+      </DetailRow>
+      <DetailRow label="Admin approval">
+        <div className="flex flex-wrap items-center gap-2">
+          {approvalBadge(user)}
         </div>
-      </div>
-      <div className="detail-row">
-        <span className="detail-label">Email verification</span>
-        <div className="detail-value detail-stack">
-          <div>{user.verified ? 'Your email is verified.' : 'Your email still needs verification.'}</div>
-          {!user.verified ? (
-            <button type="button" className="ghost" data-resend-verification onClick={() => void resendVerification()}>
-              Resend verification email
-            </button>
-          ) : null}
-        </div>
-      </div>
-      <div className="detail-row">
-        <span className="detail-label">Admin approval</span>
-        <div className="detail-value detail-stack">
-          <div className="detail-inline">{approvalBadge(user)}</div>
-          <div>
-            {isApprovedUser(user)
-              ? 'Your account is approved.'
-              : 'Your account is waiting for admin approval.'}
-          </div>
-        </div>
-      </div>
-      <div className="detail-row">
-        <span className="detail-label">Email visibility</span>
-        <div className="detail-value">
-          <label className="toggle-switch">
-            <input
-              type="checkbox"
-              checked={Boolean(user.emailVisibility)}
-              data-email-visibility
-              onChange={() => void toggleEmailVisibility()}
-            />
-            <span className="toggle-slider" />
-          </label>
-          <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.5rem' }}>
-            {user.emailVisibility
-              ? 'Your email is visible to other users and admins.'
-              : 'Your email is hidden from other users and admin lists.'}
-          </div>
-        </div>
-      </div>
+        <p className="text-sm text-muted-foreground">
+          {isApprovedUser(user)
+            ? 'Your account is approved.'
+            : 'Your account is waiting for admin approval.'}
+        </p>
+      </DetailRow>
+      <DetailRow label="Email visibility">
+        <Switch
+          checked={Boolean(user.emailVisibility)}
+          data-email-visibility
+          onCheckedChange={() => void toggleEmailVisibility()}
+        />
+        <p className="text-sm text-muted-foreground">
+          {user.emailVisibility
+            ? 'Your email is visible to other users and admins.'
+            : 'Your email is hidden from other users and admin lists.'}
+        </p>
+      </DetailRow>
     </>
   );
 
   return (
-    <section id="mePage">
-      <div id="meProfile">
-        <div className="page-title-bar">
-          <div className="page-title">
-            <p className="eyebrow">Profile</p>
-            <h1>Me</h1>
-          </div>
-          <div className="inline-actions">
-            {editMode ? (
+    <section id="mePage" className="space-y-6">
+      <div id="meProfile" className="space-y-6">
+        <PageHeader
+          eyebrow="Profile"
+          title="Me"
+          actions={
+            editMode ? (
               <>
-                <button type="submit" form="profileEditForm">Save profile</button>
-                <button type="button" className="ghost" data-cancel-profile-edit onClick={() => setEditMode(false)}>
+                <Button type="submit" form="profileEditForm">Save profile</Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  data-cancel-profile-edit
+                  onClick={() => setEditMode(false)}
+                >
                   Cancel
-                </button>
+                </Button>
               </>
             ) : (
-              <button type="button" className="ghost" data-edit-profile onClick={() => setEditMode(true)}>
+              <Button
+                type="button"
+                variant="outline"
+                data-edit-profile
+                onClick={() => setEditMode(true)}
+              >
                 Edit profile
-              </button>
-            )}
-          </div>
-        </div>
+              </Button>
+            )
+          }
+        />
 
         {editMode ? (
-          <article className="panel">
-            <form id="profileEditForm" className="detail-list" data-profile-form onSubmit={handleSaveProfile}>
-              <div className="detail-row">
-                <span className="detail-label">First name</span>
-                <label className="detail-value detail-stack">
-                  <input
+          <Card>
+            <CardHeader className="border-b">
+              <CardTitle>Edit profile</CardTitle>
+              <CardDescription>Update your name and email</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form
+                id="profileEditForm"
+                className="grid gap-6"
+                data-profile-form
+                onSubmit={handleSaveProfile}
+              >
+                <div className="grid gap-1.5">
+                  <Label htmlFor="profile-first-name">First name</Label>
+                  <Input
+                    id="profile-first-name"
                     type="text"
                     name="firstName"
                     value={firstName}
@@ -211,12 +241,11 @@ export default function MePage() {
                     required
                     onChange={(event) => setFirstName(event.target.value)}
                   />
-                </label>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Last name</span>
-                <label className="detail-value detail-stack">
-                  <input
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="profile-last-name">Last name</Label>
+                  <Input
+                    id="profile-last-name"
                     type="text"
                     name="lastName"
                     value={lastName}
@@ -224,13 +253,12 @@ export default function MePage() {
                     required
                     onChange={(event) => setLastName(event.target.value)}
                   />
-                  <div className="detail-help">Your full name is shown around the app.</div>
-                </label>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Email</span>
-                <label className="detail-value detail-stack">
-                  <input
+                  <p className="text-sm text-muted-foreground">Your full name is shown around the app.</p>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="profile-email">Email</Label>
+                  <Input
+                    id="profile-email"
                     type="email"
                     name="email"
                     value={email}
@@ -238,37 +266,41 @@ export default function MePage() {
                     required
                     onChange={(event) => setEmail(event.target.value)}
                   />
-                  <div className="detail-inline">
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
                     <span>{user.email || '-'}</span>
                     {verificationBadge(user)}
                   </div>
-                  <div className="detail-help">If your email changes, you may need to verify the new address again.</div>
-                </label>
-              </div>
-              {sharedRows}
-            </form>
-          </article>
+                  <p className="text-sm text-muted-foreground">
+                    If your email changes, you may need to verify the new address again.
+                  </p>
+                </div>
+                {sharedRows}
+              </form>
+            </CardContent>
+          </Card>
         ) : (
-          <article className="panel">
-            <div className="detail-list">
-              <div className="detail-row">
-                <span className="detail-label">Name</span>
-                <strong className="detail-value">{userDisplayName(user)}</strong>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Email</span>
-                <div className="detail-value detail-inline">
+          <Card>
+            <CardHeader className="border-b">
+              <CardTitle>Profile</CardTitle>
+              <CardDescription>Your account details and preferences</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-6">
+              <DetailRow label="Name">
+                <p className="font-medium">{userDisplayName(user)}</p>
+              </DetailRow>
+              <DetailRow label="Email">
+                <div className="flex flex-wrap items-center gap-2">
                   <span>{user.email || '-'}</span>
                   {verificationBadge(user)}
                 </div>
-              </div>
+              </DetailRow>
               {sharedRows}
-            </div>
-          </article>
+            </CardContent>
+          </Card>
         )}
 
         {versionDetails.length ? (
-          <p className="app-version">{versionDetails.join(' | ')}</p>
+          <p className="text-xs text-muted-foreground">{versionDetails.join(' | ')}</p>
         ) : null}
       </div>
     </section>

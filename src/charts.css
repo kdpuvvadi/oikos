@@ -1,0 +1,163 @@
+.chart-canvas {
+  min-height: 180px;
+  flex: 1;
+}
+
+.chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 3 5;
+}
+
+.chart-axis {
+  fill: var(--muted-foreground);
+  font-size: 10px;
+  font-family: inherit;
+}
+
+.chart-area {
+  animation: dash-fade-in 0.7s ease both;
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 2.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: dash-draw 1s ease both;
+}
+
+.chart-dot {
+  fill: var(--card);
+  stroke: var(--primary);
+  stroke-width: 2;
+  transition: r 0.15s ease;
+}
+
+.chart-dot:hover {
+  r: 6;
+}
+
+.donut-track {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 28;
+}
+
+.donut-slice {
+  stroke-linecap: butt;
+  transition: opacity 0.15s ease;
+  animation: dash-fade-in 0.6s ease both;
+}
+
+.donut-slice:hover {
+  opacity: 0.82;
+}
+
+.donut-center-label {
+  fill: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+}
+
+.donut-center-value {
+  fill: var(--foreground);
+  font-size: 13px;
+  font-weight: 800;
+  font-family: inherit;
+}
+
+.daily-bar {
+  fill: var(--primary);
+  opacity: 0.78;
+  transition: opacity 0.15s ease;
+}
+
+.daily-bar.is-today {
+  fill: var(--chart-2);
+  opacity: 1;
+}
+
+.daily-bar.is-empty {
+  fill: var(--muted);
+  opacity: 1;
+}
+
+.daily-bar:hover {
+  opacity: 1;
+}
+
+.transaction-tone-emerald {
+  background: #dff3e7;
+  color: #1f7a49;
+}
+
+.transaction-tone-indigo {
+  background: #e5e9ff;
+  color: #4c58c8;
+}
+
+.transaction-tone-amber {
+  background: #fff0cf;
+  color: #ba7a00;
+}
+
+.transaction-tone-rose {
+  background: #ffe0df;
+  color: #ba4740;
+}
+
+.transaction-tone-violet {
+  background: #efe5ff;
+  color: #6b46c1;
+}
+
+html.dark .transaction-tone-emerald {
+  background: rgba(46, 125, 79, 0.22);
+  color: #87d5a6;
+}
+
+html.dark .transaction-tone-indigo {
+  background: rgba(42, 111, 151, 0.22);
+  color: #9ec5e0;
+}
+
+html.dark .transaction-tone-amber {
+  background: rgba(225, 184, 75, 0.22);
+  color: #ffd474;
+}
+
+html.dark .transaction-tone-rose {
+  background: rgba(176, 68, 60, 0.22);
+  color: #f0a29c;
+}
+
+html.dark .transaction-tone-violet {
+  background: rgba(107, 70, 193, 0.22);
+  color: #c4b5fd;
+}
+
+@keyframes dash-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dash-draw {
+  from {
+    stroke-dasharray: 1200;
+    stroke-dashoffset: 1200;
+  }
+  to {
+    stroke-dasharray: 1200;
+    stroke-dashoffset: 0;
+  }
+}

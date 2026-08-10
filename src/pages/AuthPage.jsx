@@ -1,9 +1,20 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { requestVerification } from '../lib/api';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
-import { ThemeToggle } from '../components/ThemeToggle';
+import { requestVerification } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 export default function AuthPage() {
   const {
@@ -17,12 +28,14 @@ export default function AuthPage() {
   } = useAuth();
   const { toast } = useToast();
   const [mode, setMode] = useState('login');
+  const [submitting, setSubmitting] = useState(false);
   const approvalPending = Boolean(user && !isApproved);
 
   async function handleLogin(event) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = Object.fromEntries(new FormData(form));
+    setSubmitting(true);
     try {
       const result = await login(data);
       if (result?.requiresVerification) {
@@ -42,6 +55,8 @@ export default function AuthPage() {
         setPendingVerificationEmail(error.data.email || String(data.email || '').trim().toLowerCase());
       }
       toast(error.message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -49,6 +64,7 @@ export default function AuthPage() {
     event.preventDefault();
     const form = event.currentTarget;
     const data = Object.fromEntries(new FormData(form));
+    setSubmitting(true);
     try {
       const result = await register(data);
       if (result?.requiresVerification) {
@@ -68,6 +84,8 @@ export default function AuthPage() {
         setPendingVerificationEmail(error.data.email || String(data.email || '').trim().toLowerCase());
       }
       toast(error.message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -96,114 +114,189 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="auth-shell" id="authPage">
-      <div className="page-title">
-        <h1 id="authTitle">{mode === 'register' ? 'Create account' : 'Sign in'}</h1>
-      </div>
-
-      <div id="authStatus">
-        {!user && pendingVerificationEmail ? (
-          <article className="panel auth-status-panel">
-            <div className="detail-list">
-              <div className="detail-row">
-                <span className="detail-label">Verification pending</span>
-                <strong className="detail-value">{pendingVerificationEmail}</strong>
-              </div>
-              <p className="auth-status-copy">
-                Check your inbox for the verification email before signing in. If it didn’t arrive, resend it here.
-              </p>
-              <div className="inline-actions">
-                <button
-                  type="button"
-                  className="ghost"
-                  data-resend-verification={pendingVerificationEmail}
-                  onClick={() => void resendVerification(pendingVerificationEmail)}
-                >
-                  Resend verification email
-                </button>
-                <Link className="text-link" to="/verify-email">Open verification page</Link>
-              </div>
-            </div>
-          </article>
-        ) : null}
-      </div>
-
-      <div id="authForms" className={approvalPending ? 'hidden' : ''}>
-        <div className="auth-shell-actions">
-          <ThemeToggle id="themeToggleGuest" />
-        </div>
-        <div className="auth-grid">
-          <form
-            id="loginForm"
-            className={`panel form-stack${mode === 'register' ? ' hidden' : ''}`}
-            onSubmit={handleLogin}
-          >
-            <h2>Login</h2>
-            <label>
-              Email
-              <input type="email" name="email" autoComplete="email" required />
-            </label>
-            <label>
-              Password
-              <input type="password" name="password" autoComplete="current-password" required />
-            </label>
-            <button type="submit">Login</button>
-            <div className="auth-switch">
-              <span>New to Oikos?</span>
-              <button type="button" className="ghost" data-auth-mode="register" onClick={() => setMode('register')}>
-                Create account
-              </button>
-            </div>
-          </form>
-
-          <form
-            id="registerForm"
-            className={`panel form-stack${mode === 'register' ? '' : ' hidden'}`}
-            onSubmit={handleRegister}
-          >
-            <h2>Create account</h2>
-            <label>
-              First name
-              <input type="text" name="firstName" autoComplete="given-name" required />
-            </label>
-            <label>
-              Last name
-              <input type="text" name="lastName" autoComplete="family-name" required />
-            </label>
-            <label>
-              Email
-              <input type="email" name="email" autoComplete="email" required />
-            </label>
-            <label>
-              Password
-              <input type="password" name="password" autoComplete="new-password" minLength={8} required />
-            </label>
-            <button type="submit">Create account</button>
-            <div className="auth-switch">
-              <span>Already have an account?</span>
-              <button type="button" className="ghost" data-auth-mode="login" onClick={() => setMode('login')}>
-                Sign in
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <div id="approvalPending" className={approvalPending ? '' : 'hidden'}>
-        <article className="panel approval-pending-panel">
-          <h2>Admin approval pending</h2>
-          <p>
-            Your email is verified, but an administrator still needs to approve your account before you can use Oikos.
+    <div
+      id="authPage"
+      className="relative mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md flex-col justify-center px-4 py-8 sm:px-6"
+    >
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-xs font-extrabold uppercase tracking-wide text-primary">Oikos</p>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            {approvalPending
+              ? 'Almost there'
+              : mode === 'register'
+                ? 'Create account'
+                : 'Welcome back'}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {approvalPending
+              ? 'Your account is waiting on admin approval.'
+              : mode === 'register'
+                ? 'Track household spending in one place.'
+                : 'Sign in to continue tracking expenses.'}
           </p>
-          <p><strong id="approvalPendingEmail">{user?.email || ''}</strong></p>
-          <p>Please check back later or contact your administrator.</p>
-          <div className="inline-actions">
-            <button type="button" className="ghost" id="approvalLogoutButton" onClick={() => void handleLogout()}>
+        </div>
+        <ThemeToggle id="themeToggleGuest" className="size-9 shrink-0" />
+      </div>
+
+      {!user && pendingVerificationEmail ? (
+        <Card className="mb-4 border-primary/20 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="text-base">Verify your email</CardTitle>
+            <CardDescription>{pendingVerificationEmail}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Check your inbox for the verification link. If it didn’t arrive, resend it below.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void resendVerification(pendingVerificationEmail)}
+              >
+                Resend email
+              </Button>
+              <Button asChild variant="ghost">
+                <Link to="/verify-email">Verification page</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {approvalPending ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Admin approval pending</CardTitle>
+            <CardDescription>
+              Your email is verified. An administrator still needs to approve your account before you can use Oikos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm font-medium">
+              {user?.email || ''}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Check back later or contact your administrator.
+            </p>
+            <Button type="button" variant="outline" className="w-full" onClick={() => void handleLogout()}>
               Logout
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="overflow-hidden shadow-sm">
+          <div className="grid grid-cols-2 gap-1 border-b border-border bg-muted/40 p-1">
+            <button
+              type="button"
+              className={cn(
+                'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                mode === 'login'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={() => setMode('login')}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                mode === 'register'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={() => setMode('register')}
+            >
+              Sign up
             </button>
           </div>
-        </article>
-      </div>
+
+          {mode === 'login' ? (
+            <>
+              <CardHeader>
+                <CardTitle>Sign in</CardTitle>
+                <CardDescription>Use your email and password</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form id="loginForm" className="grid gap-4" onSubmit={handleLogin}>
+                  <div className="grid gap-2">
+                    <Label htmlFor="login-email">Email</Label>
+                    <Input id="login-email" type="email" name="email" autoComplete="email" required />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="login-password">Password</Label>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      name="password"
+                      autoComplete="current-password"
+                      required
+                    />
+                  </div>
+                  <Button type="submit" size="lg" className="w-full" disabled={submitting}>
+                    {submitting ? 'Signing in…' : 'Sign in'}
+                  </Button>
+                </form>
+              </CardContent>
+            </>
+          ) : (
+            <>
+              <CardHeader>
+                <CardTitle>Create account</CardTitle>
+                <CardDescription>You’ll verify email, then wait for admin approval</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form id="registerForm" className="grid gap-4" onSubmit={handleRegister}>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-2">
+                      <Label htmlFor="register-first">First name</Label>
+                      <Input
+                        id="register-first"
+                        type="text"
+                        name="firstName"
+                        autoComplete="given-name"
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="register-last">Last name</Label>
+                      <Input
+                        id="register-last"
+                        type="text"
+                        name="lastName"
+                        autoComplete="family-name"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="register-email">Email</Label>
+                    <Input id="register-email" type="email" name="email" autoComplete="email" required />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="register-password">Password</Label>
+                    <Input
+                      id="register-password"
+                      type="password"
+                      name="password"
+                      autoComplete="new-password"
+                      minLength={8}
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">At least 8 characters</p>
+                  </div>
+                  <Button type="submit" size="lg" className="w-full" disabled={submitting}>
+                    {submitting ? 'Creating…' : 'Create account'}
+                  </Button>
+                </form>
+              </CardContent>
+            </>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

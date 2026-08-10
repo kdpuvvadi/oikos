@@ -1,12 +1,30 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { fetchTransaction, deleteTransaction } from '../lib/api';
-import { money, formatDate, formatLongDate } from '../lib/format';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
-import { useData } from '../context/DataContext';
-import { EditTransactionDialog } from '../components/EditTransactionDialog';
-import { ConfirmDialog } from '../components/DeleteReferenceDialog';
+import { fetchTransaction, deleteTransaction } from '@/lib/api';
+import { money, formatDate, formatLongDate } from '@/lib/format';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import { useData } from '@/context/DataContext';
+import { EditTransactionDialog } from '@/components/EditTransactionDialog';
+import { ConfirmDialog } from '@/components/DeleteReferenceDialog';
+import { PageHeader } from '@/components/PageHeader';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+
+function DetailRow({ label, children }) {
+  return (
+    <div className="grid gap-1.5 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start sm:gap-4">
+      <span className="text-sm font-medium text-muted-foreground">{label}</span>
+      <div className="min-w-0 font-medium">{children}</div>
+    </div>
+  );
+}
 
 export default function TransactionDetailPage() {
   const { id } = useParams();
@@ -74,82 +92,86 @@ export default function TransactionDetailPage() {
     : 'this transaction';
 
   return (
-    <section id="transactionDetailPage">
-      <div className="page-title-bar">
-        <div className="page-title">
-          <p className="eyebrow">Transaction</p>
-          <h1>Transaction details</h1>
-        </div>
-        <div className="transactions-toolbar">
-          <Link className="ghost button-link" to="/transactions">Back to transactions</Link>
-        </div>
-      </div>
+    <section id="transactionDetailPage" className="space-y-6">
+      <PageHeader
+        eyebrow="Transaction"
+        title="Transaction details"
+        actions={
+          <Button asChild variant="outline">
+            <Link to="/transactions">Back to transactions</Link>
+          </Button>
+        }
+      />
 
-      <div id="transactionDetailCard" className="panel transaction-detail-card">
+      <Card id="transactionDetailCard">
         {loading ? (
-          <p className="panel-empty">Loading transaction...</p>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            Loading transaction...
+          </CardContent>
         ) : !transaction ? (
-          <p className="panel-empty">Transaction not found.</p>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            Transaction not found.
+          </CardContent>
         ) : (
           <>
-            <div className="transaction-detail-hero">
-              <div>
-                <p className="eyebrow">Recorded on {formatLongDate(transaction.date)}</p>
-                <h2>{transaction.title || transaction.expand?.subcategory?.name || 'Untitled transaction'}</h2>
-              </div>
-              <strong className="transaction-detail-amount">{money.format(Number(transaction.amount || 0))}</strong>
-            </div>
-            <div className="detail-list transaction-detail-list">
-              <div className="detail-row">
-                <span className="detail-label">Category</span>
-                <strong className="detail-value">{transaction.expand?.category?.name || 'Uncategorized'}</strong>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Subcategory</span>
-                <strong className="detail-value">{transaction.expand?.subcategory?.name || 'None'}</strong>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Store</span>
-                <strong className="detail-value">{displayStore(transaction)}</strong>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Payment method</span>
-                <strong className="detail-value">{transaction.expand?.payment_method?.name || 'Not set'}</strong>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Date</span>
-                <strong className="detail-value">{formatDate(transaction.date)}</strong>
-              </div>
-              {isAdmin ? (
-                <div className="detail-row admin-only">
-                  <span className="detail-label">User</span>
-                  <strong className="detail-value">
-                    {transaction.expand?.user?.email || transaction.expand?.user?.name || 'Unknown user'}
-                  </strong>
+            <CardHeader className="border-b">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 space-y-1">
+                  <CardDescription>
+                    Recorded on {formatLongDate(transaction.date)}
+                  </CardDescription>
+                  <CardTitle className="text-2xl">
+                    {transaction.title || transaction.expand?.subcategory?.name || 'Untitled transaction'}
+                  </CardTitle>
                 </div>
+                <p className="text-2xl font-semibold tracking-tight tabular-nums">
+                  {money.format(Number(transaction.amount || 0))}
+                </p>
+              </div>
+            </CardHeader>
+            <CardContent className="grid gap-5 pt-6">
+              <DetailRow label="Category">
+                {transaction.expand?.category?.name || 'Uncategorized'}
+              </DetailRow>
+              <DetailRow label="Subcategory">
+                {transaction.expand?.subcategory?.name || 'None'}
+              </DetailRow>
+              <DetailRow label="Store">
+                {displayStore(transaction)}
+              </DetailRow>
+              <DetailRow label="Payment method">
+                {transaction.expand?.payment_method?.name || 'Not set'}
+              </DetailRow>
+              <DetailRow label="Date">
+                {formatDate(transaction.date)}
+              </DetailRow>
+              {isAdmin ? (
+                <DetailRow label="User">
+                  {transaction.expand?.user?.email || transaction.expand?.user?.name || 'Unknown user'}
+                </DetailRow>
               ) : null}
-            </div>
-            <div className="inline-actions transaction-detail-actions">
-              <button
-                type="button"
-                className="ghost"
-                data-edit-transaction-detail={transaction.id}
-                onClick={() => setEditOpen(true)}
-              >
-                Edit transaction
-              </button>
-              <button
-                type="button"
-                className="danger"
-                data-delete-transaction-detail={transaction.id}
-                onClick={() => setConfirmDeleteOpen(true)}
-              >
-                Delete transaction
-              </button>
-            </div>
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  data-edit-transaction-detail={transaction.id}
+                  onClick={() => setEditOpen(true)}
+                >
+                  Edit transaction
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  data-delete-transaction-detail={transaction.id}
+                  onClick={() => setConfirmDeleteOpen(true)}
+                >
+                  Delete transaction
+                </Button>
+              </div>
+            </CardContent>
           </>
         )}
-      </div>
+      </Card>
 
       <EditTransactionDialog
         open={editOpen}

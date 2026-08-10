@@ -1,4 +1,15 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export function EditNameDialog({
   open,
@@ -10,7 +21,6 @@ export function EditNameDialog({
   onClose,
   onSubmit
 }) {
-  const dialogRef = useRef(null);
   const inputRef = useRef(null);
   const inputId = useId();
   const [value, setValue] = useState(initialValue);
@@ -21,22 +31,16 @@ export function EditNameDialog({
   }, [open, initialValue]);
 
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open) {
-      if (!dialog.open) dialog.showModal();
-      window.setTimeout(() => {
-        inputRef.current?.focus();
-        inputRef.current?.select();
-      }, 0);
-    } else if (dialog.open) {
-      dialog.close();
-    }
+    if (!open) return undefined;
+    const timer = window.setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [open]);
 
-  function handleClose() {
-    if (saving) return;
-    onClose?.();
+  function handleOpenChange(nextOpen) {
+    if (!nextOpen && !saving) onClose?.();
   }
 
   async function handleSubmit(event) {
@@ -52,45 +56,37 @@ export function EditNameDialog({
   }
 
   return (
-    <dialog
-      ref={dialogRef}
-      className="edit-name-dialog"
-      onClose={handleClose}
-      onCancel={(event) => {
-        event.preventDefault();
-        handleClose();
-      }}
-    >
-      <form className="form-stack" onSubmit={handleSubmit}>
-        <div className="dialog-title">
-          <h2>{title}</h2>
-          <button type="button" className="ghost" onClick={handleClose} disabled={saving}>
-            Close
-          </button>
-        </div>
-        <label htmlFor={inputId}>
-          {label}
-          <input
-            id={inputId}
-            ref={inputRef}
-            type="text"
-            value={value}
-            placeholder={placeholder}
-            required
-            disabled={saving}
-            onChange={(event) => setValue(event.target.value)}
-          />
-        </label>
-        <div className="dialog-actions">
-          <button type="button" className="ghost" onClick={handleClose} disabled={saving}>
-            Cancel
-          </button>
-          <button type="submit" disabled={saving || !String(value || '').trim()}>
-            {saving ? 'Saving…' : submitLabel}
-          </button>
-        </div>
-      </form>
-    </dialog>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md" showCloseButton={!saving}>
+        <form className="grid gap-4" onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription className="sr-only">{label}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-1.5">
+            <Label htmlFor={inputId}>{label}</Label>
+            <Input
+              id={inputId}
+              ref={inputRef}
+              type="text"
+              value={value}
+              placeholder={placeholder}
+              required
+              disabled={saving}
+              onChange={(event) => setValue(event.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving || !String(value || '').trim()}>
+              {saving ? 'Saving…' : submitLabel}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

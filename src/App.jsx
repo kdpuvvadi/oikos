@@ -58,8 +58,8 @@ export default function App() {
     return (
       <>
         <Header />
-        <div className="auth-shell">
-          <p className="panel-empty" style={{ padding: '2rem', textAlign: 'center' }}>Loading…</p>
+        <div className="mx-auto w-full max-w-[880px] px-4 py-8 sm:px-6">
+          <p className="py-8 text-center text-muted-foreground">Loading…</p>
         </div>
       </>
     );
@@ -80,7 +80,7 @@ export default function App() {
       <Header />
       {showAuth ? <AuthPage /> : null}
       {showApp ? (
-        <main id="appShell">
+        <main id="appShell" className="mx-auto w-full max-w-[1180px] min-w-0 px-4 py-6 sm:px-6 sm:py-8 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]">
           <AppRoutes />
         </main>
       ) : null}

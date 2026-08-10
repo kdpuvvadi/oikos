@@ -1,7 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
-import { updateTransaction } from '../lib/api';
-import { useToast } from '../context/ToastContext';
-import { useData } from '../context/DataContext';
+import { useEffect, useState } from 'react';
+import { updateTransaction } from '@/lib/api';
+import { useToast } from '@/context/ToastContext';
+import { useData } from '@/context/DataContext';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
 
 export function EditTransactionDialog({
   open,
@@ -9,7 +21,6 @@ export function EditTransactionDialog({
   onClose,
   onSaved
 }) {
-  const dialogRef = useRef(null);
   const { toast } = useToast();
   const {
     categories,
@@ -33,6 +44,7 @@ export function EditTransactionDialog({
     store: '',
     storeText: ''
   });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -58,20 +70,14 @@ export function EditTransactionDialog({
     });
   }, [transaction]);
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open) {
-      if (!dialog.open) dialog.showModal();
-    } else if (dialog.open) {
-      dialog.close();
-    }
-  }, [open]);
-
   const selectedCategory = categories.find((item) => item.id === form.category);
   const subcategories = selectedCategory?.subcategories || [];
   const otherId = typeof otherStoreId === 'function' ? otherStoreId() : otherStoreId;
   const showStoreText = Boolean(otherId) && form.store === otherId;
+
+  function handleOpenChange(nextOpen) {
+    if (!nextOpen && !saving) onClose?.();
+  }
 
   function updateField(name, value) {
     setForm((current) => {
@@ -89,6 +95,7 @@ export function EditTransactionDialog({
 
   async function handleSubmit(event) {
     event.preventDefault();
+    setSaving(true);
     try {
       await updateTransaction(form.id, {
         date: form.date,
@@ -106,131 +113,149 @@ export function EditTransactionDialog({
       await onSaved?.();
     } catch (error) {
       toast(error.message);
+    } finally {
+      setSaving(false);
     }
   }
 
-  function handleClose() {
-    onClose?.();
-  }
-
   return (
-    <dialog
-      id="editTransactionDialog"
-      ref={dialogRef}
-      onClose={handleClose}
-      onCancel={(event) => {
-        event.preventDefault();
-        handleClose();
-      }}
-    >
-      <form id="editTransactionForm" className="form-stack" onSubmit={handleSubmit}>
-        <div className="dialog-title">
-          <h2>Edit transaction</h2>
-          <button type="button" className="ghost" id="closeEditDialog" onClick={handleClose}>Close</button>
-        </div>
-        <input type="hidden" name="id" value={form.id} readOnly />
-        <label>
-          Date
-          <input
-            type="date"
-            name="date"
-            required
-            value={form.date}
-            onChange={(event) => updateField('date', event.target.value)}
-          />
-        </label>
-        <label>
-          Title
-          <input
-            type="text"
-            name="title"
-            placeholder="Example: Fuel refill"
-            value={form.title}
-            onChange={(event) => updateField('title', event.target.value)}
-          />
-        </label>
-        <label>
-          Amount spent
-          <input
-            type="number"
-            name="amount"
-            min="0.01"
-            step="0.01"
-            required
-            value={form.amount}
-            onChange={(event) => updateField('amount', event.target.value)}
-          />
-        </label>
-        <label>
-          Payment mode
-          <select
-            name="paymentMethod"
-            id="editPaymentMethod"
-            value={form.paymentMethod}
-            onChange={(event) => updateField('paymentMethod', event.target.value)}
-          >
-            <option value="">Select payment mode</option>
-            {paymentMethods.map((item) => (
-              <option key={item.id} value={item.id}>{item.name}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Expense category
-          <select
-            name="category"
-            id="editCategory"
-            required
-            value={form.category}
-            onChange={(event) => updateField('category', event.target.value)}
-          >
-            {categories.map((item) => (
-              <option key={item.id} value={item.id}>{item.name}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Subcategory
-          <select
-            name="subcategory"
-            id="editSubcategory"
-            required
-            value={form.subcategory}
-            onChange={(event) => updateField('subcategory', event.target.value)}
-          >
-            {subcategories.map((item) => (
-              <option key={item.id} value={item.id}>{item.name}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Store
-          <select
-            name="store"
-            id="editStore"
-            required
-            value={form.store}
-            onChange={(event) => updateField('store', event.target.value)}
-          >
-            {stores.map((item) => (
-              <option key={item.id} value={item.id}>{item.name}</option>
-            ))}
-          </select>
-        </label>
-        <label id="editStoreTextWrap" className={showStoreText ? '' : 'hidden'}>
-          Store name
-          <input
-            type="text"
-            name="storeText"
-            id="editStoreText"
-            placeholder="Example: Corner shop"
-            value={form.storeText}
-            onChange={(event) => updateField('storeText', event.target.value)}
-          />
-        </label>
-        <button type="submit">Save changes</button>
-      </form>
-    </dialog>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        id="editTransactionDialog"
+        className="sm:max-w-lg"
+        showCloseButton={!saving}
+      >
+        <form id="editTransactionForm" className="grid gap-4" onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Edit transaction</DialogTitle>
+            <DialogDescription className="sr-only">
+              Update transaction details
+            </DialogDescription>
+          </DialogHeader>
+          <input type="hidden" name="id" value={form.id} readOnly />
+          <div className="grid gap-1.5">
+            <Label htmlFor="edit-date">Date</Label>
+            <Input
+              id="edit-date"
+              type="date"
+              name="date"
+              required
+              disabled={saving}
+              value={form.date}
+              onChange={(event) => updateField('date', event.target.value)}
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="edit-title">Title</Label>
+            <Input
+              id="edit-title"
+              type="text"
+              name="title"
+              placeholder="Example: Fuel refill"
+              disabled={saving}
+              value={form.title}
+              onChange={(event) => updateField('title', event.target.value)}
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="edit-amount">Amount spent</Label>
+            <Input
+              id="edit-amount"
+              type="number"
+              name="amount"
+              min="0.01"
+              step="0.01"
+              required
+              disabled={saving}
+              value={form.amount}
+              onChange={(event) => updateField('amount', event.target.value)}
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="editPaymentMethod">Payment mode</Label>
+            <NativeSelect
+              name="paymentMethod"
+              id="editPaymentMethod"
+              disabled={saving}
+              value={form.paymentMethod}
+              onChange={(event) => updateField('paymentMethod', event.target.value)}
+            >
+              <option value="">Select payment mode</option>
+              {paymentMethods.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="editCategory">Expense category</Label>
+            <NativeSelect
+              name="category"
+              id="editCategory"
+              required
+              disabled={saving}
+              value={form.category}
+              onChange={(event) => updateField('category', event.target.value)}
+            >
+              {categories.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="editSubcategory">Subcategory</Label>
+            <NativeSelect
+              name="subcategory"
+              id="editSubcategory"
+              required
+              disabled={saving}
+              value={form.subcategory}
+              onChange={(event) => updateField('subcategory', event.target.value)}
+            >
+              {subcategories.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="editStore">Store</Label>
+            <NativeSelect
+              name="store"
+              id="editStore"
+              required
+              disabled={saving}
+              value={form.store}
+              onChange={(event) => updateField('store', event.target.value)}
+            >
+              {stores.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </NativeSelect>
+          </div>
+          {showStoreText ? (
+            <div id="editStoreTextWrap" className="grid gap-1.5">
+              <Label htmlFor="editStoreText">Store name</Label>
+              <Input
+                type="text"
+                name="storeText"
+                id="editStoreText"
+                placeholder="Example: Corner shop"
+                disabled={saving}
+                value={form.storeText}
+                onChange={(event) => updateField('storeText', event.target.value)}
+              />
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save changes'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
