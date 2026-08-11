@@ -309,6 +309,14 @@ async function seedRecord(collection, body) {
 }
 
 const textField = (name, required = true) => ({ name, type: 'text', required, min: 0, max: 120, pattern: '' });
+const longTextField = (name, required = true, max = 2000000) => ({
+  name,
+  type: 'text',
+  required,
+  min: 0,
+  max,
+  pattern: ''
+});
 const numberField = (name) => ({ name, type: 'number', required: true, min: 0, max: 1000000000000, noDecimal: false });
 const optionalWholeNumberField = (name, min = 1, max = 1000) => ({ name, type: 'number', required: false, min, max, noDecimal: true });
 const boolField = (name, required = false) => ({ name, type: 'bool', required });
@@ -435,6 +443,25 @@ async function main() {
       'CREATE INDEX `idx_oikos_transactions_user_date` ON `oikos_transactions` (`user`, `date`)',
       'CREATE INDEX `idx_oikos_transactions_category` ON `oikos_transactions` (`category`)',
       'CREATE INDEX `idx_oikos_transactions_store` ON `oikos_transactions` (`store`)'
+    ]
+  });
+
+  // Admin-triggered digest emails (create a row → hook sends mail). Avoids flaky custom /api routes.
+  await createCollection({
+    name: 'oikos_digest_jobs',
+    type: 'base',
+    system: false,
+    listRule: adminRule,
+    viewRule: adminRule,
+    createRule: adminRule,
+    updateRule: adminRule,
+    deleteRule: adminRule,
+    fields: [
+      relationField('targetUser', users.id, false, true),
+      longTextField('subject', true, 500),
+      longTextField('html', true, 2000000),
+      textField('status', false),
+      longTextField('error', false, 2000)
     ]
   });
 
