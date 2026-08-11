@@ -17,6 +17,7 @@ services:
       WEEKLY_DIGEST_CRON: "${WEEKLY_DIGEST_CRON:-0 8 * * 1}"
     volumes:
       - ./pb_data:/usr/src/app/pb_data
+      - ./pb_hooks:/usr/src/app/pb_hooks
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8090/api/health"]
       interval: 10s
