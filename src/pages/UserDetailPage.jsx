@@ -176,13 +176,20 @@ export default function UserDetailPage() {
   }
 
   async function handleSendDigest() {
+    if (!digest?.html || !digest?.subject) {
+      toast('Refresh the digest preview before sending.');
+      return;
+    }
     setSending(true);
     try {
-      const result = await sendWeeklyDigest(id, { force: forceSend || needsForce });
+      const result = await sendWeeklyDigest(id, {
+        subject: digest.subject,
+        html: digest.html
+      });
       toast(result.message || 'Weekly digest sent.');
       await loadDigestPreview();
     } catch (error) {
-      toast(error.message);
+      toast(error.message || 'Could not send weekly digest.');
     } finally {
       setSending(false);
     }

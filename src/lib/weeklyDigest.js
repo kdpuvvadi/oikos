@@ -1,0 +1,140 @@
+import { money } from '@/lib/format';
+
+function pad2(value) {
+  return String(value).padStart(2, '0');
+}
+
+function isoDateUTC(date) {
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+}
+
+/** Previous completed Mon–Sun week in UTC. */
+export function previousWeekRange(now = new Date()) {
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const day = today.getUTCDay();
+  const daysSinceMonday = day === 0 ? 6 : day - 1;
+  const thisMonday = new Date(today);
+  thisMonday.setUTCDate(today.getUTCDate() - daysSinceMonday);
+
+  const weekStart = new Date(thisMonday);
+  weekStart.setUTCDate(thisMonday.getUTCDate() - 7);
+  const weekEndExclusive = new Date(thisMonday);
+
+  return {
+    fromIso: isoDateUTC(weekStart),
+    toExclusiveIso: isoDateUTC(weekEndExclusive),
+    toInclusiveIso: isoDateUTC(new Date(weekEndExclusive.getTime() - 24 * 60 * 60 * 1000))
+  };
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatInr(amount) {
+  return money.format(Number(amount) || 0);
+}
+
+function displayName(user) {
+  const first = String(user?.firstName || '').trim();
+  const last = String(user?.lastName || '').trim();
+  const name = [first, last].filter(Boolean).join(' ');
+  return name || String(user?.name || '').trim() || 'there';
+}
+
+function summarizeTransactions(transactions) {
+  let total = 0;
+  const byCategory = {};
+
+  for (const tx of transactions) {
+    const amount = Number(tx.amount) || 0;
+    total += amount;
+    const categoryName = String(tx.expand?.category?.name || 'Uncategorized').trim() || 'Uncategorized';
+    byCategory[categoryName] = (byCategory[categoryName] || 0) + amount;
+  }
+
+  const categoryRows = Object.entries(byCategory)
+    .map(([name, amount]) => ({ name, amount }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 8);
+
+  return { total, count: transactions.length, categoryRows };
+}
+
+function logoHeaderHtml(appUrl) {
+  const base = String(appUrl || '').replace(/\/$/, '');
+  if (base) {
+    const logoSrc = escapeHtml(`${base}/img/apple-touch-icon.png`);
+    const homeHref = escapeHtml(base);
+    return `<div style="margin:0 0 20px;">
+  <a href="${homeHref}" style="text-decoration:none;">
+    <img src="${logoSrc}" width="48" height="48" alt="Oikos" style="display:block;border:0;border-radius:10px;outline:none;">
+  </a>
+  <p style="margin:10px 0 0;font-size:18px;font-weight:700;letter-spacing:-0.02em;color:#0f766e;">Oikos</p>
+</div>`;
+  }
+  return `<div style="margin:0 0 20px;">
+  <p style="margin:0;font-size:18px;font-weight:700;letter-spacing:-0.02em;color:#0f766e;">Oikos</p>
+</div>`;
+}
+
+export function buildWeeklyDigestEmailHtml(user, range, summary, appUrl = '') {
+  const greeting = escapeHtml(displayName(user));
+  const rows = summary.categoryRows.map((row) => (
+    `<tr>
+      <td style="padding:8px 0;border-bottom:1px solid #e8e8e8;">${escapeHtml(row.name)}</td>
+      <td style="padding:8px 0;border-bottom:1px solid #e8e8e8;text-align:right;font-variant-numeric:tabular-nums;">${escapeHtml(formatInr(row.amount))}</td>
+    </tr>`
+  )).join('');
+
+  const base = String(appUrl || '').replace(/\/$/, '');
+  const dashboardLink = base
+    ? `<p style="margin:24px 0 0;"><a href="${escapeHtml(base)}/dashboard" style="color:#0f766e;font-weight:600;">Open dashboard</a></p>`
+    : '';
+  const prefsLink = base
+    ? `<p style="margin:8px 0 0;font-size:12px;color:#6b7280;">Manage this email in <a href="${escapeHtml(base)}/me" style="color:#6b7280;">Me → Weekly digest</a>.</p>`
+    : '<p style="margin:8px 0 0;font-size:12px;color:#6b7280;">Turn this off anytime from Me → Weekly digest in Oikos.</p>';
+
+  return `
+<div style="font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#111827;line-height:1.5;max-width:560px;margin:0 auto;padding:8px;">
+  ${logoHeaderHtml(base)}
+  <p>Hi ${greeting},</p>
+  <p>Here is your Oikos spending summary for <strong>${escapeHtml(range.fromIso)}</strong> to <strong>${escapeHtml(range.toInclusiveIso)}</strong>.</p>
+  <div style="margin:20px 0;padding:16px 18px;background:#f0fdfa;border-radius:12px;">
+    <p style="margin:0;font-size:13px;color:#0f766e;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Total spent</p>
+    <p style="margin:4px 0 0;font-size:28px;font-weight:700;letter-spacing:-0.02em;">${escapeHtml(formatInr(summary.total))}</p>
+    <p style="margin:6px 0 0;font-size:13px;color:#4b5563;">${summary.count} expense${summary.count === 1 ? '' : 's'}</p>
+  </div>
+  ${summary.categoryRows.length
+    ? `<p style="margin:0 0 8px;font-weight:600;">By category</p>
+       <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>`
+    : '<p style="margin:0;color:#6b7280;font-size:14px;">No expenses recorded for this week.</p>'}
+  ${dashboardLink}
+  ${prefsLink}
+</div>`.trim();
+}
+
+export function buildWeeklyDigestPreview({
+  user,
+  transactions = [],
+  appUrl = typeof window !== 'undefined' ? window.location.origin : ''
+}) {
+  const range = previousWeekRange();
+  const summary = summarizeTransactions(transactions);
+  return {
+    userId: user?.id || '',
+    email: String(user?.email || '').trim(),
+    name: displayName(user),
+    optedOut: user?.weeklyDigest === false,
+    verified: user?.verified === true,
+    range,
+    summary,
+    empty: transactions.length === 0,
+    subject: `Your weekly Oikos summary · ${formatInr(summary.total)}`,
+    html: buildWeeklyDigestEmailHtml(user, range, summary, appUrl)
+  };
+}
