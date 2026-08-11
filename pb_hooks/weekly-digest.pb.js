@@ -4,6 +4,10 @@
  * Weekly expense digests for verified users (approved or admin) who have not opted out.
  * Default: Mondays at 08:00 UTC for the previous Mon–Sun (UTC). Digests are on by default.
  * Override with WEEKLY_DIGEST_CRON (5-field cron expression).
+ *
+ * Admin routes (auth users collection, kind=admin):
+ *   GET  /api/oikos/weekly-digest/{userId}  — preview HTML + summary
+ *   POST /api/oikos/weekly-digest/{userId}  — send email ({ force?: bool })
  */
 
 function pad2(value) {
@@ -64,6 +68,11 @@ function displayName(user) {
   if (name) return name;
   const fallback = String(user.getString("name") || "").trim();
   return fallback || "there";
+}
+
+function appPublicUrl() {
+  const settings = $app.settings();
+  return String($os.getenv("APP_PUBLIC_URL") || settings.meta.appURL || "").replace(/\/$/, "");
 }
 
 function loadUserTransactions(userId, fromIso, toExclusiveIso) {
@@ -141,7 +150,7 @@ function buildEmailHtml(user, range, summary, appUrl) {
     : '<p style="margin:8px 0 0;font-size:12px;color:#6b7280;">Turn this off anytime from Me → Weekly digest in Oikos.</p>';
 
   return [
-    '<div style="font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#111827;line-height:1.5;max-width:560px;margin:0 auto;">',
+    '<div style="font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#111827;line-height:1.5;max-width:560px;margin:0 auto;padding:8px;">',
     "<p>Hi " + greeting + ",</p>",
     "<p>Here is your Oikos spending summary for <strong>"
       + escapeHtml(range.fromIso)
@@ -163,34 +172,81 @@ function buildEmailHtml(user, range, summary, appUrl) {
         + '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
         + rows
         + "</table>"
-      : "",
+      : '<p style="margin:0;color:#6b7280;font-size:14px;">No expenses recorded for this week.</p>',
     dashboardLink,
     prefsLink,
     "</div>",
   ].join("");
 }
 
-function sendDigest(user, range, summary) {
-  const email = String(user.email()).trim();
-  if (!email) return;
+function buildDigestPayload(user, range) {
+  const transactions = loadUserTransactions(user.id, range.fromIso, range.toExclusiveIso);
+  const summary = summarize(transactions);
+  const appUrl = appPublicUrl();
+  return {
+    userId: user.id,
+    email: String(user.email() || "").trim(),
+    name: displayName(user),
+    optedOut: user.getBool("weeklyDigestOptOut") === true,
+    verified: user.getBool("verified") === true,
+    range: range,
+    summary: summary,
+    empty: transactions.length === 0,
+    subject: "Your weekly Oikos summary · " + formatInr(summary.total),
+    html: buildEmailHtml(user, range, summary, appUrl),
+  };
+}
+
+function sendDigestMessage(user, payload) {
+  const email = payload.email;
+  if (!email) {
+    throw new BadRequestError("User email is unavailable.");
+  }
 
   const settings = $app.settings();
-  const appUrl = String($os.getenv("APP_PUBLIC_URL") || settings.meta.appURL || "").replace(/\/$/, "");
   const fromAddress = settings.meta.senderAddress || $os.getenv("ZEPTO_MAIL_FROM_ADDRESS") || "";
   const fromName = settings.meta.senderName || $os.getenv("ZEPTO_MAIL_FROM_NAME") || "Oikos";
 
   if (!fromAddress) {
-    throw new Error("No sender address configured for weekly digests.");
+    throw new BadRequestError("No sender address configured for weekly digests.");
   }
 
   const message = new MailerMessage({
     from: { address: fromAddress, name: fromName },
-    to: [{ address: email, name: displayName(user) }],
-    subject: "Your weekly Oikos summary · " + formatInr(summary.total),
-    html: buildEmailHtml(user, range, summary, appUrl),
+    to: [{ address: email, name: payload.name }],
+    subject: payload.subject,
+    html: payload.html,
   });
 
   $app.newMailClient().send(message);
+}
+
+function sendDigest(user, range, summary) {
+  const payload = {
+    email: String(user.email() || "").trim(),
+    name: displayName(user),
+    subject: "Your weekly Oikos summary · " + formatInr(summary.total),
+    html: buildEmailHtml(user, range, summary, appPublicUrl()),
+  };
+  sendDigestMessage(user, payload);
+}
+
+function requireAppAdmin(e) {
+  const auth = e.auth;
+  if (!auth || String(auth.getString("kind") || "") !== "admin") {
+    throw new ForbiddenError("Admin access required.");
+  }
+  return auth;
+}
+
+function loadTargetUser(userId) {
+  const id = String(userId || "").trim();
+  if (!id) throw new BadRequestError("User id is required.");
+  try {
+    return $app.findRecordById("users", id);
+  } catch (error) {
+    throw new NotFoundError("User not found.");
+  }
 }
 
 function runWeeklyDigests() {
@@ -245,3 +301,48 @@ const cronExpr = String($os.getenv("WEEKLY_DIGEST_CRON") || "0 8 * * 1").trim() 
 cronAdd("oikos-weekly-digest", cronExpr, () => {
   runWeeklyDigests();
 });
+
+routerAdd(
+  "GET",
+  "/api/oikos/weekly-digest/{userId}",
+  (e) => {
+    requireAppAdmin(e);
+    const user = loadTargetUser(e.request.pathValue("userId"));
+    const payload = buildDigestPayload(user, previousWeekRange(new Date()));
+    return e.json(200, payload);
+  },
+  $apis.requireAuth("users")
+);
+
+routerAdd(
+  "POST",
+  "/api/oikos/weekly-digest/{userId}",
+  (e) => {
+    requireAppAdmin(e);
+    const user = loadTargetUser(e.request.pathValue("userId"));
+    const body = e.requestInfo().body || {};
+    const force = body.force === true || body.force === "true" || body.force === 1;
+    const payload = buildDigestPayload(user, previousWeekRange(new Date()));
+
+    if (!payload.verified && !force) {
+      throw new BadRequestError("User email is not verified. Pass force=true to send anyway.");
+    }
+    if (payload.optedOut && !force) {
+      throw new BadRequestError("User opted out of weekly digests. Pass force=true to send anyway.");
+    }
+    if (payload.empty && !force) {
+      throw new BadRequestError("No expenses in the digest week. Pass force=true to send anyway.");
+    }
+
+    sendDigestMessage(user, payload);
+    return e.json(200, {
+      ok: true,
+      message: "Weekly digest emailed to " + payload.email + ".",
+      email: payload.email,
+      range: payload.range,
+      summary: payload.summary,
+      forced: force,
+    });
+  },
+  $apis.requireAuth("users")
+);

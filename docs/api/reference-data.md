@@ -41,10 +41,16 @@ Shared catalogs are admin-managed for writes; approved users (and admins) can re
 | Helper | Notes |
 |--------|--------|
 | `fetchUsers()` | Maps records through `publicUser` |
+| `fetchUser(userId)` | Single user for admin detail page |
 | `approveUser(userId)` | Sets `approved: true` |
+| `adminUpdateUser(userId, { weeklyDigest, approved })` | Toggle digest opt-out / approval |
 | `adminResendVerification(userId)` | `requestVerification` for that user’s email |
+| `previewWeeklyDigest(userId)` | `GET /api/oikos/weekly-digest/{id}` — HTML preview + totals |
+| `sendWeeklyDigest(userId, { force })` | `POST` — email last week’s digest (force skips empty/opt-out/unverified checks) |
 
 There is **no** mark-verified admin helper in the client; verification is email (or PocketBase Admin).
+
+User detail UI: `/users/:id` (settings + live email preview + send).
 
 Promote to admin via CLI:
 

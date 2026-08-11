@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { approveUser, adminResendVerification } from '@/lib/api';
 import { useToast } from '@/context/ToastContext';
 import { useData } from '@/context/DataContext';
@@ -67,7 +68,10 @@ function UserRow({ user, onApprove, onResend }) {
 
   return (
     <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <div className="flex min-w-0 items-start gap-3">
+      <Link
+        to={`/users/${user.id}`}
+        className="flex min-w-0 flex-1 items-start gap-3 rounded-lg outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring -mx-2 px-2 py-1"
+      >
         <Avatar size="lg" className="mt-0.5">
           <AvatarFallback className="bg-primary/15 font-semibold text-primary">
             {userInitials(user)}
@@ -82,7 +86,7 @@ function UserRow({ user, onApprove, onResend }) {
           </div>
           <StatusBadges user={user} />
         </div>
-      </div>
+      </Link>
 
       {(canApprove || canResend) ? (
         <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
@@ -106,7 +110,11 @@ function UserRow({ user, onApprove, onResend }) {
             </Button>
           ) : null}
         </div>
-      ) : null}
+      ) : (
+        <Button asChild variant="ghost" size="sm" className="sm:shrink-0">
+          <Link to={`/users/${user.id}`}>Open</Link>
+        </Button>
+      )}
     </div>
   );
 }
@@ -176,7 +184,7 @@ export default function UsersPage() {
               <CardHeader className="border-b">
                 <CardTitle>Needs attention</CardTitle>
                 <CardDescription>
-                  Pending verification or approval
+                  Pending verification or approval — open a user for digest tools
                 </CardDescription>
               </CardHeader>
               <CardContent className="px-0">
@@ -201,7 +209,7 @@ export default function UsersPage() {
                   {pendingUsers.length ? 'Everyone else' : 'All users'}
                 </CardTitle>
                 <CardDescription>
-                  {settledUsers.length} settled · {users.length} total
+                  {settledUsers.length} settled · {users.length} total · click a user for settings & digests
                 </CardDescription>
               </CardHeader>
               <CardContent className="px-0">
