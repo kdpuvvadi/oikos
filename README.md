@@ -88,6 +88,7 @@ Production build: `npm run build` (output in `dist/`, copied to `pb_public` in t
 | `APP_BUILD_BRANCH` | Label shown on Me |
 | `ZEPTO_MAIL_*` | ZeptoMail delivery |
 | `WEEKLY_DIGEST_CRON` | Optional cron override for digests |
+| `WEEKLY_DIGEST_LOGO_MODE` | `embed` (default) or `link` for cron digest logo |
 | `PB_TOKEN` | Optional PocketBase admin token for setup (instead of interactive login) |
 
 ## Collections

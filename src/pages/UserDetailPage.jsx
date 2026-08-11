@@ -12,6 +12,7 @@ import { money as formatMoney } from '@/lib/format';
 import { useToast } from '@/context/ToastContext';
 import { useData } from '@/context/DataContext';
 import { PageHeader } from '@/components/PageHeader';
+import { DigestLogoModeSelect } from '@/components/DigestLogoModeSelect';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ import {
 } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { getStoredDigestLogoMode, setStoredDigestLogoMode } from '@/lib/digestLogoMode';
 import { cn } from '@/lib/utils';
 
 function userInitials(user) {
@@ -88,6 +90,7 @@ export default function UserDetailPage() {
   const [digestLoading, setDigestLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [forceSend, setForceSend] = useState(false);
+  const [logoMode, setLogoMode] = useState(() => getStoredDigestLogoMode());
 
   const displayName = user?.name || user?.email || 'User';
 
@@ -97,10 +100,10 @@ export default function UserDetailPage() {
     return next;
   }
 
-  async function loadDigestPreview() {
+  async function loadDigestPreview(nextLogoMode = logoMode) {
     setDigestLoading(true);
     try {
-      const preview = await previewWeeklyDigest(id);
+      const preview = await previewWeeklyDigest(id, { logoMode: nextLogoMode });
       setDigest(preview);
     } catch (error) {
       setDigest(null);
@@ -108,6 +111,12 @@ export default function UserDetailPage() {
     } finally {
       setDigestLoading(false);
     }
+  }
+
+  function handleLogoModeChange(nextMode) {
+    const mode = setStoredDigestLogoMode(nextMode);
+    setLogoMode(mode);
+    if (user) void loadDigestPreview(mode);
   }
 
   useEffect(() => {
@@ -308,15 +317,22 @@ export default function UserDetailPage() {
                     : 'Previous Mon–Sun spending email'}
                 </CardDescription>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={digestLoading}
-                onClick={() => void loadDigestPreview()}
-              >
-                {digestLoading ? 'Refreshing…' : 'Refresh preview'}
-              </Button>
+              <div className="flex flex-col gap-2 sm:items-end">
+                <DigestLogoModeSelect
+                  value={logoMode}
+                  onChange={handleLogoModeChange}
+                  disabled={digestLoading || sending}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={digestLoading}
+                  onClick={() => void loadDigestPreview()}
+                >
+                  {digestLoading ? 'Refreshing…' : 'Refresh preview'}
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-5 pt-6">

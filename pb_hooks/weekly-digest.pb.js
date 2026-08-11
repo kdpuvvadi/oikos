@@ -142,9 +142,42 @@ cronAdd("oikos-weekly-digest", cronExpr, () => {
     }
   }
 
+  function logoDataUri() {
+    const candidates = [];
+    try {
+      if (typeof __hooks !== "undefined" && __hooks) {
+        candidates.push(String(__hooks).replace(/\/$/, "") + "/oikos-logo.b64");
+      }
+    } catch (error) {
+      // ignore
+    }
+    candidates.push("pb_hooks/oikos-logo.b64");
+    candidates.push("/usr/src/app/pb_hooks/oikos-logo.b64");
+
+    for (let c = 0; c < candidates.length; c++) {
+      try {
+        const raw = $os.readFile(candidates[c]);
+        let b64 = "";
+        if (typeof raw === "string") {
+          b64 = raw;
+        } else if (typeof toString === "function") {
+          b64 = toString(raw);
+        }
+        b64 = String(b64 || "").replace(/\s+/g, "");
+        if (b64) return "data:image/png;base64," + b64;
+      } catch (error) {
+        // try next path
+      }
+    }
+    return "";
+  }
+
   function logoHeaderHtml(appUrl) {
+    const mode = String($os.getenv("WEEKLY_DIGEST_LOGO_MODE") || "embed").trim().toLowerCase();
     const base = String(appUrl || "").replace(/\/$/, "");
-    if (base) {
+    const useLink = mode === "link" && base;
+
+    if (useLink) {
       const logoSrc = escapeHtml(base + "/img/apple-touch-icon.png");
       const homeHref = escapeHtml(base);
       return (
@@ -157,6 +190,18 @@ cronAdd("oikos-weekly-digest", cronExpr, () => {
         + "</div>"
       );
     }
+
+    const dataUri = logoDataUri();
+    if (dataUri) {
+      return (
+        '<div style="margin:0 0 20px;">'
+        + '<img src="' + dataUri + '" width="48" height="48" alt="Oikos" '
+        + 'style="display:block;border:0;border-radius:10px;outline:none;">'
+        + '<p style="margin:10px 0 0;font-size:18px;font-weight:700;letter-spacing:-0.02em;color:#0f766e;">Oikos</p>'
+        + "</div>"
+      );
+    }
+
     return (
       '<div style="margin:0 0 20px;">'
       + '<p style="margin:0;font-size:18px;font-weight:700;letter-spacing:-0.02em;color:#0f766e;">Oikos</p>'

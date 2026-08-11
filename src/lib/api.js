@@ -695,7 +695,7 @@ export async function adminResendVerification(userId) {
   }
 }
 
-export async function previewWeeklyDigest(userId) {
+export async function previewWeeklyDigest(userId, { logoMode = 'embed' } = {}) {
   requireAuthRecord();
   if (!isAdminRecord(pb.authStore.record)) {
     throw pbError({ status: 403, message: 'Admin access required.' });
@@ -726,7 +726,8 @@ export async function previewWeeklyDigest(userId) {
   return buildWeeklyDigestPreview({
     user,
     transactions: items,
-    appUrl: typeof window !== 'undefined' ? window.location.origin : ''
+    appUrl: typeof window !== 'undefined' ? window.location.origin : '',
+    logoMode
   });
 }
 

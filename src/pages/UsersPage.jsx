@@ -10,6 +10,7 @@ import { money as formatMoney } from '@/lib/format';
 import { useToast } from '@/context/ToastContext';
 import { useData } from '@/context/DataContext';
 import { PageHeader } from '@/components/PageHeader';
+import { DigestLogoModeSelect } from '@/components/DigestLogoModeSelect';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ import {
   CardTitle
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { getStoredDigestLogoMode, setStoredDigestLogoMode } from '@/lib/digestLogoMode';
 import { cn } from '@/lib/utils';
 
 function userInitials(user) {
@@ -170,10 +172,17 @@ export default function UsersPage() {
   const [sendingId, setSendingId] = useState('');
   const [bulkRefreshing, setBulkRefreshing] = useState(false);
   const [bulkSending, setBulkSending] = useState(false);
+  const [logoMode, setLogoMode] = useState(() => getStoredDigestLogoMode());
 
   useEffect(() => {
     void loadUsers().catch((error) => toast(error.message));
   }, [loadUsers, toast]);
+
+  function handleLogoModeChange(nextMode) {
+    const mode = setStoredDigestLogoMode(nextMode);
+    setLogoMode(mode);
+    setDigests({});
+  }
 
   const { pendingUsers, settledUsers } = useMemo(() => {
     const pending = [];
@@ -213,8 +222,8 @@ export default function UsersPage() {
     }
   }
 
-  async function loadDigestPreview(userId) {
-    const preview = await previewWeeklyDigest(userId);
+  async function loadDigestPreview(userId, nextLogoMode = logoMode) {
+    const preview = await previewWeeklyDigest(userId, { logoMode: nextLogoMode });
     setDigests((prev) => ({ ...prev, [userId]: preview }));
     return preview;
   }
@@ -358,6 +367,12 @@ export default function UsersPage() {
         actions={
           digestUsers.length ? (
             <>
+              <DigestLogoModeSelect
+                id="users-digest-logo-mode"
+                value={logoMode}
+                onChange={handleLogoModeChange}
+                disabled={rowBusy}
+              />
               <Button
                 type="button"
                 variant="outline"

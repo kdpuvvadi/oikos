@@ -1,3 +1,6 @@
+import { OIKOS_LOGO_DATA_URI } from './emailLogo.js';
+import { normalizeDigestLogoMode } from './digestLogoMode.js';
+
 function pad2(value) {
   return String(value).padStart(2, '0');
 }
@@ -83,24 +86,28 @@ function summarizeTransactions(transactions) {
   return { total, count: transactions.length, categoryRows };
 }
 
-function logoHeaderHtml(appUrl) {
+function logoHeaderHtml(appUrl = '', logoMode = 'embed') {
+  const mode = normalizeDigestLogoMode(logoMode);
   const base = String(appUrl || '').replace(/\/$/, '');
-  if (base) {
-    const logoSrc = escapeHtml(`${base}/img/apple-touch-icon.png`);
-    const homeHref = escapeHtml(base);
+  const linkedSrc = base ? `${base}/img/apple-touch-icon.png` : '';
+  const logoSrc = mode === 'link' && linkedSrc ? linkedSrc : OIKOS_LOGO_DATA_URI;
+
+  if (mode === 'link' && linkedSrc) {
     return `<div style="margin:0 0 20px;">
-  <a href="${homeHref}" style="text-decoration:none;">
-    <img src="${logoSrc}" width="48" height="48" alt="Oikos" style="display:block;border:0;border-radius:10px;outline:none;">
+  <a href="${escapeHtml(base)}" style="text-decoration:none;">
+    <img src="${escapeHtml(logoSrc)}" width="48" height="48" alt="Oikos" style="display:block;border:0;border-radius:10px;outline:none;">
   </a>
   <p style="margin:10px 0 0;font-size:18px;font-weight:700;letter-spacing:-0.02em;color:#0f766e;">Oikos</p>
 </div>`;
   }
+
   return `<div style="margin:0 0 20px;">
-  <p style="margin:0;font-size:18px;font-weight:700;letter-spacing:-0.02em;color:#0f766e;">Oikos</p>
+  <img src="${logoSrc}" width="48" height="48" alt="Oikos" style="display:block;border:0;border-radius:10px;outline:none;">
+  <p style="margin:10px 0 0;font-size:18px;font-weight:700;letter-spacing:-0.02em;color:#0f766e;">Oikos</p>
 </div>`;
 }
 
-export function buildWeeklyDigestEmailHtml(user, range, summary, appUrl = '') {
+export function buildWeeklyDigestEmailHtml(user, range, summary, appUrl = '', logoMode = 'embed') {
   const greeting = escapeHtml(displayName(user));
   const rows = summary.categoryRows.map((row) => (
     `<tr>
@@ -119,7 +126,7 @@ export function buildWeeklyDigestEmailHtml(user, range, summary, appUrl = '') {
 
   return `
 <div style="font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#111827;line-height:1.5;max-width:560px;margin:0 auto;padding:8px;">
-  ${logoHeaderHtml(base)}
+  ${logoHeaderHtml(base, logoMode)}
   <p>Hi ${greeting},</p>
   <p>Here is your Oikos spending summary for <strong>${escapeHtml(range.fromIso)}</strong> to <strong>${escapeHtml(range.toInclusiveIso)}</strong>.</p>
   <div style="margin:20px 0;padding:16px 18px;background:#f0fdfa;border-radius:12px;">
@@ -139,20 +146,23 @@ export function buildWeeklyDigestEmailHtml(user, range, summary, appUrl = '') {
 export function buildWeeklyDigestPreview({
   user,
   transactions = [],
-  appUrl = typeof window !== 'undefined' ? window.location.origin : ''
+  appUrl = typeof window !== 'undefined' ? window.location.origin : '',
+  logoMode = 'embed'
 }) {
   const range = previousWeekRange();
   const summary = summarizeTransactions(transactions);
+  const mode = normalizeDigestLogoMode(logoMode);
   return {
     userId: user?.id || '',
     email: String(user?.email || '').trim(),
     name: displayName(user),
     optedOut: user?.weeklyDigest === false,
     verified: user?.verified === true,
+    logoMode: mode,
     range,
     summary,
     empty: transactions.length === 0,
     subject: `Your weekly Oikos summary · ${formatInr(summary.total)}`,
-    html: buildWeeklyDigestEmailHtml(user, range, summary, appUrl)
+    html: buildWeeklyDigestEmailHtml(user, range, summary, appUrl, mode)
   };
 }
