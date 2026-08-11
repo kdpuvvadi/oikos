@@ -1,5 +1,3 @@
-import { money } from '@/lib/format';
-
 function pad2(value) {
   return String(value).padStart(2, '0');
 }
@@ -36,7 +34,27 @@ function escapeHtml(value) {
 }
 
 function formatInr(amount) {
-  return money.format(Number(amount) || 0);
+  const n = Number(amount);
+  const num = Number.isFinite(n) ? n : 0;
+  const negative = num < 0;
+  const fixed = Math.abs(num).toFixed(2);
+  const parts = fixed.split('.');
+  let intPart = parts[0];
+
+  // Indian grouping (last 3, then pairs of 2) without zero-width regex replaces.
+  if (intPart.length > 3) {
+    const last3 = intPart.slice(-3);
+    const restDigits = intPart.slice(0, -3);
+    let rest = '';
+    for (let i = 0; i < restDigits.length; i += 1) {
+      const fromEnd = restDigits.length - i;
+      if (i > 0 && fromEnd % 2 === 0) rest += ',';
+      rest += restDigits.charAt(i);
+    }
+    intPart = `${rest},${last3}`;
+  }
+
+  return `${negative ? '-₹' : '₹'}${intPart}.${parts[1]}`;
 }
 
 function displayName(user) {

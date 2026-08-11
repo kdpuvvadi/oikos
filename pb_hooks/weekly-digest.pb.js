@@ -45,11 +45,28 @@ cronAdd("oikos-weekly-digest", cronExpr, () => {
   }
 
   function formatInr(amount) {
-    const n = Number(amount) || 0;
-    const fixed = n.toFixed(2);
+    const n = Number(amount);
+    const num = isFinite(n) ? n : 0;
+    const negative = num < 0;
+    const abs = negative ? -num : num;
+    const fixed = abs.toFixed(2);
     const parts = fixed.split(".");
-    const withCommas = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-    return "₹" + withCommas + "." + parts[1];
+    let intPart = parts[0];
+
+    // Indian grouping without zero-width /g replace (Goja can double-insert commas).
+    if (intPart.length > 3) {
+      const last3 = intPart.substring(intPart.length - 3);
+      const restDigits = intPart.substring(0, intPart.length - 3);
+      let rest = "";
+      for (let i = 0; i < restDigits.length; i++) {
+        const fromEnd = restDigits.length - i;
+        if (i > 0 && fromEnd % 2 === 0) rest += ",";
+        rest += restDigits.charAt(i);
+      }
+      intPart = rest + "," + last3;
+    }
+
+    return (negative ? "-₹" : "₹") + intPart + "." + parts[1];
   }
 
   function escapeHtml(value) {
