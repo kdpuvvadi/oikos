@@ -55,6 +55,10 @@ export const seoConfig = {
 export function resolveSeo(pathname) {
   const page = seoConfig.pages[pathname]
     || (pathname.startsWith('/transactions/') ? seoConfig.pages['/transactions'] : null)
+    || (pathname.startsWith('/users/') ? {
+      title: 'User',
+      description: 'Review account settings and send a weekly spending digest in Oikos.'
+    } : null)
     || (pathname.startsWith('/categories/') ? {
       title: 'Category',
       description: 'Manage a category and its subcategories in Oikos.'

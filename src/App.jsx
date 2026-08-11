@@ -11,6 +11,7 @@ import CategoryDetailPage from './pages/CategoryDetailPage';
 import StoresPage from './pages/StoresPage';
 import PaymentMethodsPage from './pages/PaymentMethodsPage';
 import UsersPage from './pages/UsersPage';
+import UserDetailPage from './pages/UserDetailPage';
 import TransactionsPage from './pages/TransactionsPage';
 import TransactionDetailPage from './pages/TransactionDetailPage';
 import DashboardPage from './pages/DashboardPage';
@@ -33,6 +34,7 @@ function AppRoutes() {
       <Route path="/stores" element={<AdminRoute><StoresPage /></AdminRoute>} />
       <Route path="/payment-methods" element={<AdminRoute><PaymentMethodsPage /></AdminRoute>} />
       <Route path="/users" element={<AdminRoute><UsersPage /></AdminRoute>} />
+      <Route path="/users/:id" element={<AdminRoute><UserDetailPage /></AdminRoute>} />
       <Route path="/transactions" element={<TransactionsPage />} />
       <Route path="/transactions/:id" element={<TransactionDetailPage />} />
       <Route path="/dashboard" element={<DashboardPage />} />

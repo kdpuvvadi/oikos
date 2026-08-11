@@ -1,4 +1,5 @@
 import PocketBase from 'pocketbase';
+import { buildWeeklyDigestPreview, previousWeekRange } from './weeklyDigest.js';
 
 function resolvePbUrl() {
   const configured = String(import.meta.env.VITE_PB_URL || '').trim().replace(/\/$/, '');
@@ -638,6 +639,16 @@ export async function fetchUsers() {
   }
 }
 
+export async function fetchUser(userId) {
+  requireAuthRecord();
+  try {
+    const record = await pb.collection('users').getOne(userId);
+    return publicUser(record);
+  } catch (error) {
+    throw pbError(error, 'User not found.');
+  }
+}
+
 export async function approveUser(userId) {
   requireAuthRecord();
   try {
@@ -645,6 +656,29 @@ export async function approveUser(userId) {
     return { user: publicUser(updated) };
   } catch (error) {
     throw pbError(error);
+  }
+}
+
+export async function adminUpdateUser(userId, updates = {}) {
+  requireAuthRecord();
+  if (!isAdminRecord(pb.authStore.record)) {
+    throw pbError({ status: 403, message: 'Admin access required.' });
+  }
+  const body = {};
+  if (updates.weeklyDigest !== undefined) {
+    body.weeklyDigestOptOut = !Boolean(updates.weeklyDigest);
+  }
+  if (updates.approved !== undefined) {
+    body.approved = Boolean(updates.approved);
+  }
+  if (!Object.keys(body).length) {
+    throw pbError({ status: 400, message: 'No user settings to update.' });
+  }
+  try {
+    const updated = await pb.collection('users').update(userId, body);
+    return { user: publicUser(updated) };
+  } catch (error) {
+    throw pbError(error, 'Could not update user.');
   }
 }
 
@@ -658,6 +692,75 @@ export async function adminResendVerification(userId) {
     return { ok: true, email, message: 'Verification email sent.' };
   } catch (error) {
     throw pbError(error);
+  }
+}
+
+export async function previewWeeklyDigest(userId, { logoMode = 'embed' } = {}) {
+  requireAuthRecord();
+  if (!isAdminRecord(pb.authStore.record)) {
+    throw pbError({ status: 403, message: 'Admin access required.' });
+  }
+
+  const range = previousWeekRange();
+  const user = await fetchUser(userId);
+  const firstPage = await fetchTransactions({
+    user: userId,
+    fromDate: range.fromIso,
+    toDate: range.toInclusiveIso,
+    perPage: 100,
+    page: 1
+  });
+
+  let items = [...(firstPage.items || [])];
+  for (let page = 2; page <= (firstPage.totalPages || 1); page += 1) {
+    const next = await fetchTransactions({
+      user: userId,
+      fromDate: range.fromIso,
+      toDate: range.toInclusiveIso,
+      perPage: 100,
+      page
+    });
+    items = items.concat(next.items || []);
+  }
+
+  return buildWeeklyDigestPreview({
+    user,
+    transactions: items,
+    appUrl: typeof window !== 'undefined' ? window.location.origin : '',
+    logoMode
+  });
+}
+
+export async function sendWeeklyDigest(userId, { subject = '', html = '' } = {}) {
+  requireAuthRecord();
+  if (!isAdminRecord(pb.authStore.record)) {
+    throw pbError({ status: 403, message: 'Admin access required.' });
+  }
+  const targetSubject = String(subject || '').trim();
+  const targetHtml = String(html || '').trim();
+  if (!userId || !targetSubject || !targetHtml) {
+    throw pbError({ status: 400, message: 'Refresh the digest preview before sending.' });
+  }
+
+  try {
+    const user = await fetchUser(userId);
+    await pb.collection('oikos_digest_jobs').create({
+      targetUser: userId,
+      subject: targetSubject,
+      html: targetHtml,
+      status: 'pending',
+      error: ''
+    });
+    return {
+      ok: true,
+      email: user.email || '',
+      message: user.email
+        ? `Weekly digest emailed to ${user.email}.`
+        : 'Weekly digest sent.'
+    };
+  } catch (error) {
+    const message = error?.response?.message || error?.data?.message || error?.message;
+    throw pbError(error, message || 'Could not send weekly digest.');
   }
 }
 
