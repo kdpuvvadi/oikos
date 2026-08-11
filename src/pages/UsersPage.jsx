@@ -72,6 +72,7 @@ function UserRow({
   digest,
   refreshing,
   sending,
+  busy,
   onApprove,
   onResend,
   onRefreshDigest,
@@ -119,7 +120,7 @@ function UserRow({
               type="button"
               variant="outline"
               size="sm"
-              disabled={refreshing || sending}
+              disabled={busy || refreshing || sending}
               onClick={() => void onRefreshDigest(user.id)}
             >
               {refreshing ? 'Refreshing…' : 'Refresh'}
@@ -127,7 +128,7 @@ function UserRow({
             <Button
               type="button"
               size="sm"
-              disabled={sending || refreshing}
+              disabled={busy || sending || refreshing}
               onClick={() => void onSendDigest(user.id)}
             >
               {sending ? 'Sending…' : 'Send'}
@@ -167,6 +168,8 @@ export default function UsersPage() {
   const [digests, setDigests] = useState({});
   const [refreshingId, setRefreshingId] = useState('');
   const [sendingId, setSendingId] = useState('');
+  const [bulkRefreshing, setBulkRefreshing] = useState(false);
+  const [bulkSending, setBulkSending] = useState(false);
 
   useEffect(() => {
     void loadUsers().catch((error) => toast(error.message));
@@ -181,6 +184,14 @@ export default function UsersPage() {
     }
     return { pendingUsers: pending, settledUsers: settled };
   }, [users]);
+
+  const digestUsers = useMemo(
+    () => users.filter((user) => Boolean(user.email)),
+    [users]
+  );
+
+  const bulkBusy = bulkRefreshing || bulkSending;
+  const rowBusy = Boolean(refreshingId || sendingId) || bulkBusy;
 
   async function handleApproveUser(userId) {
     try {
@@ -243,6 +254,73 @@ export default function UsersPage() {
     }
   }
 
+  async function handleRefreshAllDigests() {
+    if (!digestUsers.length) {
+      toast('No users with email to refresh.');
+      return;
+    }
+    setBulkRefreshing(true);
+    let ok = 0;
+    let failed = 0;
+    try {
+      for (const user of digestUsers) {
+        setRefreshingId(user.id);
+        try {
+          await loadDigestPreview(user.id);
+          ok += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+      toast(
+        failed
+          ? `Refreshed ${ok} digest${ok === 1 ? '' : 's'} · ${failed} failed.`
+          : `Refreshed digests for ${ok} user${ok === 1 ? '' : 's'}.`
+      );
+    } finally {
+      setRefreshingId('');
+      setBulkRefreshing(false);
+    }
+  }
+
+  async function handleSendAllDigests() {
+    if (!digestUsers.length) {
+      toast('No users with email to send.');
+      return;
+    }
+    setBulkSending(true);
+    let sent = 0;
+    let failed = 0;
+    const previewCache = { ...digests };
+    try {
+      for (const user of digestUsers) {
+        setSendingId(user.id);
+        try {
+          let preview = previewCache[user.id];
+          if (!preview?.html || !preview?.subject) {
+            preview = await loadDigestPreview(user.id);
+            previewCache[user.id] = preview;
+          }
+          await sendWeeklyDigest(user.id, {
+            subject: preview.subject,
+            html: preview.html
+          });
+          sent += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+      toast(
+        failed
+          ? `Sent ${sent} digest${sent === 1 ? '' : 's'} · ${failed} failed.`
+          : `Sent weekly digests to ${sent} user${sent === 1 ? '' : 's'}.`
+      );
+    } finally {
+      setSendingId('');
+      setBulkSending(false);
+    }
+  }
+
   function renderUserRow(user) {
     return (
       <UserRow
@@ -250,6 +328,7 @@ export default function UsersPage() {
         digest={digests[user.id] || null}
         refreshing={refreshingId === user.id}
         sending={sendingId === user.id}
+        busy={bulkBusy}
         onApprove={handleApproveUser}
         onResend={handleAdminResendVerification}
         onRefreshDigest={handleRefreshDigest}
@@ -264,11 +343,38 @@ export default function UsersPage() {
         eyebrow="Admin"
         title="Users"
         description={
-          pendingUsers.length
-            ? `${pendingUsers.length} user${pendingUsers.length === 1 ? '' : 's'} need attention`
-            : users.length
-              ? 'Everyone is verified and approved'
-              : 'No users yet'
+          users.length
+            ? [
+                `${users.length} total`,
+                pendingUsers.length
+                  ? `${pendingUsers.length} need attention`
+                  : 'Everyone is verified and approved',
+                digestUsers.length
+                  ? `${digestUsers.length} can receive digests`
+                  : null
+              ].filter(Boolean).join(' · ')
+            : 'No users yet'
+        }
+        actions={
+          digestUsers.length ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={rowBusy}
+                onClick={() => void handleRefreshAllDigests()}
+              >
+                {bulkRefreshing ? 'Refreshing…' : 'Refresh all'}
+              </Button>
+              <Button
+                type="button"
+                disabled={rowBusy}
+                onClick={() => void handleSendAllDigests()}
+              >
+                {bulkSending ? 'Sending…' : 'Send all'}
+              </Button>
+            </>
+          ) : null
         }
       />
 
