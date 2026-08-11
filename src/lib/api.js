@@ -638,6 +638,16 @@ export async function fetchUsers() {
   }
 }
 
+export async function fetchUser(userId) {
+  requireAuthRecord();
+  try {
+    const record = await pb.collection('users').getOne(userId);
+    return publicUser(record);
+  } catch (error) {
+    throw pbError(error, 'User not found.');
+  }
+}
+
 export async function approveUser(userId) {
   requireAuthRecord();
   try {
@@ -645,6 +655,29 @@ export async function approveUser(userId) {
     return { user: publicUser(updated) };
   } catch (error) {
     throw pbError(error);
+  }
+}
+
+export async function adminUpdateUser(userId, updates = {}) {
+  requireAuthRecord();
+  if (!isAdminRecord(pb.authStore.record)) {
+    throw pbError({ status: 403, message: 'Admin access required.' });
+  }
+  const body = {};
+  if (updates.weeklyDigest !== undefined) {
+    body.weeklyDigestOptOut = !Boolean(updates.weeklyDigest);
+  }
+  if (updates.approved !== undefined) {
+    body.approved = Boolean(updates.approved);
+  }
+  if (!Object.keys(body).length) {
+    throw pbError({ status: 400, message: 'No user settings to update.' });
+  }
+  try {
+    const updated = await pb.collection('users').update(userId, body);
+    return { user: publicUser(updated) };
+  } catch (error) {
+    throw pbError(error, 'Could not update user.');
   }
 }
 
@@ -658,6 +691,29 @@ export async function adminResendVerification(userId) {
     return { ok: true, email, message: 'Verification email sent.' };
   } catch (error) {
     throw pbError(error);
+  }
+}
+
+export async function previewWeeklyDigest(userId) {
+  requireAuthRecord();
+  try {
+    return await pb.send(`/api/oikos/weekly-digest/${encodeURIComponent(userId)}`, {
+      method: 'GET'
+    });
+  } catch (error) {
+    throw pbError(error, 'Could not preview weekly digest.');
+  }
+}
+
+export async function sendWeeklyDigest(userId, { force = false } = {}) {
+  requireAuthRecord();
+  try {
+    return await pb.send(`/api/oikos/weekly-digest/${encodeURIComponent(userId)}`, {
+      method: 'POST',
+      body: { force: Boolean(force) }
+    });
+  } catch (error) {
+    throw pbError(error, 'Could not send weekly digest.');
   }
 }
 
