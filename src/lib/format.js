@@ -2,7 +2,7 @@ import { seoConfig } from './seo';
 
 export const TRANSACTION_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
-export const money = new Intl.NumberFormat(undefined, {
+export const money = new Intl.NumberFormat('en-IN', {
   style: 'currency',
   currency: 'INR',
   maximumFractionDigits: 2

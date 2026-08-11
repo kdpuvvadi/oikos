@@ -15,8 +15,10 @@ services:
       ZEPTO_MAIL_FROM_ADDRESS: "${ZEPTO_MAIL_FROM_ADDRESS:-}"
       ZEPTO_MAIL_FROM_NAME: "${ZEPTO_MAIL_FROM_NAME:-Oikos}"
       WEEKLY_DIGEST_CRON: "${WEEKLY_DIGEST_CRON:-0 8 * * 1}"
+      WEEKLY_DIGEST_LOGO_MODE: "${WEEKLY_DIGEST_LOGO_MODE:-link}"
     volumes:
       - ./pb_data:/usr/src/app/pb_data
+      - ./pb_hooks:/usr/src/app/pb_hooks
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8090/api/health"]
       interval: 10s

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oikos-v10';
+const CACHE_NAME = 'oikos-v11';
 const urlsToCache = [
   '/',
   '/manifest.json',

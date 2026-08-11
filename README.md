@@ -61,7 +61,7 @@ If the key or from-address is missing, the hook falls through to PocketBase’s 
 
 ### Weekly spending digests
 
-[`pb_hooks/weekly-digest.pb.js`](pb_hooks/weekly-digest.pb.js) emails verified, approved (or admin) users who have **not** opted out. Summary covers the previous Mon–Sun (UTC): total spent, count, top categories. Empty weeks are skipped.
+[`pb_hooks/weekly-digest.pb.js`](pb_hooks/weekly-digest.pb.js) emails verified, approved (or admin) users who have **not** opted out. Summary covers the previous Mon–Sun (UTC): total spent, count, top categories. Empty weeks still get a zero-spend email.
 
 - Preference field: `weeklyDigestOptOut` (false = send; default on)
 - Toggle: **Me → Weekly digest**
@@ -88,6 +88,7 @@ Production build: `npm run build` (output in `dist/`, copied to `pb_public` in t
 | `APP_BUILD_BRANCH` | Label shown on Me |
 | `ZEPTO_MAIL_*` | ZeptoMail delivery |
 | `WEEKLY_DIGEST_CRON` | Optional cron override for digests |
+| `WEEKLY_DIGEST_LOGO_MODE` | `embed` (default) or `link` for cron digest logo |
 | `PB_TOKEN` | Optional PocketBase admin token for setup (instead of interactive login) |
 
 ## Collections
