@@ -61,7 +61,7 @@ If the key or from-address is missing, the hook falls through to PocketBase’s 
 
 ### Weekly spending digests
 
-[`pb_hooks/weekly-digest.pb.js`](pb_hooks/weekly-digest.pb.js) emails verified, approved (or admin) users who have **not** opted out. Summary covers the previous Mon–Sun (UTC): total spent, count, top categories. Empty weeks are skipped.
+[`pb_hooks/weekly-digest.pb.js`](pb_hooks/weekly-digest.pb.js) emails verified, approved (or admin) users who have **not** opted out. Summary covers the previous Mon–Sun (UTC): total spent, count, top categories. Empty weeks still get a zero-spend email.
 
 - Preference field: `weeklyDigestOptOut` (false = send; default on)
 - Toggle: **Me → Weekly digest**

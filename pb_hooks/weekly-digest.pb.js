@@ -5,7 +5,7 @@
  * Default: Mondays at 08:00 UTC for the previous Mon–Sun (UTC). Digests are on by default.
  * Override with WEEKLY_DIGEST_CRON (5-field cron expression).
  *
- * Empty weeks are skipped. Admin manual sends use oikos_digest_jobs (digest-jobs.pb.js).
+ * Empty weeks are still emailed (zero-spend summary). Admin manual sends use oikos_digest_jobs.
  *
  * IMPORTANT: PocketBase JSVM runs each handler in an isolated context — helpers declared
  * outside the cron callback are NOT visible inside it (ReferenceError). Keep all logic nested.
@@ -315,7 +315,7 @@ cronAdd("oikos-weekly-digest", cronExpr, () => {
     const batchSize = 100;
     let offset = 0;
     let sent = 0;
-    let skipped = 0;
+    let sentEmpty = 0;
     let failed = 0;
     let eligible = 0;
 
@@ -340,12 +340,9 @@ cronAdd("oikos-weekly-digest", cronExpr, () => {
         eligible += 1;
         try {
           const transactions = loadUserTransactions(user.id, range.fromIso, range.toExclusiveIso);
-          if (!transactions.length) {
-            skipped += 1;
-            continue;
-          }
           sendDigest(user, range, summarize(transactions));
           sent += 1;
+          if (!transactions.length) sentEmpty += 1;
         } catch (error) {
           failed += 1;
           $app.logger().error("weekly digest failed", "user", user.id, "error", errorMessage(error));
@@ -362,7 +359,7 @@ cronAdd("oikos-weekly-digest", cronExpr, () => {
       "to", range.toInclusiveIso,
       "eligible", eligible,
       "sent", sent,
-      "skippedEmpty", skipped,
+      "sentEmpty", sentEmpty,
       "failed", failed
     );
   }

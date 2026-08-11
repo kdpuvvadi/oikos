@@ -241,7 +241,7 @@ Setup also seeds common categories, stores, and payment methods.
 - Cron job id: `oikos-weekly-digest`
 - Default expression: `0 8 * * 1` (override with `WEEKLY_DIGEST_CRON`)
 - Recipients: `verified = true && weeklyDigestOptOut = false && (approved = true || kind = "admin")`
-- Content: previous UTC Mon–Sun totals + top categories; skips empty weeks
+- Content: previous UTC Mon–Sun totals + top categories; empty weeks still emailed
 - Delivery: `$app.newMailClient().send` (goes through Zepto hook when configured)
 
 ---
@@ -279,6 +279,6 @@ Compose publishes `${APP_PORT:-8090}:8090` and passes `APP_PUBLIC_URL`, Zepto va
 | No emails | Zepto env vars, or PocketBase mail settings when Zepto unset |
 | Stuck on “verify email” after confirming | Sign in; token refresh treats spent tokens as success on `/verify-email` |
 | Sees approval screen but isn’t verified | Should not happen; login clears unverified sessions. Approval UI only if `verified && !approved` |
-| No weekly digests | User opted out; not verified/approved; empty week; cron/logs; mail config |
+| No weekly digests | User opted out; not verified/approved; cron/logs; mail config |
 | Schema errors after upgrade | `npm run setup:pocketbase` |
 | Vite can’t reach PB | `VITE_PB_URL` in `.env` for local dev |
