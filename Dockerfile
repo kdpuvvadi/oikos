@@ -25,12 +25,19 @@ LABEL org.opencontainers.image.title="Oikos"
 LABEL org.opencontainers.image.description="Simple Expenses Management System"
 LABEL org.opencontainers.image.licenses="MIT"
 
+ARG APP_BUILD_BRANCH=unknown
+ARG APP_VERSION=
+ENV APP_BUILD_BRANCH=${APP_BUILD_BRANCH}
+ENV APP_VERSION=${APP_VERSION}
+
 RUN mkdir -p /usr/src/app/pb_data /usr/src/app/pb_public /usr/src/app/pb_hooks
 
 WORKDIR /usr/src/app
 
 COPY pb_hooks/ /usr/src/app/pb_hooks/
 COPY --from=frontend /app/dist /usr/src/app/pb_public
+
+COPY --from=frontend /app/package.json /usr/src/app/package.json
 
 EXPOSE 8090
 

@@ -41,7 +41,7 @@ export default function MePage() {
     setPendingVerificationEmail
   } = useAuth();
   const { toast } = useToast();
-  const { appVersion, appBranch, loadAppVersion } = useData();
+  const { appVersion, appBranch, pocketbaseVersion, loadAppVersion } = useData();
   const [editMode, setEditMode] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -135,7 +135,8 @@ export default function MePage() {
 
   const versionDetails = [
     appVersion ? `Version: ${appVersion}` : '',
-    appBranch ? `Branch: ${appBranch}` : ''
+    appBranch ? `Branch: ${appBranch}` : '',
+    pocketbaseVersion ? `PocketBase: ${pocketbaseVersion}` : ''
   ].filter(Boolean);
 
   const sharedRows = (

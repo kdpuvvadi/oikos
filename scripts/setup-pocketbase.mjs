@@ -340,8 +340,10 @@ async function main() {
     system: false,
     listRule: 'id = @request.auth.id || @request.auth.kind = "admin"',
     viewRule: 'id = @request.auth.id || @request.auth.kind = "admin"',
-    createRule: '',
-    updateRule: 'id = @request.auth.id || @request.auth.kind = "admin"',
+    // Public signup must stay kind=user and unapproved.
+    createRule: '(@request.body.kind:isset = false || @request.body.kind = "user") && (@request.body.approved:isset = false || @request.body.approved = false)',
+    // Non-admins may update their own profile but cannot submit kind/approved.
+    updateRule: '@request.auth.kind = "admin" || (id = @request.auth.id && @request.body.kind:isset = false && @request.body.approved:isset = false)',
     deleteRule: '@request.auth.kind = "admin"',
     removeFields: ['weeklyDigest'],
     fields: [

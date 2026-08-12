@@ -1,0 +1,20 @@
+meta {
+  name: Get own user record
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/collections/users/records/{{userId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: eq {{userId}}
+}

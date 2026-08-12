@@ -1,0 +1,31 @@
+meta {
+  name: User cannot list all users
+  type: http
+  seq: 12
+}
+
+get {
+  url: {{baseUrl}}/api/collections/users/records?perPage=20
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+}
+
+tests {
+  test("non-admin cannot see other users in list", function() {
+    const status = res.getStatus();
+    const body = res.getBody() || {};
+    const items = body.items || [];
+    const userId = bru.getEnvVar("userId");
+
+    // PocketBase may return only self (filtered) or forbid the list.
+    if (status === 200) {
+      expect(items.every((item) => item.id === userId)).to.equal(true);
+    } else {
+      expect([400, 403, 404]).to.include(status);
+    }
+  });
+}

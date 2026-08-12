@@ -1,0 +1,24 @@
+meta {
+  name: Unauthenticated users list forbidden
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/collections/users/records?perPage=1
+  body: none
+  auth: none
+}
+
+tests {
+  test("guest cannot list users", function() {
+    const status = res.getStatus();
+    const body = res.getBody() || {};
+    const items = body.items || [];
+    if (status === 200) {
+      expect(items.length).to.equal(0);
+    } else {
+      expect([400, 401, 403, 404]).to.include(status);
+    }
+  });
+}

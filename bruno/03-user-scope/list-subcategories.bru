@@ -1,0 +1,39 @@
+meta {
+  name: List subcategories
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/collections/oikos_subcategories/records?perPage=50&sort=name
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const body = res.getBody();
+    const items = body.items || [];
+    if (items.length) {
+      bru.setEnvVar("subcategoryId", items[0].id);
+      if (items[0].category) {
+        bru.setEnvVar("categoryId", items[0].category);
+      }
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.items: isArray
+}
+
+tests {
+  test("at least one subcategory exists for transaction tests", function() {
+    expect((res.getBody().items || []).length).to.be.above(0);
+  });
+}

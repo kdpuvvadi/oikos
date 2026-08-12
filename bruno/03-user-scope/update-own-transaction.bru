@@ -1,0 +1,29 @@
+meta {
+  name: Update own transaction
+  type: http
+  seq: 10
+}
+
+patch {
+  url: {{baseUrl}}/api/collections/oikos_transactions/records/{{transactionId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "amount": 56.78,
+    "title": "Bruno user-scope test updated"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: eq {{transactionId}}
+  res.body.amount: eq 56.78
+}

@@ -1,0 +1,35 @@
+meta {
+  name: List stores
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/collections/oikos_stores/records?perPage=50&sort=name
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const body = res.getBody();
+    const items = body.items || [];
+    const other = items.find((s) => String(s.name || "").toLowerCase() === "other");
+    bru.setEnvVar("storeId", (other || items[0] || {}).id || "");
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.items: isArray
+}
+
+tests {
+  test("at least one store exists", function() {
+    expect((res.getBody().items || []).length).to.be.above(0);
+  });
+}

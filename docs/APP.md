@@ -167,8 +167,8 @@ Managed by [`scripts/setup-pocketbase.mjs`](../scripts/setup-pocketbase.mjs) (id
 |-------|------|--------|
 | `email`, `password`, `verified`, `emailVisibility`, `name` | built-in | |
 | `firstName`, `lastName` | text | |
-| `kind` | text | `"user"` or `"admin"` |
-| `approved` | bool | required for non-admin app access |
+| `kind` | text | `"user"` or `"admin"` (only admins can change; signup locked to `user`) |
+| `approved` | bool | Required for non-admin app access; users cannot self-set |
 | `weeklyDigestOptOut` | bool | `false` = receive weekly digests (default) |
 | `transactionPageSize` | number | 10 / 25 / 50 / 100 |
 

@@ -1,0 +1,34 @@
+meta {
+  name: User cannot approve self as admin fields
+  type: http
+  seq: 17
+}
+
+patch {
+  url: {{baseUrl}}/api/collections/users/records/{{userId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "kind": "admin",
+    "approved": true
+  }
+}
+
+assert {
+  res.status: in [400, 403, 404]
+}
+
+tests {
+  test("user cannot escalate to admin via self-update", function() {
+    // PocketBase often returns 404 when an update API rule rejects the request.
+    expect([400, 403, 404]).to.include(res.getStatus());
+  });
+}
