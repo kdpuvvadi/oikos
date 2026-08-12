@@ -1,0 +1,31 @@
+meta {
+  name: Validate admin token
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/collections/users/auth-refresh
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{adminToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const body = res.getBody();
+    if (body.token) bru.setEnvVar("adminToken", body.token);
+    if (body.record && body.record.id) bru.setEnvVar("adminId", body.record.id);
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.token: isString
+  res.body.record.id: isString
+  res.body.record.kind: eq admin
+  res.body.record.verified: eq true
+}
