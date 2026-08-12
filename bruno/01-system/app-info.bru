@@ -1,0 +1,30 @@
+meta {
+  name: App info
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/app-info
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.version: isString
+  res.body.branch: isString
+  res.body.pocketbase: isString
+}
+
+tests {
+  test("version is non-empty", function() {
+    const body = res.getBody();
+    expect(String(body.version || "").length).to.be.above(0);
+  });
+
+  test("branch is non-empty", function() {
+    const body = res.getBody();
+    expect(String(body.branch || "").length).to.be.above(0);
+  });
+}
