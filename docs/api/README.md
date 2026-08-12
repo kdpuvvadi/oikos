@@ -48,9 +48,6 @@ err.isAbort  // request aborted
 - [Reference data & users](./reference-data.md) — categories, stores, payment methods, approvals
 - [Aggregates & app info](./system.md) — home totals, summary, version
 
-Admin weekly digest preview/send uses custom PocketBase routes:
+Admin weekly digest preview is client-side; send uses `POST /api/collections/oikos_digest_jobs/records`.
 
-- `GET /api/oikos/weekly-digest/{userId}`
-- `POST /api/oikos/weekly-digest/{userId}` with `{ force?: boolean }`
-
-(App admin `kind=admin` + user auth token; see user detail page `/users/:id`.)
+Bruno API collection: [`bruno/`](../../bruno/) (QA/local envs — set `baseUrl` + user/admin credentials).
