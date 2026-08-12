@@ -1,0 +1,28 @@
+meta {
+  name: List own transactions
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/collections/oikos_transactions/records?perPage=20&sort=-date&filter=user="{{userId}}"&expand=category,subcategory,store,payment_method
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.items: isArray
+}
+
+tests {
+  test("created transaction is visible to owner", function() {
+    const id = bru.getEnvVar("transactionId");
+    const items = res.getBody().items || [];
+    expect(items.some((item) => item.id === id)).to.equal(true);
+  });
+}

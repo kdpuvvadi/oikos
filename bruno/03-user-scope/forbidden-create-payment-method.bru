@@ -1,0 +1,26 @@
+meta {
+  name: User cannot create payment method
+  type: http
+  seq: 15
+}
+
+post {
+  url: {{baseUrl}}/api/collections/oikos_payment_methods/records
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Bruno forbidden PM"
+  }
+}
+
+assert {
+  res.status: in [400, 403, 404]
+}

@@ -1,0 +1,44 @@
+meta {
+  name: Create own transaction
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/collections/oikos_transactions/records
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "date": "2026-08-11 00:00:00.000Z",
+    "title": "Bruno user-scope test",
+    "amount": 12.34,
+    "category": "{{categoryId}}",
+    "subcategory": "{{subcategoryId}}",
+    "store": "{{storeId}}",
+    "payment_method": "{{paymentMethodId}}",
+    "storeText": "",
+    "user": "{{userId}}"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const body = res.getBody();
+    bru.setEnvVar("transactionId", body.id || "");
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: isString
+  res.body.user: eq {{userId}}
+  res.body.amount: eq 12.34
+}

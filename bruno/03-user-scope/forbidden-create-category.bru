@@ -1,0 +1,26 @@
+meta {
+  name: User cannot create category
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/api/collections/oikos_categories/records
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Bruno forbidden category"
+  }
+}
+
+assert {
+  res.status: in [400, 403, 404]
+}

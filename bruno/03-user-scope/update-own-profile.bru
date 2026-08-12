@@ -1,0 +1,28 @@
+meta {
+  name: Update own profile
+  type: http
+  seq: 2
+}
+
+patch {
+  url: {{baseUrl}}/api/collections/users/records/{{userId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "transactionPageSize": 25
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: eq {{userId}}
+  res.body.transactionPageSize: eq 25
+}
