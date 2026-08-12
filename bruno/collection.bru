@@ -1,0 +1,21 @@
+meta {
+  name: Oikos
+}
+
+docs {
+  # Oikos API tests
+
+  PocketBase REST + custom hooks for the Oikos expense app.
+
+  ## Setup
+
+  1. Open this folder in Bruno (`bruno/`).
+  2. Select the **qa** (or **local**) environment.
+  3. Fill in:
+     - `baseUrl` — QA PocketBase / app origin (no trailing slash)
+     - `userToken` — verified + approved normal user token
+     - `adminToken` — admin (`kind=admin`) token
+  4. Run folders in order: System → Auth → User scope → Admin scope → Negative.
+
+  `userId` / `adminId` and other resource ids are set by validate / setup requests at runtime.
+}

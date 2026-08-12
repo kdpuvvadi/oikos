@@ -1,0 +1,21 @@
+meta {
+  name: Get own transaction
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/api/collections/oikos_transactions/records/{{transactionId}}?expand=category,store
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: eq {{transactionId}}
+  res.body.user: eq {{userId}}
+}

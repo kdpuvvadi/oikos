@@ -1,0 +1,42 @@
+meta {
+  name: Validate user token
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/collections/users/auth-refresh
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const body = res.getBody();
+    if (body.token) bru.setEnvVar("userToken", body.token);
+    if (body.record && body.record.id) bru.setEnvVar("userId", body.record.id);
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.token: isString
+  res.body.record.id: isString
+  res.body.record.verified: eq true
+}
+
+tests {
+  test("token belongs to a non-admin user", function() {
+    const record = res.getBody().record || {};
+    expect(record.kind).to.not.equal("admin");
+  });
+
+  test("user is approved for data access", function() {
+    const record = res.getBody().record || {};
+    expect(record.approved).to.equal(true);
+  });
+}

@@ -1,0 +1,42 @@
+meta {
+  name: Create transaction as admin
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/collections/oikos_transactions/records
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: {{adminToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "date": "2026-08-11 00:00:00.000Z",
+    "title": "Bruno admin-scope test",
+    "amount": 99.01,
+    "category": "{{categoryId}}",
+    "subcategory": "{{subcategoryId}}",
+    "store": "{{storeId}}",
+    "payment_method": "{{paymentMethodId}}",
+    "storeText": "",
+    "user": "{{adminId}}"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    bru.setEnvVar("adminTransactionId", res.getBody().id || "");
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: isString
+  res.body.user: eq {{adminId}}
+}

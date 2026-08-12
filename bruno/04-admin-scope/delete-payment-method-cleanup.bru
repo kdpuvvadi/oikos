@@ -1,0 +1,19 @@
+meta {
+  name: Delete payment method cleanup
+  type: http
+  seq: 14
+}
+
+delete {
+  url: {{baseUrl}}/api/collections/oikos_payment_methods/records/{{adminPaymentMethodId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{adminToken}}
+}
+
+assert {
+  res.status: in [200, 204]
+}

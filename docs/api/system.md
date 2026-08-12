@@ -16,9 +16,25 @@ Used on the home / expense entry page KPIs.
 
 Fetches the full scoped transaction list with expansions suitable for dashboard and filter pages. Monthly / category aggregation is done in the UI (`src/lib/charts.js`, dashboard / filter pages).
 
-## App info — `getAppInfo()`
+## App info — `GET /api/app-info`
 
-Returns build metadata for the **Me** page (version from package/manifest sync, branch from `APP_BUILD_BRANCH` when baked into the image).
+Public PocketBase route (`pb_hooks/app-info.pb.js`). Also available as client helper `getAppInfo()`.
+
+```http
+GET /api/app-info
+```
+
+```json
+{
+  "version": "0.6.3",
+  "branch": "release",
+  "pocketbase": "0.39.7"
+}
+```
+
+- `version` — `APP_VERSION`, else `pb_public/manifest.json` / `package.json`
+- `branch` — `APP_BUILD_BRANCH` (defaults to `unknown`)
+- `pocketbase` — from `pocketbase --version`
 
 ## Health
 

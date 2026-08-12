@@ -1,0 +1,19 @@
+meta {
+  name: Delete own transaction
+  type: http
+  seq: 11
+}
+
+delete {
+  url: {{baseUrl}}/api/collections/oikos_transactions/records/{{transactionId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+}
+
+assert {
+  res.status: in [200, 204]
+}
