@@ -1,0 +1,30 @@
+meta {
+  name: User cannot create digest job
+  type: http
+  seq: 16
+}
+
+post {
+  url: {{baseUrl}}/api/collections/oikos_digest_jobs/records
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "targetUser": "{{userId}}",
+    "subject": "Forbidden",
+    "html": "<p>nope</p>",
+    "status": "pending",
+    "error": ""
+  }
+}
+
+assert {
+  res.status: in [400, 403, 404]
+}

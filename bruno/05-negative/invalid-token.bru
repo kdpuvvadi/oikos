@@ -1,0 +1,29 @@
+meta {
+  name: Invalid token rejected
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/collections/oikos_transactions/records?perPage=1
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: not-a-real-token
+}
+
+tests {
+  test("invalid token cannot read transactions", function() {
+    const status = res.getStatus();
+    const body = res.getBody() || {};
+    const items = body.items || [];
+    // Invalid token is treated as guest by PocketBase → 401/403 or empty 200.
+    if (status === 200) {
+      expect(items.length).to.equal(0);
+    } else {
+      expect([400, 401, 403, 404]).to.include(status);
+    }
+  });
+}

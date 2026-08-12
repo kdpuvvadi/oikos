@@ -1,0 +1,20 @@
+meta {
+  name: Get other user
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/collections/users/records/{{otherUserId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{adminToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: eq {{otherUserId}}
+}

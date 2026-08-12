@@ -1,0 +1,37 @@
+meta {
+  name: List users
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/collections/users/records?perPage=50&sort=-created
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{adminToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const body = res.getBody();
+    const items = body.items || [];
+    const adminId = bru.getEnvVar("adminId");
+    const other = items.find((u) => u.id !== adminId);
+    if (other) bru.setEnvVar("otherUserId", other.id);
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.items: isArray
+}
+
+tests {
+  test("admin list includes more than self or at least self", function() {
+    const items = res.getBody().items || [];
+    expect(items.length).to.be.above(0);
+  });
+}

@@ -1,0 +1,30 @@
+meta {
+  name: List payment methods
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/collections/oikos_payment_methods/records?perPage=50&sort=name
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{userToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const body = res.getBody();
+    const items = body.items || [];
+    if (items.length) {
+      bru.setEnvVar("paymentMethodId", items[0].id);
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.items: isArray
+}

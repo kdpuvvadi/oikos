@@ -85,7 +85,8 @@ Production build: `npm run build` (output in `dist/`, copied to `pb_public` in t
 | `PB_URL` | PocketBase URL for setup / make-admin scripts |
 | `VITE_PB_URL` | PocketBase URL baked into the Vite app (empty = same-origin in prod) |
 | `APP_PUBLIC_URL` | Public app URL for email links |
-| `APP_BUILD_BRANCH` | Label shown on Me |
+| `APP_BUILD_BRANCH` | Label shown on Me / `/api/app-info` |
+| `APP_VERSION` | Optional override for `/api/app-info` version |
 | `ZEPTO_MAIL_*` | ZeptoMail delivery |
 | `WEEKLY_DIGEST_CRON` | Optional cron override for digests |
 | `WEEKLY_DIGEST_LOGO_MODE` | `embed` (default) or `link` for cron digest logo |

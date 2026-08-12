@@ -20,6 +20,7 @@ export function DataProvider({ children }) {
   const [homeTotals, setHomeTotals] = useState({ thisMonth: 0, lastMonth: 0 });
   const [appVersion, setAppVersion] = useState('');
   const [appBranch, setAppBranch] = useState('');
+  const [pocketbaseVersion, setPocketbaseVersion] = useState('');
 
   const loadedRef = useRef({
     categories: false,
@@ -58,6 +59,7 @@ export function DataProvider({ children }) {
     setHomeTotals({ thisMonth: 0, lastMonth: 0 });
     setAppVersion('');
     setAppBranch('');
+    setPocketbaseVersion('');
     Object.keys(loadedRef.current).forEach((key) => {
       loadedRef.current[key] = false;
     });
@@ -115,14 +117,16 @@ export function DataProvider({ children }) {
   const loadAppVersion = useCallback(async (force = false) => {
     await ensureLoaded('appVersion', async () => {
       try {
-        const appInfo = getAppInfo();
+        const appInfo = await getAppInfo();
         const manifestResponse = await fetch('/manifest.json', { cache: 'no-store' });
         const manifest = manifestResponse.ok ? await manifestResponse.json() : {};
         setAppVersion(String(appInfo.version || manifest.version || '').trim());
         setAppBranch(String(appInfo.branch || '').trim());
+        setPocketbaseVersion(String(appInfo.pocketbase || '').trim());
       } catch {
         setAppVersion('');
         setAppBranch('');
+        setPocketbaseVersion('');
       }
       loadedRef.current.appVersion = true;
     }, force);
@@ -162,6 +166,7 @@ export function DataProvider({ children }) {
     homeTotals,
     appVersion,
     appBranch,
+    pocketbaseVersion,
     loadCategories,
     loadPaymentMethods,
     loadStores,
@@ -184,6 +189,7 @@ export function DataProvider({ children }) {
     homeTotals,
     appVersion,
     appBranch,
+    pocketbaseVersion,
     loadCategories,
     loadPaymentMethods,
     loadStores,

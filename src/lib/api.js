@@ -1031,9 +1031,21 @@ export async function fetchSummary() {
   }
 }
 
-export function getAppInfo() {
-  return {
+export async function getAppInfo() {
+  const fallback = {
     version: String(typeof __OIKOS_VERSION__ !== 'undefined' ? __OIKOS_VERSION__ : '').trim(),
-    branch: String(typeof __OIKOS_BRANCH__ !== 'undefined' ? __OIKOS_BRANCH__ : '').trim()
+    branch: String(typeof __OIKOS_BRANCH__ !== 'undefined' ? __OIKOS_BRANCH__ : '').trim(),
+    pocketbase: ''
   };
+
+  try {
+    const data = await pb.send('/api/app-info', { method: 'GET' });
+    return {
+      version: String(data?.version || fallback.version || '').trim(),
+      branch: String(data?.branch || fallback.branch || '').trim(),
+      pocketbase: String(data?.pocketbase || '').trim()
+    };
+  } catch {
+    return fallback;
+  }
 }

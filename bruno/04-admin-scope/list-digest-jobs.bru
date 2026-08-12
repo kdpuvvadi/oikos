@@ -1,0 +1,20 @@
+meta {
+  name: List digest jobs
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/api/collections/oikos_digest_jobs/records?perPage=5&sort=-created
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{adminToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.items: isArray
+}
