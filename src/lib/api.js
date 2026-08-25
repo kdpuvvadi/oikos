@@ -68,12 +68,15 @@ export function publicUser(record) {
   const lastName = sanitizeName(record.lastName);
   const name = [firstName, lastName].filter(Boolean).join(' ') || sanitizeName(record.name) || email || 'Unnamed user';
   const admin = record.kind === 'admin';
+  const avatar = sanitizeName(record.avatar);
   return {
     id: record.id,
     email,
     name,
     firstName,
     lastName,
+    avatar,
+    avatarUrl: avatar ? pb.files.getURL(record, avatar) : '',
     emailVisibility: record.emailVisibility !== false,
     verified: record.verified === true,
     approved: admin ? true : record.approved === true,
@@ -282,6 +285,36 @@ export async function logout() {
   pb.authStore.clear();
 }
 
+const AVATAR_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml'
+]);
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
+export function validateAvatarFile(file) {
+  if (!(file instanceof File)) {
+    throw pbError({ status: 400, message: 'Choose an image file to upload.' });
+  }
+  if (!AVATAR_MIME_TYPES.has(file.type)) {
+    throw pbError({ status: 400, message: 'Avatar must be a JPEG, PNG, GIF, WebP, or SVG image.' });
+  }
+  if (file.size > AVATAR_MAX_BYTES) {
+    throw pbError({ status: 400, message: 'Avatar must be 2 MB or smaller.' });
+  }
+  return file;
+}
+
+function appendProfileFormValue(formData, key, value) {
+  if (typeof value === 'boolean' || typeof value === 'number') {
+    formData.append(key, String(value));
+    return;
+  }
+  formData.append(key, value == null ? '' : String(value));
+}
+
 export async function updateProfile(updates) {
   const record = requireAuthRecord();
   const updateBody = {
@@ -292,6 +325,7 @@ export async function updateProfile(updates) {
   const firstName = sanitizeName(updates.firstName);
   const lastName = sanitizeName(updates.lastName);
   const email = sanitizeName(updates.email).toLowerCase();
+  const avatarProvided = Object.prototype.hasOwnProperty.call(updates, 'avatar');
 
   if (firstName || lastName) {
     if (!firstName || !lastName) {
@@ -311,7 +345,21 @@ export async function updateProfile(updates) {
   }
 
   try {
-    const updated = await pb.collection('users').update(record.id, updateBody);
+    let payload = updateBody;
+    if (avatarProvided) {
+      const formData = new FormData();
+      Object.entries(updateBody).forEach(([key, value]) => {
+        appendProfileFormValue(formData, key, value);
+      });
+      if (updates.avatar instanceof File) {
+        formData.append('avatar', validateAvatarFile(updates.avatar));
+      } else {
+        formData.append('avatar', '');
+      }
+      payload = formData;
+    }
+
+    const updated = await pb.collection('users').update(record.id, payload);
     pb.authStore.save(pb.authStore.token, updated);
     return { user: publicUser(updated) };
   } catch (error) {
