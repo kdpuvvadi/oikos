@@ -3,8 +3,9 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { ChevronDownIcon, MenuIcon, XIcon } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import { userDisplayName, userInitials } from '@/lib/transactions';
+import { userDisplayName } from '@/lib/transactions';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { UserAvatar } from '@/components/UserAvatar';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -153,9 +154,9 @@ export function Header() {
 
               <div className="ml-2 flex items-center gap-1.5 border-l border-border pl-3">
                 <ThemeToggle id="themeToggle" className="size-9" />
-                <Button asChild variant="outline" size="icon" className="size-9 rounded-full">
+                <Button asChild variant="outline" size="icon" className="size-9 overflow-hidden rounded-full p-0">
                   <Link to="/me" aria-label={userLabel || 'Profile'} title={userLabel || 'Profile'}>
-                    {userInitials(user)}
+                    <UserAvatar user={user} className="size-9 after:border-0" />
                   </Link>
                 </Button>
                 <Button type="button" variant="outline" size="sm" onClick={handleLogout}>
@@ -166,9 +167,9 @@ export function Header() {
 
             <div className="flex shrink-0 items-center gap-1.5 md:hidden">
               <ThemeToggle className="size-9" id="mobileThemeToggle" />
-              <Button asChild variant="outline" size="icon" className="size-9 rounded-full">
+              <Button asChild variant="outline" size="icon" className="size-9 overflow-hidden rounded-full p-0">
                 <Link to="/me" aria-label="Open profile" title={userLabel || 'Profile'}>
-                  <span aria-hidden="true">{user ? userInitials(user) : ''}</span>
+                  <UserAvatar user={user} className="size-9 after:border-0" />
                 </Link>
               </Button>
               <Button
