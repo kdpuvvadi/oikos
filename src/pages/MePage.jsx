@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { requestVerification } from '@/lib/api';
 import { TRANSACTION_PAGE_SIZE_OPTIONS } from '@/lib/format';
 import { useAuth } from '@/context/AuthContext';
@@ -11,6 +11,7 @@ import {
   isApprovedUser
 } from '@/lib/transactions';
 import { PageHeader } from '@/components/PageHeader';
+import { UserAvatar } from '@/components/UserAvatar';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -46,6 +47,8 @@ export default function MePage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const avatarInputRef = useRef(null);
 
   useEffect(() => {
     void loadAppVersion().catch(() => {});
@@ -84,6 +87,34 @@ export default function MePage() {
       toast(emailChanged ? 'Profile updated. Verify the new email if prompted.' : 'Profile updated.');
     } catch (error) {
       toast(error.message);
+    }
+  }
+
+  async function handleAvatarChange(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setAvatarBusy(true);
+    try {
+      await saveProfile({ avatar: file });
+      toast('Profile picture updated.');
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  async function handleAvatarRemove() {
+    if (!user.avatarUrl || avatarBusy) return;
+    setAvatarBusy(true);
+    try {
+      await saveProfile({ avatar: null });
+      toast('Profile picture removed.');
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      setAvatarBusy(false);
     }
   }
 
@@ -138,6 +169,51 @@ export default function MePage() {
     appBranch ? `Branch: ${appBranch}` : '',
     pocketbaseVersion ? `PocketBase: ${pocketbaseVersion}` : ''
   ].filter(Boolean);
+
+  const avatarRow = (
+    <DetailRow label="Photo">
+      <div className="flex flex-wrap items-center gap-4">
+        <UserAvatar user={user} className="size-16 text-base" size="lg" />
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+              className="sr-only"
+              data-avatar-input
+              onChange={(event) => void handleAvatarChange(event)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={avatarBusy}
+              data-avatar-upload
+              onClick={() => avatarInputRef.current?.click()}
+            >
+              {avatarBusy ? 'Updating…' : user.avatarUrl ? 'Change photo' : 'Upload photo'}
+            </Button>
+            {user.avatarUrl ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={avatarBusy}
+                data-avatar-remove
+                onClick={() => void handleAvatarRemove()}
+              >
+                Remove
+              </Button>
+            ) : null}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            JPEG, PNG, GIF, WebP, or SVG up to 2 MB.
+          </p>
+        </div>
+      </div>
+    </DetailRow>
+  );
 
   const sharedRows = (
     <>
@@ -253,6 +329,7 @@ export default function MePage() {
                 data-profile-form
                 onSubmit={handleSaveProfile}
               >
+                {avatarRow}
                 <div className="grid gap-1.5">
                   <Label htmlFor="profile-first-name">First name</Label>
                   <Input
@@ -308,6 +385,7 @@ export default function MePage() {
               <CardDescription>Your account details and preferences</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-6">
+              {avatarRow}
               <DetailRow label="Name">
                 <p className="font-medium">{userDisplayName(user)}</p>
               </DetailRow>
