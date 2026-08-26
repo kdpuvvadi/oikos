@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { fetchTransactions } from '@/lib/api';
 import { money, formatLongDate, TRANSACTION_PAGE_SIZE_OPTIONS } from '@/lib/format';
 import { useAuth } from '@/context/AuthContext';
@@ -23,6 +23,7 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { cn } from '@/lib/utils';
 
 const FILTER_KEYS = ['fromDate', 'toDate', 'category', 'subcategory', 'paymentMethod', 'store', 'user', 'deleted'];
+const ADMIN_FILTER_KEYS = new Set(['user', 'deleted']);
 
 function emptyFilters() {
   return {
@@ -48,9 +49,42 @@ function hasActiveFilters(filters) {
   return FILTER_KEYS.some((key) => String(filters[key] || '').trim());
 }
 
+function filtersFromSearchParams(params, isAdmin) {
+  const next = emptyFilters();
+  FILTER_KEYS.forEach((key) => {
+    if (ADMIN_FILTER_KEYS.has(key) && !isAdmin) return;
+    next[key] = String(params.get(key) || '').trim();
+  });
+  return next;
+}
+
+function pageFromSearchParams(params) {
+  const parsed = Number.parseInt(String(params.get('page') || '1'), 10);
+  return Number.isFinite(parsed) && parsed > 1 ? parsed : 1;
+}
+
+function buildSearchParams(filters, page, isAdmin) {
+  const params = new URLSearchParams();
+  FILTER_KEYS.forEach((key) => {
+    if (ADMIN_FILTER_KEYS.has(key) && !isAdmin) return;
+    const value = String(filters[key] || '').trim();
+    if (value) params.set(key, value);
+  });
+  if (page > 1) params.set('page', String(page));
+  return params;
+}
+
+function searchParamsEqual(a, b) {
+  const left = [...a.entries()].sort(([x], [y]) => x.localeCompare(y));
+  const right = [...b.entries()].sort(([x], [y]) => x.localeCompare(y));
+  if (left.length !== right.length) return false;
+  return left.every(([key, value], index) => key === right[index][0] && value === right[index][1]);
+}
+
 export default function TransactionsPage() {
   const { isAdmin, user, saveProfile } = useAuth();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     categories,
     paymentMethods,
@@ -63,10 +97,15 @@ export default function TransactionsPage() {
     loadUsers
   } = useData();
 
-  const [filters, setFilters] = useState(emptyFilters);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const appliedFilters = useMemo(
+    () => filtersFromSearchParams(searchParams, isAdmin),
+    [searchParams, isAdmin]
+  );
+  const page = pageFromSearchParams(searchParams);
+
+  const [draftFilters, setDraftFilters] = useState(() => filtersFromSearchParams(searchParams, isAdmin));
+  const [filtersOpen, setFiltersOpen] = useState(() => hasActiveFilters(filtersFromSearchParams(searchParams, isAdmin)));
   const [rows, setRows] = useState([]);
-  const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(user?.transactionPageSize || 25);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -77,6 +116,12 @@ export default function TransactionsPage() {
   const [editTransaction, setEditTransaction] = useState(null);
   const [reloadToken, setReloadToken] = useState(0);
   const metaReadyRef = useRef(false);
+  const appliedKey = filterKeyFrom(appliedFilters);
+
+  useEffect(() => {
+    setDraftFilters(appliedFilters);
+    if (hasActiveFilters(appliedFilters)) setFiltersOpen(true);
+  }, [appliedFilters]);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,12 +150,17 @@ export default function TransactionsPage() {
   useEffect(() => {
     if (user?.transactionPageSize && user.transactionPageSize !== perPage) {
       setPerPage(user.transactionPageSize);
-      setPage(1);
     }
   }, [user?.transactionPageSize, perPage]);
 
-  const selectedCategory = categories.find((item) => item.id === filters.category);
+  const selectedCategory = categories.find((item) => item.id === draftFilters.category);
   const filterSubcategories = selectedCategory?.subcategories || [];
+
+  const replaceUrl = useCallback((nextFilters, nextPage) => {
+    const nextParams = buildSearchParams(nextFilters, nextPage, isAdmin);
+    if (searchParamsEqual(nextParams, searchParams)) return;
+    setSearchParams(nextParams, { replace: true });
+  }, [isAdmin, searchParams, setSearchParams]);
 
   const loadRows = useCallback(async (nextFilters, nextPage, nextPerPage, { refreshTotal = false } = {}) => {
     setLoading(true);
@@ -131,7 +181,7 @@ export default function TransactionsPage() {
       let data = await fetchTransactions(query);
       if ((data.items || []).length === 0 && (data.totalItems || 0) > 0 && (data.totalPages || 1) < (data.page || 1)) {
         const correctedPage = data.totalPages || 1;
-        setPage(correctedPage);
+        replaceUrl(nextFilters, correctedPage);
         query.page = correctedPage;
         data = await fetchTransactions(query);
       }
@@ -139,14 +189,11 @@ export default function TransactionsPage() {
       const items = data.items || [];
       const allResultsLoaded = (data.totalItems || 0) <= items.length;
       const previousAmount = totalAmountRef.current || 0;
-      // Prefer a fresh sum whenever we asked for one, filters are off, or the full
-      // result set fits on this page (API already returns the page sum then).
       const nextAmount = !filtersActive || includeTotalAmount || allResultsLoaded
         ? Number(data.totalAmount || 0)
         : previousAmount;
 
       setRows(items);
-      setPage(data.page || 1);
       setPerPage(data.perPage || nextPerPage);
       setTotalItems(data.totalItems || 0);
       setTotalPages(data.totalPages || 1);
@@ -158,14 +205,14 @@ export default function TransactionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [toast, user?.transactionPageSize]);
+  }, [replaceUrl, toast, user?.transactionPageSize]);
 
   useEffect(() => {
     if (!metaReadyRef.current && reloadToken === 0) return;
-    void loadRows(filters, page, perPage);
-    // Intentionally reload only when page/perPage/token change; filter apply/clear call loadRows directly.
+    void loadRows(appliedFilters, page, perPage, { refreshTotal: true });
+    // Load whenever the shareable URL state (filters/page) or page size changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, perPage, reloadToken, loadRows]);
+  }, [appliedKey, page, perPage, reloadToken, loadRows]);
 
   const grouped = useMemo(() => {
     const map = rows.reduce((acc, transaction) => {
@@ -178,32 +225,34 @@ export default function TransactionsPage() {
     return Object.values(map);
   }, [rows]);
 
-  const filtersActive = hasActiveFilters(filters);
-  const showFilters = filtersOpen || filtersActive;
+  const filtersActive = hasActiveFilters(appliedFilters);
+  const showFilters = filtersOpen || filtersActive || hasActiveFilters(draftFilters);
   const safePage = Math.max(page || 1, 1);
   const safeTotalPages = Math.max(totalPages || 1, 1);
   const startItem = totalItems ? ((safePage - 1) * perPage) + 1 : 0;
   const endItem = totalItems ? Math.min(safePage * perPage, totalItems) : 0;
 
-  async function applyFilters(event) {
+  function applyFilters(event) {
     event.preventDefault();
     setFiltersOpen(true);
-    if (page !== 1) setPage(1);
-    await loadRows(filters, 1, perPage, { refreshTotal: true });
+    const nextParams = buildSearchParams(draftFilters, 1, isAdmin);
+    if (searchParamsEqual(nextParams, searchParams)) {
+      void loadRows(draftFilters, 1, perPage, { refreshTotal: true });
+      return;
+    }
+    setSearchParams(nextParams);
   }
 
-  async function clearFilters() {
-    const cleared = emptyFilters();
-    setFilters(cleared);
+  function clearFilters() {
+    setDraftFilters(emptyFilters());
     setFiltersOpen(false);
-    if (page !== 1) setPage(1);
-    await loadRows(cleared, 1, perPage, { refreshTotal: true });
+    setSearchParams(new URLSearchParams());
   }
 
   function changePage(nextPage) {
     const bounded = Math.min(Math.max(nextPage, 1), safeTotalPages);
     if (bounded === page) return;
-    setPage(bounded);
+    setSearchParams(buildSearchParams(appliedFilters, bounded, isAdmin));
   }
 
   async function updatePageSize(nextValue) {
@@ -212,8 +261,8 @@ export default function TransactionsPage() {
     try {
       await saveProfile({ transactionPageSize: pageSize });
       toast('Transaction page size updated.');
-      setPage(1);
       setPerPage(pageSize);
+      replaceUrl(appliedFilters, 1);
     } catch (error) {
       toast(error.message);
     }
@@ -248,7 +297,7 @@ export default function TransactionsPage() {
             <form
               id="transactionFilterForm"
               className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-              onSubmit={(event) => void applyFilters(event)}
+              onSubmit={applyFilters}
             >
               <div className="grid gap-1.5">
                 <Label htmlFor="tx-from">From</Label>
@@ -256,8 +305,8 @@ export default function TransactionsPage() {
                   id="tx-from"
                   type="date"
                   name="fromDate"
-                  value={filters.fromDate}
-                  onChange={(event) => setFilters((current) => ({ ...current, fromDate: event.target.value }))}
+                  value={draftFilters.fromDate}
+                  onChange={(event) => setDraftFilters((current) => ({ ...current, fromDate: event.target.value }))}
                 />
               </div>
               <div className="grid gap-1.5">
@@ -266,8 +315,8 @@ export default function TransactionsPage() {
                   id="tx-to"
                   type="date"
                   name="toDate"
-                  value={filters.toDate}
-                  onChange={(event) => setFilters((current) => ({ ...current, toDate: event.target.value }))}
+                  value={draftFilters.toDate}
+                  onChange={(event) => setDraftFilters((current) => ({ ...current, toDate: event.target.value }))}
                 />
               </div>
               <div className="grid gap-1.5">
@@ -275,8 +324,8 @@ export default function TransactionsPage() {
                 <NativeSelect
                   id="tx-category"
                   name="category"
-                  value={filters.category}
-                  onChange={(event) => setFilters((current) => ({
+                  value={draftFilters.category}
+                  onChange={(event) => setDraftFilters((current) => ({
                     ...current,
                     category: event.target.value,
                     subcategory: ''
@@ -293,9 +342,9 @@ export default function TransactionsPage() {
                 <NativeSelect
                   id="tx-subcategory"
                   name="subcategory"
-                  value={filters.subcategory}
-                  disabled={!filters.category}
-                  onChange={(event) => setFilters((current) => ({ ...current, subcategory: event.target.value }))}
+                  value={draftFilters.subcategory}
+                  disabled={!draftFilters.category}
+                  onChange={(event) => setDraftFilters((current) => ({ ...current, subcategory: event.target.value }))}
                 >
                   <option value="">All subcategories</option>
                   {filterSubcategories.map((item) => (
@@ -308,8 +357,8 @@ export default function TransactionsPage() {
                 <NativeSelect
                   id="tx-payment"
                   name="paymentMethod"
-                  value={filters.paymentMethod}
-                  onChange={(event) => setFilters((current) => ({ ...current, paymentMethod: event.target.value }))}
+                  value={draftFilters.paymentMethod}
+                  onChange={(event) => setDraftFilters((current) => ({ ...current, paymentMethod: event.target.value }))}
                 >
                   <option value="">All payment methods</option>
                   {paymentMethods.map((item) => (
@@ -322,8 +371,8 @@ export default function TransactionsPage() {
                 <NativeSelect
                   id="tx-store"
                   name="store"
-                  value={filters.store}
-                  onChange={(event) => setFilters((current) => ({ ...current, store: event.target.value }))}
+                  value={draftFilters.store}
+                  onChange={(event) => setDraftFilters((current) => ({ ...current, store: event.target.value }))}
                 >
                   <option value="">All stores</option>
                   {stores.map((item) => (
@@ -337,8 +386,8 @@ export default function TransactionsPage() {
                   <NativeSelect
                     id="tx-user"
                     name="user"
-                    value={filters.user}
-                    onChange={(event) => setFilters((current) => ({ ...current, user: event.target.value }))}
+                    value={draftFilters.user}
+                    onChange={(event) => setDraftFilters((current) => ({ ...current, user: event.target.value }))}
                   >
                     <option value="">All users</option>
                     {users.map((item) => (
@@ -353,8 +402,8 @@ export default function TransactionsPage() {
                   <NativeSelect
                     id="tx-deleted"
                     name="deleted"
-                    value={filters.deleted}
-                    onChange={(event) => setFilters((current) => ({ ...current, deleted: event.target.value }))}
+                    value={draftFilters.deleted}
+                    onChange={(event) => setDraftFilters((current) => ({ ...current, deleted: event.target.value }))}
                   >
                     <option value="">Active</option>
                     <option value="1">Deleted</option>
@@ -363,7 +412,7 @@ export default function TransactionsPage() {
               ) : null}
               <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-3">
                 <Button type="submit">Apply filters</Button>
-                <Button type="button" variant="outline" onClick={() => void clearFilters()}>
+                <Button type="button" variant="outline" onClick={clearFilters}>
                   Clear
                 </Button>
               </div>
@@ -496,7 +545,7 @@ export default function TransactionsPage() {
         open={Boolean(editTransaction)}
         transaction={editTransaction}
         onClose={() => setEditTransaction(null)}
-        onSaved={() => loadRows(filters, page, perPage)}
+        onSaved={() => loadRows(appliedFilters, page, perPage, { refreshTotal: true })}
       />
     </section>
   );
