@@ -240,7 +240,7 @@ cronAdd("oikos-weekly-digest", cronExpr, () => {
     const from = pbDayStart(fromIso);
     const to = pbDayStart(toExclusiveIso);
     const safeUserId = String(userId || "").replace(/"/g, "");
-    const filter = 'user = "' + safeUserId + '" && date >= "' + from + '" && date < "' + to + '"';
+    const filter = 'user = "' + safeUserId + '" && archived = false && date >= "' + from + '" && date < "' + to + '"';
     const batchSize = 200;
     let offset = 0;
     const all = [];
