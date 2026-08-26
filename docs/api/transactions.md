@@ -49,6 +49,20 @@ SPA URL: `/transactions/:id?key=<shareKey>`.
 | `disableTransactionShare(id)` | Clears `shareKey` (revokes the link) |
 | `publicTransactionShareUrl(id, key)` | Builds the absolute share URL |
 
+## Public share — `GET /api/oikos/shared-transactions/{id}?key=…`
+
+PocketBase hook (`pb_hooks/shared-transaction.pb.js`). Also: `fetchSharedTransaction(id, key)`.
+
+When a transaction has a non-empty `shareKey`, anyone with the matching key can load a **sanitized** read-only view (no user PII). Wrong/missing keys return 404.
+
+SPA URL: `/transactions/:id?key=<shareKey>`.
+
+| Helper | Effect |
+|--------|--------|
+| `enableTransactionShare(id)` | Creates a `shareKey` if missing (owner/admin) |
+| `disableTransactionShare(id)` | Clears `shareKey` (revokes the link) |
+| `publicTransactionShareUrl(id, key)` | Builds the absolute share URL |
+
 ## Create — `createTransaction(body)`
 
 | Field | Required | Notes |
