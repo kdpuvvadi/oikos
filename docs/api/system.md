@@ -36,6 +36,16 @@ GET /api/app-info
 - `branch` — `APP_BUILD_BRANCH` (defaults to `unknown`)
 - `pocketbase` — from `pocketbase --version`
 
+## Shared transaction — `GET /api/oikos/shared-transactions/{id}`
+
+Public PocketBase route (`pb_hooks/shared-transaction.pb.js`). Client helper: `fetchSharedTransaction(id, key)`.
+
+```http
+GET /api/oikos/shared-transactions/{id}?key=<shareKey>
+```
+
+Returns a sanitized transaction when `shareKey` matches. See [transactions](./transactions.md#public-share--get-apioikosshared-transactionsidkey).
+
 ## Health
 
 Compose healthcheck hits PocketBase:

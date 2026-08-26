@@ -50,6 +50,7 @@ There is **no Express server**. The browser talks to PocketBase directly via [`s
 - “Other” store can require a free-text `storeText` label
 - Paginated transaction list; page size saved on the user (`transactionPageSize`)
 - Transaction detail page for edit / delete
+- **Public share link** — owner can create `/transactions/:id?key=…`; outsiders view a read-only copy without signing in; revoke anytime
 - Mobile-friendly activity-style grouping by day
 
 ### Dashboard & filters
@@ -203,6 +204,7 @@ Obsolete field `weeklyDigest` is removed by setup if present.
 | `payment_method` | relation | optional |
 | `category`, `subcategory`, `store` | relation | required |
 | `storeText` | text | when store is “other” |
+| `shareKey` | text | optional; when set, enables public `/transactions/:id?key=…` |
 | `user` | relation → users | owner |
 
 Indexes include `(user)`, `(date)`, `(user, date)`.
@@ -231,6 +233,10 @@ Setup also seeds common categories, stores, and payment methods.
 ---
 
 ## Hooks & email
+
+### Shared transaction — `pb_hooks/shared-transaction.pb.js`
+
+`GET /api/oikos/shared-transactions/{id}?key=…` — public read of a transaction when `shareKey` matches.
 
 ### ZeptoMail — `pb_hooks/zeptomail.pb.js`
 
