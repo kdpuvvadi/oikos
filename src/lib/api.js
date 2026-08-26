@@ -884,6 +884,67 @@ export async function fetchTransaction(id) {
   }
 }
 
+function createShareKey() {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export function publicTransactionShareUrl(id, key) {
+  const path = `/transactions/${encodeURIComponent(id)}?key=${encodeURIComponent(key)}`;
+  if (typeof window === 'undefined') return path;
+  return new URL(path, window.location.origin).href;
+}
+
+export async function fetchSharedTransaction(id, key) {
+  const transactionId = sanitizeName(id);
+  const shareKey = sanitizeName(key);
+  if (!transactionId || !shareKey) {
+    throw pbError({ status: 404, message: 'Shared transaction not found.' });
+  }
+  try {
+    return await pb.send(
+      `/api/oikos/shared-transactions/${encodeURIComponent(transactionId)}?key=${encodeURIComponent(shareKey)}`,
+      { method: 'GET' }
+    );
+  } catch (error) {
+    throw pbError(error, 'Shared transaction not found.');
+  }
+}
+
+export async function enableTransactionShare(id) {
+  const user = requireAuthRecord();
+  try {
+    const transaction = await pb.collection('oikos_transactions').getOne(id);
+    if (!isAdminRecord(user) && transaction.user !== user.id) {
+      throw pbError({ status: 404, message: 'Transaction not found.' });
+    }
+    const shareKey = sanitizeName(transaction.shareKey) || createShareKey();
+    if (shareKey === sanitizeName(transaction.shareKey)) {
+      return transaction;
+    }
+    return await pb.collection('oikos_transactions').update(id, { shareKey });
+  } catch (error) {
+    throw pbError(error);
+  }
+}
+
+export async function disableTransactionShare(id) {
+  const user = requireAuthRecord();
+  try {
+    const transaction = await pb.collection('oikos_transactions').getOne(id);
+    if (!isAdminRecord(user) && transaction.user !== user.id) {
+      throw pbError({ status: 404, message: 'Transaction not found.' });
+    }
+    if (!sanitizeName(transaction.shareKey)) {
+      return transaction;
+    }
+    return await pb.collection('oikos_transactions').update(id, { shareKey: '' });
+  } catch (error) {
+    throw pbError(error);
+  }
+}
+
 export async function createTransaction(body) {
   const user = requireAuthRecord();
   try {
