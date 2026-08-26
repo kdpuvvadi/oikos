@@ -24,6 +24,11 @@ function AdminRoute({ children }) {
   return children;
 }
 
+function isPublicTransactionShare(pathname, search) {
+  const key = new URLSearchParams(search).get('key');
+  return Boolean(String(key || '').trim()) && /^\/transactions\/[^/]+\/?$/.test(pathname);
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -48,15 +53,16 @@ export default function App() {
   const { user, ready, isApproved } = useAuth();
   const location = useLocation();
   const isVerifyEmail = location.pathname === '/verify-email';
+  const isPublicShare = isPublicTransactionShare(location.pathname, location.search);
   const showApp = Boolean(user && isApproved);
-  const showAuth = !showApp && !isVerifyEmail;
+  const showAuth = !showApp && !isVerifyEmail && !isPublicShare;
 
   useEffect(() => {
     const { title } = resolveSeo(location.pathname);
     document.title = title;
   }, [location.pathname]);
 
-  if (!ready && !isVerifyEmail) {
+  if (!ready && !isVerifyEmail && !isPublicShare) {
     return (
       <>
         <Header />
@@ -73,6 +79,20 @@ export default function App() {
       <>
         <Header />
         <VerifyEmailPage />
+      </>
+    );
+  }
+
+  if (isPublicShare && !showApp) {
+    return (
+      <>
+        <Header />
+        <main id="appShell" className="mx-auto w-full max-w-[1180px] min-w-0 px-4 py-6 sm:px-6 sm:py-8 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]">
+          <Routes>
+            <Route path="/transactions/:id" element={<TransactionDetailPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
       </>
     );
   }
