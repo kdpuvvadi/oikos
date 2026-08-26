@@ -50,6 +50,7 @@ There is **no Express server**. The browser talks to PocketBase directly via [`s
 - “Other” store can require a free-text `storeText` label
 - Paginated transaction list; page size saved on the user (`transactionPageSize`)
 - Transaction detail page for edit / delete
+- **Soft delete** — delete archives the row (`archived`); hidden from lists and totals; admins can filter Deleted on the transactions page
 - **Public share link** — owner can create `/transactions/:id?key=…`; outsiders view a read-only copy without signing in; revoke anytime
 - Mobile-friendly activity-style grouping by day
 
@@ -205,6 +206,7 @@ Obsolete field `weeklyDigest` is removed by setup if present.
 | `category`, `subcategory`, `store` | relation | required |
 | `storeText` | text | when store is “other” |
 | `shareKey` | text | optional; when set, enables public `/transactions/:id?key=…` |
+| `archived` | bool | soft-delete; hidden from normal UI (admins can filter Deleted) |
 | `user` | relation → users | owner |
 
 Indexes include `(user)`, `(date)`, `(user, date)`.

@@ -830,6 +830,11 @@ export async function fetchTransactions(query = {}) {
     if (query.paymentMethod) filters.push(`payment_method = "${query.paymentMethod}"`);
     if (query.user && isAdminRecord(user)) filters.push(`user = "${query.user}"`);
 
+    const showDeleted = isAdminRecord(user) && ['1', 'true', 'yes', 'deleted'].includes(
+      String(query.deleted || '').toLowerCase()
+    );
+    filters.push(showDeleted ? 'archived = true' : 'archived = false');
+
     const filter = filters.join(' && ');
     const page = Math.max(Number.parseInt(String(query.page || 1), 10) || 1, 1);
     const perPage = normalizeTransactionPageSize(query.perPage || user.transactionPageSize);
@@ -878,6 +883,9 @@ export async function fetchTransaction(id) {
     if (!isAdminRecord(user) && transaction.user !== user.id) {
       throw pbError({ status: 404, message: 'Transaction not found.' });
     }
+    if (transaction.archived && !isAdminRecord(user)) {
+      throw pbError({ status: 404, message: 'Transaction not found.' });
+    }
     return transaction;
   } catch (error) {
     throw pbError(error);
@@ -918,6 +926,9 @@ export async function enableTransactionShare(id) {
     const transaction = await pb.collection('oikos_transactions').getOne(id);
     if (!isAdminRecord(user) && transaction.user !== user.id) {
       throw pbError({ status: 404, message: 'Transaction not found.' });
+    }
+    if (transaction.archived) {
+      throw pbError({ status: 400, message: 'Deleted transactions cannot be shared.' });
     }
     const shareKey = sanitizeName(transaction.shareKey) || createShareKey();
     if (shareKey === sanitizeName(transaction.shareKey)) {
@@ -998,6 +1009,7 @@ export async function createTransaction(body) {
       subcategory: subcategoryId,
       store: storeId,
       storeText,
+      archived: false,
       user: user.id
     });
   } catch (error) {
@@ -1011,6 +1023,9 @@ export async function updateTransaction(id, body) {
     const transaction = await pb.collection('oikos_transactions').getOne(id);
     if (!isAdminRecord(user) && transaction.user !== user.id) {
       throw pbError({ status: 404, message: 'Transaction not found.' });
+    }
+    if (transaction.archived) {
+      throw pbError({ status: 400, message: 'Deleted transactions cannot be edited.' });
     }
 
     const amount = Number(body.amount);
@@ -1057,7 +1072,13 @@ export async function deleteTransaction(id) {
     if (!isAdminRecord(user) && transaction.user !== user.id) {
       throw pbError({ status: 404, message: 'Transaction not found.' });
     }
-    await pb.collection('oikos_transactions').delete(id);
+    if (transaction.archived) {
+      return transaction;
+    }
+    return await pb.collection('oikos_transactions').update(id, {
+      archived: true,
+      shareKey: ''
+    });
   } catch (error) {
     throw pbError(error);
   }
@@ -1066,7 +1087,7 @@ export async function deleteTransaction(id) {
 export async function fetchHomeTotals() {
   const user = requireAuthRecord();
   try {
-    const baseFilters = [];
+    const baseFilters = ['archived = false'];
     const scope = userScopeFilter(user);
     if (scope) baseFilters.push(scope);
     const thisMonth = currentMonthRange(0);
@@ -1102,7 +1123,8 @@ export async function fetchHomeTotals() {
 export async function fetchSummary() {
   const user = requireAuthRecord();
   try {
-    const filter = userScopeFilter(user);
+    const scope = userScopeFilter(user);
+    const filter = [scope, 'archived = false'].filter(Boolean).join(' && ');
     const [transactions, categories, subcategories, stores, paymentMethods] = await Promise.all([
       listRecords('oikos_transactions', {
         fields: 'id,date,amount,category,subcategory,store,storeText,payment_method',
