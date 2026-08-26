@@ -112,12 +112,12 @@ export default function TransactionsPage() {
   const selectedCategory = categories.find((item) => item.id === filters.category);
   const filterSubcategories = selectedCategory?.subcategories || [];
 
-  const loadRows = useCallback(async (nextFilters, nextPage, nextPerPage) => {
+  const loadRows = useCallback(async (nextFilters, nextPage, nextPerPage, { refreshTotal = false } = {}) => {
     setLoading(true);
     try {
       const key = filterKeyFrom(nextFilters);
       const filtersActive = Boolean(key);
-      const includeTotalAmount = filtersActive && totalFilterKeyRef.current !== key;
+      const includeTotalAmount = filtersActive && (refreshTotal || totalFilterKeyRef.current !== key);
       const query = {
         page: nextPage || 1,
         perPage: nextPerPage || user?.transactionPageSize || 25
@@ -136,12 +136,16 @@ export default function TransactionsPage() {
         data = await fetchTransactions(query);
       }
 
+      const items = data.items || [];
+      const allResultsLoaded = (data.totalItems || 0) <= items.length;
       const previousAmount = totalAmountRef.current || 0;
-      const nextAmount = includeTotalAmount || !filtersActive
+      // Prefer a fresh sum whenever we asked for one, filters are off, or the full
+      // result set fits on this page (API already returns the page sum then).
+      const nextAmount = !filtersActive || includeTotalAmount || allResultsLoaded
         ? Number(data.totalAmount || 0)
         : previousAmount;
 
-      setRows(data.items || []);
+      setRows(items);
       setPage(data.page || 1);
       setPerPage(data.perPage || nextPerPage);
       setTotalItems(data.totalItems || 0);
@@ -184,23 +188,16 @@ export default function TransactionsPage() {
   async function applyFilters(event) {
     event.preventDefault();
     setFiltersOpen(true);
-    if (page !== 1) {
-      setPage(1);
-    } else {
-      await loadRows(filters, 1, perPage);
-    }
+    if (page !== 1) setPage(1);
+    await loadRows(filters, 1, perPage, { refreshTotal: true });
   }
 
   async function clearFilters() {
     const cleared = emptyFilters();
     setFilters(cleared);
     setFiltersOpen(false);
-    if (page !== 1) {
-      setPage(1);
-      await loadRows(cleared, 1, perPage);
-    } else {
-      await loadRows(cleared, 1, perPage);
-    }
+    if (page !== 1) setPage(1);
+    await loadRows(cleared, 1, perPage, { refreshTotal: true });
   }
 
   function changePage(nextPage) {
