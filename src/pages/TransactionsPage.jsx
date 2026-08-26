@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { cn } from '@/lib/utils';
 
-const FILTER_KEYS = ['fromDate', 'toDate', 'category', 'subcategory', 'paymentMethod', 'store', 'user'];
+const FILTER_KEYS = ['fromDate', 'toDate', 'category', 'subcategory', 'paymentMethod', 'store', 'user', 'deleted'];
 
 function emptyFilters() {
   return {
@@ -32,7 +32,8 @@ function emptyFilters() {
     subcategory: '',
     paymentMethod: '',
     store: '',
-    user: ''
+    user: '',
+    deleted: ''
   };
 }
 
@@ -349,6 +350,20 @@ export default function TransactionsPage() {
                   </NativeSelect>
                 </div>
               ) : null}
+              {isAdmin ? (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="tx-deleted">Status</Label>
+                  <NativeSelect
+                    id="tx-deleted"
+                    name="deleted"
+                    value={filters.deleted}
+                    onChange={(event) => setFilters((current) => ({ ...current, deleted: event.target.value }))}
+                  >
+                    <option value="">Active</option>
+                    <option value="1">Deleted</option>
+                  </NativeSelect>
+                </div>
+              ) : null}
               <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-3">
                 <Button type="submit">Apply filters</Button>
                 <Button type="button" variant="outline" onClick={() => void clearFilters()}>
@@ -411,6 +426,9 @@ export default function TransactionsPage() {
                         <strong className="truncate text-sm">
                           {transaction.title || transaction.expand?.subcategory?.name || 'Untitled transaction'}
                         </strong>
+                        {transaction.archived ? (
+                          <Badge variant="destructive">Deleted</Badge>
+                        ) : null}
                         {transaction.expand?.category?.name ? (
                           <Badge variant="secondary">{transaction.expand.category.name}</Badge>
                         ) : null}

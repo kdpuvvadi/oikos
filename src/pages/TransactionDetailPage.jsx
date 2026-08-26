@@ -16,6 +16,7 @@ import { useData } from '@/context/DataContext';
 import { EditTransactionDialog } from '@/components/EditTransactionDialog';
 import { ConfirmDialog } from '@/components/DeleteReferenceDialog';
 import { PageHeader } from '@/components/PageHeader';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -172,7 +173,8 @@ export default function TransactionDetailPage() {
   const transactionLabel = transaction
     ? (transaction.title || transaction.expand?.subcategory?.name || 'this transaction')
     : 'this transaction';
-  const canManage = Boolean(user && isApproved && !isPublicView);
+  const isArchived = Boolean(transaction?.archived);
+  const canManage = Boolean(user && isApproved && !isPublicView && !isArchived);
   const hasPublicLink = Boolean(sanitizeShareKey(transaction?.shareKey));
 
   return (
@@ -206,8 +208,11 @@ export default function TransactionDetailPage() {
                   <CardDescription>
                     Recorded on {formatLongDate(transaction.date)}
                   </CardDescription>
-                  <CardTitle className="text-2xl">
-                    {transaction.title || transaction.expand?.subcategory?.name || 'Untitled transaction'}
+                  <CardTitle className="flex flex-wrap items-center gap-2 text-2xl">
+                    <span>
+                      {transaction.title || transaction.expand?.subcategory?.name || 'Untitled transaction'}
+                    </span>
+                    {isArchived ? <Badge variant="destructive">Deleted</Badge> : null}
                   </CardTitle>
                 </div>
                 <p className="text-2xl font-semibold tracking-tight tabular-nums">
@@ -231,7 +236,7 @@ export default function TransactionDetailPage() {
               <DetailRow label="Date">
                 {formatDate(transaction.date)}
               </DetailRow>
-              {canManage && isAdmin ? (
+              {!isPublicView && isAdmin ? (
                 <DetailRow label="User">
                   {transaction.expand?.user?.email || transaction.expand?.user?.name || 'Unknown user'}
                 </DetailRow>
