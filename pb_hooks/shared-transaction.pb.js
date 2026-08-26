@@ -63,6 +63,20 @@ routerAdd("GET", "/api/oikos/shared-transactions/{id}", (e) => {
     throw new NotFoundError("Shared transaction not found.");
   }
 
+  let archived = false;
+  try {
+    if (typeof record.getBool === "function") {
+      archived = Boolean(record.getBool("archived"));
+    } else {
+      archived = Boolean(record.get("archived"));
+    }
+  } catch (error) {
+    archived = false;
+  }
+  if (archived) {
+    throw new NotFoundError("Shared transaction not found.");
+  }
+
   const paymentMethodId = fieldString(record, "payment_method");
   const categoryId = fieldString(record, "category");
   const subcategoryId = fieldString(record, "subcategory");

@@ -438,6 +438,7 @@ async function main() {
       relationField('store', stores.id),
       textField('storeText', false),
       textField('shareKey', false),
+      boolField('archived', false),
       relationField('user', users.id, false, false)
     ],
     indexes: [
@@ -445,7 +446,8 @@ async function main() {
       'CREATE INDEX `idx_oikos_transactions_date` ON `oikos_transactions` (`date`)',
       'CREATE INDEX `idx_oikos_transactions_user_date` ON `oikos_transactions` (`user`, `date`)',
       'CREATE INDEX `idx_oikos_transactions_category` ON `oikos_transactions` (`category`)',
-      'CREATE INDEX `idx_oikos_transactions_store` ON `oikos_transactions` (`store`)'
+      'CREATE INDEX `idx_oikos_transactions_store` ON `oikos_transactions` (`store`)',
+      'CREATE INDEX `idx_oikos_transactions_archived` ON `oikos_transactions` (`archived`)'
     ]
   });
 
