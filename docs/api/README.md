@@ -46,7 +46,7 @@ err.isAbort  // request aborted
 - [Auth](./auth.md) — register, login, verify, profile
 - [Transactions](./transactions.md) — CRUD + list filters
 - [Reference data & users](./reference-data.md) — categories, stores, payment methods, approvals
-- [Aggregates & app info](./system.md) — home totals, summary, version
+- [Aggregates & app info](./system.md) — home totals, summary, version, public shared transaction
 
 Admin weekly digest preview is client-side; send uses `POST /api/collections/oikos_digest_jobs/records`.
 

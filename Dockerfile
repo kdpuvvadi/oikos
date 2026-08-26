@@ -19,7 +19,7 @@ ENV VITE_PB_URL=${VITE_PB_URL}
 RUN npm run sync:manifest-version
 RUN npm run build
 
-FROM ghcr.io/kdpuvvadi/pocketbase:latest
+FROM ghcr.io/kdpuvvadi/pocketbase:0.40.1
 
 LABEL org.opencontainers.image.title="Oikos"
 LABEL org.opencontainers.image.description="Simple Expenses Management System"

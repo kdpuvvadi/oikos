@@ -437,6 +437,7 @@ async function main() {
       relationField('subcategory', subcategories.id),
       relationField('store', stores.id),
       textField('storeText', false),
+      textField('shareKey', false),
       relationField('user', users.id, false, false)
     ],
     indexes: [

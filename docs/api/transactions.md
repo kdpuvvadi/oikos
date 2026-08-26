@@ -1,7 +1,7 @@
 # Transactions
 
 Collection: `oikos_transactions`.  
-Helpers: `fetchTransactions`, `fetchTransaction`, `createTransaction`, `updateTransaction`, `deleteTransaction`.
+Helpers: `fetchTransactions`, `fetchTransaction`, `createTransaction`, `updateTransaction`, `deleteTransaction`, `fetchSharedTransaction`, `enableTransactionShare`, `disableTransactionShare`.
 
 Non-admins are scoped to `user = <self>`. Admins see all records and may filter by `user`.
 
@@ -32,6 +32,20 @@ Returns:
 
 Expands the same relations. Non-owners get a not-found style error.
 
+## Public share — `GET /api/oikos/shared-transactions/{id}?key=…`
+
+PocketBase hook (`pb_hooks/shared-transaction.pb.js`). Also: `fetchSharedTransaction(id, key)`.
+
+When a transaction has a non-empty `shareKey`, anyone with the matching key can load a **sanitized** read-only view (no user PII). Wrong/missing keys return 404.
+
+SPA URL: `/transactions/:id?key=<shareKey>`.
+
+| Helper | Effect |
+|--------|--------|
+| `enableTransactionShare(id)` | Creates a `shareKey` if missing (owner/admin) |
+| `disableTransactionShare(id)` | Clears `shareKey` (revokes the link) |
+| `publicTransactionShareUrl(id, key)` | Builds the absolute share URL |
+
 ## Create — `createTransaction(body)`
 
 | Field | Required | Notes |
@@ -50,7 +64,7 @@ Sets `user` to the current auth user.
 
 ## Update — `updateTransaction(id, body)`
 
-Same core fields as create (`date`, `amount`, `title`, category/subcategory/store ids, `paymentMethod`, `storeText`). Does not create reference data on the fly.
+Same core fields as create (`date`, `amount`, `title`, category/subcategory/store ids, `paymentMethod`, `storeText`). Does not create reference data on the fly. Does not change `shareKey` (use the share helpers).
 
 ## Delete — `deleteTransaction(id)`
 
