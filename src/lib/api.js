@@ -206,24 +206,298 @@ export async function getCurrentUser() {
   if (!pb.authStore.isValid || !pb.authStore.record?.id) {
     throw pbError({ status: 401, message: 'Not logged in.' });
   }
-  if (pb.authStore.record.verified !== true) {
-    pb.authStore.clear();
-    throw pbError({ status: 401, message: 'Not logged in.' });
-  }
-  if (!tokenNeedsRefresh(pb.authStore.token)) {
-    return { user: publicUser(pb.authStore.record) };
-  }
-  try {
-    const auth = await pb.collection('users').authRefresh();
-    const record = auth.record || pb.authStore.record;
+
+  function asCurrentUser(record) {
     if (record?.verified !== true) {
       pb.authStore.clear();
       throw pbError({ status: 401, message: 'Not logged in.' });
     }
+    pb.authStore.save(pb.authStore.token, record);
     return { user: publicUser(record) };
+  }
+
+  const cached = pb.authStore.record;
+  const needsApproveSync = cached.kind !== 'admin' && cached.approved !== true;
+  const shouldRefresh = tokenNeedsRefresh(pb.authStore.token) || needsApproveSync;
+
+  if (shouldRefresh) {
+    try {
+      const auth = await pb.collection('users').authRefresh();
+      return asCurrentUser(auth.record || pb.authStore.record);
+    } catch (error) {
+      if (!needsApproveSync) {
+        pb.authStore.clear();
+        throw pbError(error, 'Not logged in.');
+      }
+    }
+  }
+
+  if (needsApproveSync) {
+    try {
+      const fresh = await pb.collection('users').getOne(cached.id);
+      return asCurrentUser(fresh);
+    } catch (error) {
+      pb.authStore.clear();
+      throw pbError(error, 'Not logged in.');
+    }
+  }
+
+  return asCurrentUser(cached);
+}
+
+function namesFromOAuthMeta(meta) {
+  const raw = meta?.rawUser || {};
+  let firstName = sanitizeName(raw.given_name || raw.givenName || raw.first_name || raw.firstName);
+  let lastName = sanitizeName(raw.family_name || raw.familyName || raw.last_name || raw.lastName);
+  const fullName = sanitizeName(meta?.name);
+  if (!firstName && fullName) {
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    firstName = parts[0] || '';
+    lastName = lastName || parts.slice(1).join(' ');
+  }
+  const name = [firstName, lastName].filter(Boolean).join(' ') || fullName;
+  return { firstName, lastName, name };
+}
+
+function isOAuthCancelled(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return message.includes('cancel') || message.includes('closed');
+}
+
+function throwOAuthError(error, fallback, cancelledMessage = 'Sign-in cancelled.') {
+  if (error.data?.requiresVerification) throw error;
+  if (error.data?.linkedToOtherUser) throw error;
+  if (isOAuthCancelled(error)) {
+    const cancelled = pbError({ status: 0, message: cancelledMessage });
+    cancelled.isAbort = true;
+    throw cancelled;
+  }
+  throw pbError(error, fallback);
+}
+
+function titleCaseProvider(name) {
+  const normalized = sanitizeName(name);
+  if (!normalized) return '';
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+export async function listOAuthProviders() {
+  try {
+    const methods = await pb.collection('users').listAuthMethods();
+    const oauth2 = methods?.oauth2 || {};
+    const providers = oauth2.enabled === false
+      ? []
+      : (oauth2.providers || methods?.authProviders || []);
+    return providers
+      .map((provider) => ({
+        name: sanitizeName(provider?.name).toLowerCase(),
+        displayName: sanitizeName(provider?.displayName || provider?.name)
+      }))
+      .filter((provider) => provider.name);
+  } catch {
+    return [];
+  }
+}
+
+async function applyOAuthProfile(record, meta) {
+  if (!record?.id) return record;
+  const profile = namesFromOAuthMeta(meta);
+  const firstName = sanitizeName(record.firstName) || profile.firstName;
+  const lastName = sanitizeName(record.lastName) || profile.lastName;
+  const name = sanitizeName(record.name) || profile.name || [firstName, lastName].filter(Boolean).join(' ');
+  if (
+    firstName === sanitizeName(record.firstName)
+    && lastName === sanitizeName(record.lastName)
+    && name === sanitizeName(record.name)
+  ) {
+    return record;
+  }
+  try {
+    const updated = await pb.collection('users').update(record.id, {
+      firstName,
+      lastName,
+      name
+    });
+    pb.authStore.save(pb.authStore.token, updated);
+    return updated;
+  } catch {
+    return record;
+  }
+}
+
+function authWithOAuth2Popup(provider, createData) {
+  let popup = null;
+  const popupName = 'oikos_oauth2_popup';
+  const width = 500;
+  const height = 700;
+  const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
+  const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
+  const features = `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,resizable=yes,scrollbars=yes`;
+
+  const request = pb.collection('users').authWithOAuth2({
+    provider,
+    createData,
+    urlCallback: (url) => {
+      popup = window.open(url, popupName, features);
+      if (!popup) {
+        throw new Error('Sign-in popup was blocked. Allow popups for this site and try again.');
+      }
+    }
+  });
+
+  return Promise.resolve(request).finally(() => {
+    try {
+      if (popup && !popup.closed) popup.close();
+    } catch {
+      // Cross-origin close can throw after Google navigates the popup.
+    }
+    popup = null;
+  });
+}
+
+async function refreshOAuthRecord(record) {
+  if (!record?.id) return record;
+  try {
+    const fresh = await pb.collection('users').getOne(record.id);
+    pb.authStore.save(pb.authStore.token, fresh);
+    return fresh;
+  } catch {
+    return record;
+  }
+}
+
+export async function loginWithOAuth(provider) {
+  const providerName = sanitizeName(provider).toLowerCase();
+  if (!providerName) {
+    throw pbError({ status: 400, message: 'Choose a sign-in provider.' });
+  }
+  try {
+    const auth = await authWithOAuth2Popup(providerName, {
+      kind: 'user',
+      emailVisibility: true
+    });
+    const record = await applyOAuthProfile(
+      await refreshOAuthRecord(auth.record),
+      auth.meta
+    );
+    if (record?.verified !== true) {
+      const email = sanitizeName(record?.email).toLowerCase();
+      pb.authStore.clear();
+      const error = pbError({
+        status: 403,
+        message: 'Please verify your email before signing in.'
+      });
+      error.data = { requiresVerification: true, email };
+      throw error;
+    }
+    return {
+      user: publicUser(record),
+      approvalPending: !(record?.kind === 'admin' || record?.approved === true),
+      isNew: Boolean(auth.meta?.isNew)
+    };
   } catch (error) {
-    pb.authStore.clear();
-    throw pbError(error, 'Not logged in.');
+    throwOAuthError(error, `Sign-in with ${providerName} failed.`);
+  }
+}
+
+export async function listLinkedAuthProviders() {
+  const record = requireAuthRecord();
+  const escapedId = String(record.id).replaceAll('"', '\\"');
+  try {
+    const items = await pb.collection('_externalAuths').getFullList({
+      filter: `recordRef = "${escapedId}"`,
+      requestKey: null
+    });
+    return items
+      .map((item) => ({
+        id: item.id,
+        provider: sanitizeName(item.provider).toLowerCase(),
+        created: item.created || ''
+      }))
+      .filter((item) => item.provider);
+  } catch (error) {
+    throw pbError(error, 'Could not load sign-in methods.');
+  }
+}
+
+export async function getSignInMethods() {
+  const available = await listOAuthProviders();
+  let linked = [];
+  try {
+    linked = await listLinkedAuthProviders();
+  } catch {
+    linked = [];
+  }
+  const linkedByName = new Map(linked.map((item) => [item.provider, item]));
+  const oauth = [...available];
+  for (const item of linked) {
+    if (!oauth.some((provider) => provider.name === item.provider)) {
+      oauth.push({
+        name: item.provider,
+        displayName: titleCaseProvider(item.provider)
+      });
+    }
+  }
+  return {
+    password: true,
+    oauth: oauth.map((provider) => {
+      const link = linkedByName.get(provider.name);
+      return {
+        ...provider,
+        linked: Boolean(link),
+        linkedAt: link?.created || ''
+      };
+    })
+  };
+}
+
+export async function linkOAuth(provider) {
+  const providerName = sanitizeName(provider).toLowerCase();
+  if (!providerName) {
+    throw pbError({ status: 400, message: 'Choose a sign-in provider.' });
+  }
+  const current = requireAuthRecord();
+  const token = pb.authStore.token;
+  try {
+    const auth = await authWithOAuth2Popup(providerName);
+    const nextRecord = auth.record;
+    if (nextRecord?.id && nextRecord.id !== current.id) {
+      pb.authStore.save(token, current);
+      const error = pbError({
+        status: 409,
+        message: 'That Google account is already linked to another Oikos user.'
+      });
+      error.data = { linkedToOtherUser: true };
+      throw error;
+    }
+    const record = await applyOAuthProfile(
+      await refreshOAuthRecord(nextRecord || current),
+      auth.meta
+    );
+    return {
+      user: publicUser(record),
+      methods: await getSignInMethods()
+    };
+  } catch (error) {
+    throwOAuthError(error, `Could not link ${titleCaseProvider(providerName) || providerName}.`, 'Linking cancelled.');
+  }
+}
+
+export async function unlinkOAuth(provider) {
+  const providerName = sanitizeName(provider).toLowerCase();
+  if (!providerName) {
+    throw pbError({ status: 400, message: 'Choose a sign-in provider.' });
+  }
+  const linked = await listLinkedAuthProviders();
+  const match = linked.find((item) => item.provider === providerName);
+  if (!match?.id) {
+    return { methods: await getSignInMethods() };
+  }
+  try {
+    await pb.collection('_externalAuths').delete(match.id);
+    return { methods: await getSignInMethods() };
+  } catch (error) {
+    throw pbError(error, `Could not unlink ${titleCaseProvider(providerName) || providerName}.`);
   }
 }
 

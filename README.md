@@ -9,6 +9,7 @@ Lightweight, self-hosted household expense tracker. A **React + Vite** SPA talks
 - **On-the-fly create** — admins can add categories, subcategories, or stores while logging an expense
 - **Paginated history** — per-user page size preference
 - **Email verification + admin approval** — new accounts verify email, then wait for approval before using the app
+- **Google sign-in** — optional PocketBase OAuth; Google accounts skip email verification but still need admin approval
 - **Weekly digests** — Monday email of last week’s spending (on by default; opt out under **Me**)
 - **Privacy first** — users only see their own transactions; admins (`kind=admin`) manage reference data and can see everyone’s expenses
 
@@ -37,7 +38,7 @@ Change the published port with `APP_PORT` in `.env`. Set `APP_PUBLIC_URL` to the
 PB_URL=http://127.0.0.1:8090 npm run setup:pocketbase
 ```
 
-The script is idempotent. Re-run it after upgrades so collections and fields stay in sync. With `APP_PUBLIC_URL` set, it also points verification emails at `/verify-email?token={TOKEN}` and enables PocketBase email OTP templates.
+The script is idempotent. Re-run it after upgrades so collections and fields stay in sync. With `APP_PUBLIC_URL` set, it also points verification emails at `/verify-email?token={TOKEN}` and enables PocketBase email OTP templates. With `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` set, it enables Google sign-in on the `users` collection.
 
 Promote an app user to admin:
 
@@ -58,6 +59,27 @@ ZEPTO_MAIL_FROM_NAME=Oikos
 ```
 
 If the key or from-address is missing, the hook falls through to PocketBase’s configured mailer (`e.next()`).
+
+### Google sign-in
+
+PocketBase already supports Google OAuth. Create a **Web application** OAuth 2.0 client in [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
+
+1. Authorized JavaScript origins: your app URL (local Vite: `http://localhost:5173`; production: `APP_PUBLIC_URL`)
+2. Authorized redirect URI: `{APP_PUBLIC_URL or PB_URL}/api/oauth2-redirect`  
+   Local PocketBase: `http://127.0.0.1:8090/api/oauth2-redirect` (Google treats `localhost` and `127.0.0.1` as different hosts)
+
+Put the client ID and secret in `.env`, then re-run `npm run setup:pocketbase`. You can also paste them in PocketBase Admin → **users** → Options → OAuth2 → Google.
+
+On the OAuth consent screen, Google asks for public policy URLs. Use:
+
+- Privacy Policy: `{APP_PUBLIC_URL}/privacy`
+- Terms of Service: `{APP_PUBLIC_URL}/terms`
+
+Example locally: `http://localhost:8090/privacy` and `http://localhost:8090/terms` (or the Vite origin during `npm run dev`).
+
+The SPA shows **Continue with Google** once the provider is enabled. New Google users are created as `kind=user`, **approved automatically**, and usually `verified=true` (Google confirmed the email). Email/password signups still wait for admin approval.
+
+If Google sign-in matches an existing email/password account, PocketBase links it. Password users who have not linked Google are asked once after login; they can also link later under **Me**.
 
 ### Weekly spending digests
 
@@ -90,6 +112,8 @@ Production build: `npm run build` (output in `dist/`, copied to `pb_public` in t
 | `ZEPTO_MAIL_*` | ZeptoMail delivery |
 | `WEEKLY_DIGEST_CRON` | Optional cron override for digests |
 | `WEEKLY_DIGEST_LOGO_MODE` | `embed` (default) or `link` for cron digest logo |
+| `GOOGLE_OAUTH_CLIENT_ID` | Optional Google OAuth client ID (setup enables Google sign-in) |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Optional Google OAuth client secret |
 | `PB_TOKEN` | Optional PocketBase admin token for setup (instead of interactive login) |
 
 ## Collections

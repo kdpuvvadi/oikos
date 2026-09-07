@@ -299,6 +299,50 @@ async function ensureOtpConfig(collection) {
   console.log(`Enabled OTP login for ${collection.name}.`);
 }
 
+async function ensureGoogleOAuth(collection) {
+  if (!collection?.id) return;
+
+  const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim();
+  const clientSecret = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim();
+  if (!clientId || !clientSecret) {
+    console.log('GOOGLE_OAUTH_CLIENT_ID/SECRET not set. Skipping Google OAuth2 setup (configure in PocketBase Admin if needed).');
+    return;
+  }
+
+  const current = await pb.collections.getOne(collection.id);
+  const oauth2 = current.oauth2 || {};
+  const providers = Array.isArray(oauth2.providers) ? oauth2.providers.map((provider) => ({ ...provider })) : [];
+  const googleIndex = providers.findIndex((provider) => provider?.name === 'google');
+  const googleProvider = {
+    ...(googleIndex >= 0 ? providers[googleIndex] : {}),
+    name: 'google',
+    clientId,
+    clientSecret,
+    displayName: 'Google'
+  };
+  if (googleIndex >= 0) {
+    providers[googleIndex] = googleProvider;
+  } else {
+    providers.push(googleProvider);
+  }
+
+  const mappedFields = {
+    ...(oauth2.mappedFields || {}),
+    name: oauth2.mappedFields?.name || 'name',
+    avatarURL: oauth2.mappedFields?.avatarURL || 'avatar'
+  };
+
+  await updateCollectionWithRetry(current.id, {
+    oauth2: {
+      ...oauth2,
+      enabled: true,
+      mappedFields,
+      providers
+    }
+  }, 'Google OAuth2 update');
+  console.log('Enabled Google OAuth2 on users. Redirect URI: {APP_PUBLIC_URL or PB_URL}/api/oauth2-redirect');
+}
+
 async function seedRecord(collection, body) {
   const escaped = body.name.replaceAll('"', '\\"');
   const list = await pb.collection(collection).getList(1, 1, {
@@ -341,7 +385,7 @@ async function main() {
     listRule: 'id = @request.auth.id || @request.auth.kind = "admin"',
     viewRule: 'id = @request.auth.id || @request.auth.kind = "admin"',
     // Public signup must stay kind=user and unapproved.
-    createRule: '(@request.body.kind:isset = false || @request.body.kind = "user") && (@request.body.approved:isset = false || @request.body.approved = false)',
+    createRule: '(@request.body.kind:isset = false || @request.body.kind = "user") && ((@request.body.approved:isset = false || @request.body.approved = false) || @request.context = "oauth2")',
     // Non-admins may update their own profile but cannot submit kind/approved.
     updateRule: '@request.auth.kind = "admin" || (id = @request.auth.id && @request.body.kind:isset = false && @request.body.approved:isset = false)',
     deleteRule: '@request.auth.kind = "admin"',
@@ -361,6 +405,7 @@ async function main() {
   }
   await ensureVerificationTemplate(users);
   await ensureOtpConfig(users);
+  await ensureGoogleOAuth(users);
 
   const authRule = '@request.auth.id != "" && (@request.auth.kind = "admin" || @request.auth.approved = true)';
   const adminRule = '@request.auth.kind = "admin"';
