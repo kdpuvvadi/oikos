@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
+import { listOAuthProviders } from '@/lib/api';
+import { GoogleMark } from '@/components/GoogleMark';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +15,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { LegalLinks } from '@/components/LegalLinks';
 import { cn } from '@/lib/utils';
 
 function verifyEmailPath(email) {
@@ -27,15 +30,34 @@ export default function AuthPage() {
     user,
     isApproved,
     login,
+    loginWithOAuth,
     register,
     logout,
+    refreshUser,
     setPendingVerificationEmail
   } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [mode, setMode] = useState('login');
   const [submitting, setSubmitting] = useState(false);
+  const [oauthProviders, setOauthProviders] = useState([]);
   const approvalPending = Boolean(user?.verified && !isApproved);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listOAuthProviders().then((providers) => {
+      if (!cancelled) setOauthProviders(providers);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!approvalPending) return undefined;
+    void refreshUser();
+    return undefined;
+  }, [approvalPending, user?.id, refreshUser]);
 
   function goToVerifyEmail(email, message) {
     const normalized = String(email || '').trim().toLowerCase();
@@ -108,6 +130,33 @@ export default function AuthPage() {
     }
   }
 
+  function handleOAuth(provider) {
+    if (submitting) return;
+    setSubmitting(true);
+    loginWithOAuth(provider)
+      .then((result) => {
+        if (result?.requiresVerification) {
+          goToVerifyEmail(result.email, result.message || 'Check your email to verify your account.');
+          return;
+        }
+        if (result?.approvalPending) {
+          toast('Admin approval is still pending.');
+          return;
+        }
+        toast('Logged in.');
+      })
+      .catch((error) => {
+        if (error.data?.requiresVerification) {
+          goToVerifyEmail(error.data.email, error.message);
+          return;
+        }
+        toast(error.message);
+      })
+      .finally(() => {
+        setSubmitting(false);
+      });
+  }
+
   async function handleLogout() {
     try {
       await logout();
@@ -116,6 +165,34 @@ export default function AuthPage() {
       toast(error.message);
     }
   }
+
+  const oauthSection = oauthProviders.length ? (
+    <div className="grid gap-3">
+      {oauthProviders.map((provider) => (
+        <Button
+          key={provider.name}
+          type="button"
+          id={`${provider.name}AuthButton`}
+          variant="outline"
+          size="lg"
+          className="w-full"
+          disabled={submitting}
+          onClick={() => handleOAuth(provider.name)}
+        >
+          {provider.name === 'google' ? <GoogleMark /> : null}
+          {submitting ? 'Continuing…' : `Continue with ${provider.displayName || provider.name}`}
+        </Button>
+      ))}
+      <div className="relative py-1">
+        <div className="absolute inset-0 flex items-center" aria-hidden="true">
+          <div className="w-full border-t border-border" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-card px-2 text-xs uppercase tracking-wide text-muted-foreground">or</span>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div
@@ -196,9 +273,12 @@ export default function AuthPage() {
             <>
               <CardHeader>
                 <CardTitle>Sign in</CardTitle>
-                <CardDescription>Use your email and password</CardDescription>
+                <CardDescription>
+                  {oauthProviders.length ? 'Use Google or your email and password' : 'Use your email and password'}
+                </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="grid gap-4">
+                {oauthSection}
                 <form id="loginForm" className="grid gap-4" onSubmit={handleLogin}>
                   <div className="grid gap-2">
                     <div className="flex items-baseline justify-between gap-2">
@@ -230,9 +310,14 @@ export default function AuthPage() {
             <>
               <CardHeader>
                 <CardTitle>Create account</CardTitle>
-                <CardDescription>You’ll verify email, then wait for admin approval</CardDescription>
+                <CardDescription>
+                  {oauthProviders.length
+                    ? 'Google skips email verification; admin approval still applies'
+                    : 'You’ll verify email, then wait for admin approval'}
+                </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="grid gap-4">
+                {oauthSection}
                 <form id="registerForm" className="grid gap-4" onSubmit={handleRegister}>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="grid gap-2">
@@ -292,6 +377,7 @@ export default function AuthPage() {
           )}
         </Card>
       )}
+      <LegalLinks className="mt-6" prefix="By continuing you agree to the" />
     </div>
   );
 }

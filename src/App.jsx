@@ -6,6 +6,7 @@ import { resolveSeo } from './lib/seo';
 import AuthPage from './pages/AuthPage';
 import HomePage from './pages/HomePage';
 import MePage from './pages/MePage';
+import LegalPage from './pages/LegalPage';
 import CategoriesPage from './pages/CategoriesPage';
 import CategoryDetailPage from './pages/CategoryDetailPage';
 import StoresPage from './pages/StoresPage';
@@ -17,6 +18,7 @@ import TransactionDetailPage from './pages/TransactionDetailPage';
 import DashboardPage from './pages/DashboardPage';
 import FilterPage from './pages/FilterPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
+import { LinkGoogleDialog } from './components/LinkGoogleDialog';
 
 function AdminRoute({ children }) {
   const { isAdmin } = useAuth();
@@ -44,6 +46,8 @@ function AppRoutes() {
       <Route path="/transactions/:id" element={<TransactionDetailPage />} />
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/filter" element={<FilterPage />} />
+      <Route path="/privacy" element={<LegalPage document="privacy" />} />
+      <Route path="/terms" element={<LegalPage document="terms" />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -53,16 +57,17 @@ export default function App() {
   const { user, ready, isApproved } = useAuth();
   const location = useLocation();
   const isVerifyEmail = location.pathname === '/verify-email';
+  const isLegalPage = location.pathname === '/privacy' || location.pathname === '/terms';
   const isPublicShare = isPublicTransactionShare(location.pathname, location.search);
   const showApp = Boolean(user && isApproved);
-  const showAuth = !showApp && !isVerifyEmail && !isPublicShare;
+  const showAuth = !showApp && !isVerifyEmail && !isPublicShare && !isLegalPage;
 
   useEffect(() => {
     const { title } = resolveSeo(location.pathname);
     document.title = title;
   }, [location.pathname]);
 
-  if (!ready && !isVerifyEmail && !isPublicShare) {
+  if (!ready && !isVerifyEmail && !isPublicShare && !isLegalPage) {
     return (
       <>
         <Header />
@@ -79,6 +84,16 @@ export default function App() {
       <>
         <Header />
         <VerifyEmailPage />
+      </>
+    );
+  }
+
+  if (isLegalPage) {
+    return (
+      <>
+        <Header />
+        <LegalPage document={location.pathname === '/privacy' ? 'privacy' : 'terms'} />
+        {user ? <LinkGoogleDialog /> : null}
       </>
     );
   }
@@ -106,6 +121,7 @@ export default function App() {
           <AppRoutes />
         </main>
       ) : null}
+      {user ? <LinkGoogleDialog /> : null}
     </>
   );
 }

@@ -48,6 +48,14 @@ export const seoConfig = {
     '/filter': {
       title: 'Filter',
       description: 'Pivot and filter Oikos transaction data to compare expenses across different dimensions.'
+    },
+    '/privacy': {
+      title: 'Privacy Policy',
+      description: 'How this Oikos site stores your account and expense data, and how Google sign-in is used.'
+    },
+    '/terms': {
+      title: 'Terms of Service',
+      description: 'Simple terms for using this Oikos site to track household spending.'
     }
   }
 };
