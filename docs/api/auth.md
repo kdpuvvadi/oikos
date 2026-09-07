@@ -1,6 +1,6 @@
 # Auth
 
-Helpers: `register`, `login`, `logout`, `getCurrentUser`, `updateProfile`, `requestVerification`, `verifyEmail`, `isVerificationTokenSpent`, `publicUser`.
+Helpers: `register`, `login`, `loginWithOAuth`, `linkOAuth`, `unlinkOAuth`, `getSignInMethods`, `listOAuthProviders`, `listLinkedAuthProviders`, `logout`, `getCurrentUser`, `updateProfile`, `requestVerification`, `verifyEmail`, `isVerificationTokenSpent`, `publicUser`.
 
 SPA pages: auth card on `/` when logged out; `/verify-email` for confirmation and resend.
 
@@ -45,6 +45,39 @@ On success:
 ```
 
 Approval-pending users remain in the auth store so the UI can show the waiting screen; business collection rules still require approval (or admin).
+
+## Google / OAuth — `loginWithOAuth(provider)` / `listOAuthProviders()`
+
+`listOAuthProviders()` calls PocketBase `users.listAuthMethods()` and returns `{ name, displayName }` for enabled OAuth2 providers. The auth page only shows **Continue with Google** when Google is enabled.
+
+`loginWithOAuth('google')` uses the SDK all-in-one popup (`authWithOAuth2`). Redirect URI registered with Google must be `{APP_PUBLIC_URL or PB_URL}/api/oauth2-redirect`.
+
+New Google users are created with `kind: 'user'`, `emailVisibility: true`, and **`approved: true`** (`pb_hooks/oauth.pb.js`, including `onRecordCreateRequest` when `@request.context` is `oauth2`). Google-confirmed emails are typically `verified: true`, so they skip `/verify-email` and enter the app without admin approval. Email/password signups remain unapproved until an admin allows them.
+
+Existing users with the same email are linked by PocketBase. After a **password** login, if Google is enabled and not linked, the SPA asks once to link it. Google logins do not show that prompt (Google is already in use). They can also link later under **Me**.
+
+Public policy pages (for Google’s OAuth consent screen): `/privacy`, `/terms`.
+
+Returns the same shape as password `login`, plus `isNew` when PocketBase created the record.
+
+## Sign-in methods — `getSignInMethods()` / `linkOAuth(provider)`
+
+`getSignInMethods()` returns how the signed-in user can log in:
+
+```js
+{
+  password: true,
+  oauth: [{ name: 'google', displayName: 'Google', linked: false }]
+}
+```
+
+Linked providers come from `_externalAuths` (`recordRef` = current user). The Me page shows **Email and password** as available and **Google** as Linked, or a **Link Google** button when the provider is enabled but not connected.
+
+`linkOAuth('google')` runs the same OAuth popup while the user is already signed in. PocketBase attaches the Google identity to the current record. If that Google account is already tied to a different user, the previous session is restored and the helper throws.
+
+`unlinkOAuth('google')` deletes the `_externalAuths` row. Used when the user declines the first-login link prompt after Google matched an existing account.
+
+SPA: `/me` → Sign-in.
 
 ## Current user — `getCurrentUser()`
 

@@ -43,7 +43,7 @@ err.isAbort  // request aborted
 
 ## Modules
 
-- [Auth](./auth.md) — register, login, verify, profile
+- [Auth](./auth.md) — register, login, Google OAuth, verify, profile
 - [Transactions](./transactions.md) — CRUD + list filters
 - [Reference data & users](./reference-data.md) — categories, stores, payment methods, approvals
 - [Aggregates & app info](./system.md) — home totals, summary, version, public shared transaction
