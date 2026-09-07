@@ -32,7 +32,7 @@
 |-------|------------|
 | UI | React 19, Vite 8, React Router, Tailwind CSS 4, shadcn/ui |
 | Data | PocketBase (JS SDK `pocketbase`) |
-| Auth | PocketBase auth store (browser); session hint cookie `oikos_session` |
+| Auth | PocketBase auth store (browser); email/password + optional Google OAuth; session hint cookie `oikos_session` |
 | Email | PocketBase mailer → optional ZeptoMail HTTPS hook |
 | Jobs | PocketBase JSVM cron (`pb_hooks/`) |
 | Deploy | Single Docker image (`Dockerfile`) + Compose |
@@ -72,11 +72,13 @@ There is **no Express server**. The browser talks to PocketBase directly via [`s
 1. **Register** — creates user with `approved: false`, sends verification email
 2. **Verify** — link opens `/verify-email?token=…` (spent tokens treated as already verified for UX)
 3. **Sign in** — requires `verified === true`; otherwise user is sent to verify-email
-4. **Admin approval** — verified but not approved users see an approval-pending screen; main app unlocks when `kind === 'admin'` or `approved && verified`
+4. **Google OAuth** (optional) — **Continue with Google** when the provider is enabled on `users`; new Google accounts are auto-approved (email/password signups still need admin approval)
+5. **Admin approval** — verified but not approved users see an approval-pending screen; main app unlocks when `kind === 'admin'` or `approved && verified`
 
 ### Preferences (Me)
 
 - Name, email, email visibility
+- Sign-in methods (email/password; optional **Link Google**)
 - Transaction page size
 - **Weekly digest** — on by default; opt out with the switch (`weeklyDigestOptOut`)
 
@@ -113,13 +115,14 @@ PocketBase (:8090)
 |------|--------|
 | `/` | Home / expense entry (auth page when logged out) |
 | `/verify-email` | Token confirm or “check inbox” + resend |
+| `/privacy`, `/terms` | Public privacy policy and terms (also used for Google OAuth consent URLs) |
 | `/me` | Profile & preferences |
 | `/transactions`, `/transactions/:id` | History & detail |
 | `/dashboard`, `/filter` | Analytics |
 | `/categories`, `/categories/:id` | Admin |
 | `/stores`, `/payment-methods`, `/users` | Admin |
 
-`/verify-email` is rendered outside the main approved-app shell (`App.jsx`).
+`/verify-email`, `/privacy`, and `/terms` are rendered outside the main approved-app shell (`App.jsx`).
 
 ### Data flow
 
@@ -240,6 +243,10 @@ Setup also seeds common categories, stores, and payment methods.
 
 `GET /api/oikos/shared-transactions/{id}?key=…` — public read of a transaction when `shareKey` matches.
 
+### OAuth signup — `pb_hooks/oauth.pb.js`
+
+`onRecordAuthWithOAuth2Request` / `onRecordCreateRequest` / `onRecordAuthRequest` (`oauth.pb.js`, `oauth-approve.pb.js`): OAuth signups and later Google sign-ins are `kind=user` and **auto-approved**. `firstName` / `lastName` are copied from the provider profile when missing. Email/password signups stay unapproved.
+
 ### ZeptoMail — `pb_hooks/zeptomail.pb.js`
 
 `onMailerSend`: if `ZEPTO_MAIL_API_KEY` and `ZEPTO_MAIL_FROM_ADDRESS` are set, POST to ZeptoMail; otherwise `e.next()` (SMTP/sendmail).
@@ -260,7 +267,7 @@ Setup also seeds common categories, stores, and payment methods.
 npm run dev                 # Vite
 npm run build               # dist/
 npm run preview             # preview build
-npm run setup:pocketbase    # schema + seeds + mail templates
+npm run setup:pocketbase    # schema + seeds + mail templates + Google OAuth when env is set
 npm run make:admin          # promote user to kind=admin, approved
 npm run check               # syntax-check scripts
 ```
@@ -272,7 +279,7 @@ npm run check               # syntax-check scripts
 1. Build/push the image from [`Dockerfile`](../Dockerfile) (Vite → `pb_public`, copy `pb_hooks`).
 2. Run with Compose or your host; mount `pb_data` for persistence.
 3. Set `APP_PUBLIC_URL` and Zepto (or SMTP) env vars.
-4. Run `setup:pocketbase` against the public/admin URL from a machine with Node.
+4. Run `setup:pocketbase` against the public/admin URL from a machine with Node (include `GOOGLE_OAUTH_*` to enable Google sign-in).
 5. Healthcheck: `GET /api/health` on PocketBase.
 
 Compose publishes `${APP_PORT:-8090}:8090` and passes `APP_PUBLIC_URL`, Zepto vars, and `WEEKLY_DIGEST_CRON`.
@@ -290,3 +297,5 @@ Compose publishes `${APP_PORT:-8090}:8090` and passes `APP_PUBLIC_URL`, Zepto va
 | No weekly digests | User opted out; not verified/approved; cron/logs; mail config |
 | Schema errors after upgrade | `npm run setup:pocketbase` |
 | Vite can’t reach PB | `VITE_PB_URL` in `.env` for local dev |
+| No Google button | Provider not enabled — set `GOOGLE_OAUTH_*` and re-run setup, or enable Google under Admin → users → OAuth2 |
+| Google redirect error | Redirect URI must be `{PB URL}/api/oauth2-redirect` (not the Vite origin). Register both `localhost` and `127.0.0.1` if you use both |

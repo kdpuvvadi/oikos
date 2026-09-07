@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import {
   getCurrentUser,
   login as apiLogin,
+  loginWithOAuth as apiLoginWithOAuth,
+  linkOAuth as apiLinkOAuth,
   register as apiRegister,
   logout as apiLogout,
   updateProfile,
@@ -9,6 +11,7 @@ import {
   pb
 } from '../lib/api';
 import { isApprovedUser } from '../lib/transactions';
+import { clearAuthEvent, markAuthEvent } from '../lib/googleLinkPrompt';
 
 const authHintCookieName = 'oikos_session';
 const AuthContext = createContext(null);
@@ -42,6 +45,7 @@ export function AuthProvider({ children, onAuthCleared }) {
 
   const clearAuth = useCallback(() => {
     pb.authStore.clear();
+    clearAuthEvent();
     setUser(null);
     setPendingVerificationEmail('');
     onAuthCleared?.();
@@ -79,10 +83,31 @@ export function AuthProvider({ children, onAuthCleared }) {
     const result = await apiLogin(data);
     if (result.requiresVerification) return result;
     setPendingVerificationEmail('');
+    markAuthEvent({ method: 'password', isNew: false, userId: result.user?.id });
     setUser(result.user);
     onAuthCleared?.();
     return result;
   }, [onAuthCleared, setUser]);
+
+  const loginWithOAuth = useCallback(async (provider) => {
+    const result = await apiLoginWithOAuth(provider);
+    if (result.requiresVerification) return result;
+    setPendingVerificationEmail('');
+    markAuthEvent({
+      method: provider,
+      isNew: Boolean(result.isNew),
+      userId: result.user?.id
+    });
+    setUser(result.user);
+    onAuthCleared?.();
+    return result;
+  }, [onAuthCleared, setUser]);
+
+  const linkOAuth = useCallback(async (provider) => {
+    const result = await apiLinkOAuth(provider);
+    if (result.user) setUser(result.user);
+    return result;
+  }, [setUser]);
 
   const register = useCallback(async (data) => {
     const result = await apiRegister(data);
@@ -121,6 +146,8 @@ export function AuthProvider({ children, onAuthCleared }) {
     setUser,
     refreshUser,
     login,
+    loginWithOAuth,
+    linkOAuth,
     register,
     logout,
     saveProfile
@@ -133,6 +160,8 @@ export function AuthProvider({ children, onAuthCleared }) {
     setUser,
     refreshUser,
     login,
+    loginWithOAuth,
+    linkOAuth,
     register,
     logout,
     saveProfile

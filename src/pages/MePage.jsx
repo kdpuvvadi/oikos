@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { requestVerification } from '@/lib/api';
+import { getSignInMethods, requestVerification } from '@/lib/api';
 import { TRANSACTION_PAGE_SIZE_OPTIONS } from '@/lib/format';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
@@ -12,6 +12,7 @@ import {
 } from '@/lib/transactions';
 import { PageHeader } from '@/components/PageHeader';
 import { UserAvatar } from '@/components/UserAvatar';
+import { GoogleMark } from '@/components/GoogleMark';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -24,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Switch } from '@/components/ui/switch';
+import { StatusPill } from '@/components/StatusPill';
 
 function DetailRow({ label, children }) {
   return (
@@ -38,6 +40,7 @@ export default function MePage() {
   const {
     user,
     saveProfile,
+    linkOAuth,
     pendingVerificationEmail,
     setPendingVerificationEmail
   } = useAuth();
@@ -48,6 +51,8 @@ export default function MePage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [signInMethods, setSignInMethods] = useState({ password: true, oauth: [] });
+  const [linkingProvider, setLinkingProvider] = useState('');
   const avatarInputRef = useRef(null);
 
   useEffect(() => {
@@ -60,6 +65,19 @@ export default function MePage() {
     setLastName(user.lastName || '');
     setEmail(user.email || '');
   }, [user]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    void getSignInMethods().then((methods) => {
+      if (!cancelled) setSignInMethods(methods);
+    }).catch(() => {
+      if (!cancelled) setSignInMethods({ password: true, oauth: [] });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   if (!user) {
     return (
@@ -164,6 +182,22 @@ export default function MePage() {
     }
   }
 
+  function handleLinkOAuth(provider) {
+    if (linkingProvider) return;
+    setLinkingProvider(provider);
+    linkOAuth(provider)
+      .then((result) => {
+        if (result?.methods) setSignInMethods(result.methods);
+        toast('Google account linked.');
+      })
+      .catch((error) => {
+        toast(error.message);
+      })
+      .finally(() => {
+        setLinkingProvider('');
+      });
+  }
+
   const versionDetails = [
     appVersion ? `Version: ${appVersion}` : '',
     appBranch ? `Branch: ${appBranch}` : '',
@@ -217,6 +251,52 @@ export default function MePage() {
 
   const sharedRows = (
     <>
+      <DetailRow label="Sign-in">
+        <div className="grid gap-3" data-sign-in-methods>
+          {signInMethods.password ? (
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-medium">Email and password</p>
+                <p className="text-sm text-muted-foreground">
+                  Sign in with the email and password for this account.
+                </p>
+              </div>
+              <StatusPill>Available</StatusPill>
+            </div>
+          ) : null}
+          {signInMethods.oauth.map((provider) => (
+            <div key={provider.name} className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 font-medium">
+                  {provider.name === 'google' ? <GoogleMark /> : null}
+                  {provider.displayName || provider.name}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {provider.linked
+                    ? `You can sign in with ${provider.displayName || provider.name}.`
+                    : `Link ${provider.displayName || provider.name} to sign in without your password.`}
+                </p>
+              </div>
+              {provider.linked ? (
+                <StatusPill>Linked</StatusPill>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-link-oauth={provider.name}
+                  disabled={Boolean(linkingProvider)}
+                  onClick={() => handleLinkOAuth(provider.name)}
+                >
+                  {linkingProvider === provider.name
+                    ? 'Linking…'
+                    : `Link ${provider.displayName || provider.name}`}
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      </DetailRow>
       <DetailRow label="Transaction page size">
         <NativeSelect
           data-transaction-page-size
