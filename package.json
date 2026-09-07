@@ -1,6 +1,6 @@
 {
   "name": "oikos",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Oikos, a PocketBase-backed expenses management app.",
   "type": "module",
   "scripts": {
@@ -25,7 +25,6 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2",
-    "shadcn": "^4.16.2",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.3",
@@ -33,6 +32,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.5",
+    "shadcn": "^4.21.0",
     "vite": "^8.2.1"
   }
 }
